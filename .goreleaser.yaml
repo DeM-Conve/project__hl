@@ -43,7 +43,7 @@ snapshot:
 
 changelog:
   use: git
-  sort: asc
+  abbrev: 7
   filters:
     exclude:
       - "^docs:"
