@@ -15,10 +15,8 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/version"
 )
-
-// Version is set at build time (-ldflags "-X .../cli.Version=v1.2.3").
-var Version = "dev"
 
 var homeFlag string
 
@@ -41,15 +39,16 @@ app's data (data/<app>/).
   hl init ~/homelab           create the homelab folder
   hl add ~/code/my-app        add an app (its folder, with a compose file)
   hl up                       start everything; hl status shows the URLs`,
-		Version:       Version,
+		Version:       version.Get().Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	c.SetVersionTemplate(version.Get().String() + "\n")
 	c.PersistentFlags().StringVar(&homeFlag, "home", "", "homelab folder (default: $HL_HOME, the nearest folder with an hl.yml, or the one from `hl init`)")
 	c.AddCommand(initCmd(), addCmd(), removeCmd(), statusCmd(),
 		upCmd(), downCmd(), restartCmd(), rebuildCmd(), updateCmd(),
 		logsCmd(), psCmd(), openCmd(), shellCmd(), configCmd(), pathCmd(),
-		proxyCmd(), doctorCmd())
+		proxyCmd(), doctorCmd(), versionCmd())
 	return c
 }
 
@@ -650,6 +649,17 @@ func doctorCmd() *cobra.Command {
 				return fmt.Errorf("%d problem(s)", bad)
 			}
 			return nil
+		},
+	}
+}
+
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print hl's version, commit and build date",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Fprintln(cmd.OutOrStdout(), version.Get())
 		},
 	}
 }

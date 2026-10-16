@@ -121,6 +121,7 @@ then the app's `env_files`, then the shared `env`, then the app's `env`.
 | `path [app]` | the app's folder, or the homelab folder |
 | `proxy up\|down\|logs` | the proxy on its own |
 | `doctor` | check docker, the config and every app |
+| `version` | version, commit and build date (also `--version`) |
 | `completion bash\|zsh\|fish` | shell completion, e.g. `source <(hl completion bash)` |
 
 The Traefik dashboard is at `http://traefik.<domain>`.

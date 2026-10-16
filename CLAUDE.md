@@ -7,6 +7,7 @@ Traefik proxy. Nothing here may be specific to one person's homelab. See README.
 - `internal/compose`: runs `docker compose` and reads the resolved model (`config --format json`)
 - `internal/gen`: the generated override per app and the proxy's compose file
 - `internal/cli`: the commands (cobra)
+- `internal/version`: version, commit and build date (ldflags, else the Go build info)
 
 Check with `gofmt -l .`, `go vet ./...` and `go test ./...`.
 
