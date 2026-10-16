@@ -1,5 +1,9 @@
 # hl
 
+[![ci](https://github.com/DeM-Conve/project__hl/actions/workflows/ci.yml/badge.svg)](https://github.com/DeM-Conve/project__hl/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/DeM-Conve/project__hl)](https://github.com/DeM-Conve/project__hl/releases/latest)
+[![license](https://img.shields.io/github/license/DeM-Conve/project__hl)](LICENSE)
+
 Run your self-hosted apps behind one proxy. Each app is a folder with its own
 `docker compose` file. hl doesn't change those files: it puts the app behind
 [Traefik](https://traefik.io), stores its data in your homelab folder, and gives
@@ -22,12 +26,38 @@ tracker  up 3/3       http://localhost/tracker/  /home/me/code/tracker
 
 ## Install
 
+hl runs on Linux and macOS, and needs Docker with the compose plugin, v2.24 or newer.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh
+```
+
+The script downloads the latest release for your OS and CPU, checks it against the release's
+`checksums.txt`, and installs `hl` to `~/.local/bin`. For a given release or another folder, set
+`HL_VERSION` or `HL_INSTALL_DIR` for `sh`; it uses sudo only if that folder needs it:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | HL_VERSION=v0.1.0 HL_INSTALL_DIR=/usr/local/bin sh
+```
+
+Or, with Go:
+
 ```sh
 go install github.com/DeM-Conve/project__hl/cmd/hl@latest
 ```
 
-hl needs Docker with the compose plugin, v2.24 or newer. Run `hl doctor` to check
-your setup.
+Or download the archive for your platform from
+[Releases](https://github.com/DeM-Conve/project__hl/releases), check it with
+`sha256sum -c --ignore-missing checksums.txt`, and put `hl` on your PATH.
+
+Then run `hl doctor` to check your setup.
+
+### Uninstall
+
+Run `hl down` to stop everything, then delete the binary (`rm "$(command -v hl)"`)
+and hl's note of the default homelab (`~/.config/hl`, on macOS
+`~/Library/Application Support/hl`). The homelab folder, with `hl.yml` and every app's data,
+stays until you delete it.
 
 ## How it works
 
@@ -132,3 +162,6 @@ The Traefik dashboard is at `http://traefik.<domain>`.
 go test ./...
 go build -o hl ./cmd/hl
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security problems: [SECURITY.md](SECURITY.md).
+hl is MIT licensed.
