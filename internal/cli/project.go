@@ -47,33 +47,8 @@ func project(cfg *config.Config, name string, a *config.App) (*compose.Project, 
 		Dir:      dir,
 		Files:    files,
 		EnvFiles: envFiles,
-		Env:      appEnv(cfg, name, a),
+		Env:      cfg.AppEnv(name, a),
 	}, nil
-}
-
-// appEnv is what the app's compose files can interpolate: the HL_* values
-// and the app's settings from hl.yml, which may use them.
-func appEnv(cfg *config.Config, name string, a *config.App) []string {
-	hl := map[string]string{
-		"HL_APP":    name,
-		"HL_URL":    cfg.URL(name, a),
-		"HL_PREFIX": cfg.Prefix(name, a),
-		"HL_HOST":   cfg.Host(name, a),
-		"HL_DATA":   cfg.DataDir(name),
-	}
-	env := make([]string, 0, len(hl)+len(a.Env))
-	for _, k := range []string{"HL_APP", "HL_URL", "HL_PREFIX", "HL_HOST", "HL_DATA"} {
-		env = append(env, k+"="+hl[k])
-	}
-	for k, v := range a.Env {
-		env = append(env, k+"="+os.Expand(v, func(key string) string {
-			if v, ok := hl[key]; ok {
-				return v
-			}
-			return os.Getenv(key)
-		}))
-	}
-	return env
 }
 
 // prepared is the app's project with hl's override written and layered on,

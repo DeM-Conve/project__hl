@@ -81,6 +81,9 @@ proxy:
   # subnet: 172.31.0.0/16  # fixed, so apps can trust the proxy by address
   # image: traefik:v3.6
 
+env:                     # passed to every app; an app's own env wins
+  TZ: Europe/Berlin
+
 apps:
   my-app:
     path: ~/code/my-app  # absolute, ~, or relative to the homelab folder
@@ -95,7 +98,7 @@ apps:
 ```
 
 Settings reach the app's compose file in this order, later ones winning: the app's own `.env`,
-then `env_files`, then `env`.
+then the app's `env_files`, then the shared `env`, then the app's `env`.
 
 ## Commands
 

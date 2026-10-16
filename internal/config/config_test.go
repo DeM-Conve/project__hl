@@ -97,3 +97,39 @@ func TestAddAndRemoveKeepComments(t *testing.T) {
 		t.Fatalf("apps after remove: %+v", c.Apps)
 	}
 }
+
+func TestEnv(t *testing.T) {
+	t.Setenv("HL_TEST_SHELL", "from-shell")
+	dir := write(t, `
+env: {TZ: Asia/Kolkata, SHARED: base}
+apps:
+  blog:
+    path: blog
+    env:
+      SHARED: own
+      BASE_PATH: ${HL_PREFIX}
+      URL: ${HL_URL}/
+      DATA: ${HL_DATA}/db
+      FROM_SHELL: ${HL_TEST_SHELL}
+`)
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Later entries win, as in exec.Cmd.Env.
+	got := map[string]string{}
+	for _, kv := range c.AppEnv("blog", c.Apps["blog"]) {
+		k, v, _ := strings.Cut(kv, "=")
+		got[k] = v
+	}
+	want := map[string]string{
+		"HL_APP": "blog", "HL_PREFIX": "/blog", "HL_URL": "http://localhost/blog",
+		"TZ": "Asia/Kolkata", "SHARED": "own", "BASE_PATH": "/blog", "URL": "http://localhost/blog/",
+		"DATA": filepath.Join(dir, "data", "blog", "db"), "FROM_SHELL": "from-shell",
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q", k, got[k], v)
+		}
+	}
+}

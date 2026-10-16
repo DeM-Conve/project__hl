@@ -28,8 +28,10 @@ const (
 )
 
 type Config struct {
-	Proxy Proxy           `yaml:"proxy"`
-	Apps  map[string]*App `yaml:"apps"`
+	Proxy Proxy `yaml:"proxy"`
+	// Settings passed to every app (e.g. TZ); an app's own env wins.
+	Env  map[string]string `yaml:"env,omitempty"`
+	Apps map[string]*App   `yaml:"apps"`
 
 	// Dir is the homelab folder hl.yml was read from.
 	Dir string `yaml:"-"`
@@ -241,6 +243,45 @@ func (c *Config) StateDir(name string) string { return filepath.Join(c.Dir, ".hl
 // ProxyDir holds the proxy's generated compose file.
 func (c *Config) ProxyDir() string { return filepath.Join(c.Dir, ".hl", "proxy") }
 
+// hlVars are the values an app's settings can refer to, in a fixed order.
+var hlVars = []string{"HL_APP", "HL_URL", "HL_PREFIX", "HL_HOST", "HL_DATA"}
+
+// AppEnv is what the app's compose files can interpolate, as KEY=VALUE: the
+// HL_* values, then the shared env, then the app's own (later ones win).
+// Values may refer to HL_* and to the shell's environment as ${NAME}.
+func (c *Config) AppEnv(name string, a *App) []string {
+	hl := map[string]string{
+		"HL_APP":    name,
+		"HL_URL":    c.URL(name, a),
+		"HL_PREFIX": c.Prefix(name, a),
+		"HL_HOST":   c.Host(name, a),
+		"HL_DATA":   c.DataDir(name),
+	}
+	expand := func(v string) string {
+		return os.Expand(v, func(key string) string {
+			if v, ok := hl[key]; ok {
+				return v
+			}
+			return os.Getenv(key)
+		})
+	}
+	env := make([]string, 0, len(hl)+len(c.Env)+len(a.Env))
+	for _, k := range hlVars {
+		env = append(env, k+"="+hl[k])
+	}
+	for _, m := range []map[string]string{c.Env, a.Env} {
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			env = append(env, k+"="+expand(m[k]))
+		}
+	}
+	return env
+}
+
 // EnvFiles are the app's extra env files as absolute paths.
 func (c *Config) EnvFiles(a *App) []string {
 	files := make([]string, 0, len(a.EnvFiles))
@@ -336,6 +377,10 @@ proxy:
   # host: apps at http://<app>.<domain> (works with any app)
   routing: path
   domain: localhost
+
+# Settings passed to every app, e.g. the time zone. An app's own env wins.
+# env:
+#   TZ: Europe/Berlin
 
 # Added with ` + "`hl add <folder>`" + `. Per app you can set: routing, prefix, host,
 # service, port, compose, env_files and env (see README).
