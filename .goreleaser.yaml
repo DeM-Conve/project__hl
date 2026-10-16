@@ -1,0 +1,80 @@
+# Release builds. Run by .github/workflows/release.yml on a v* tag.
+# Try it locally: goreleaser release --snapshot --clean (writes dist/).
+version: 2
+
+project_name: hl
+
+before:
+  hooks:
+    - go test ./...
+
+builds:
+  - id: hl
+    main: ./cmd/hl
+    binary: hl
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/DeM-Conve/project__hl/internal/version.Version=v{{ .Version }}
+      - -X github.com/DeM-Conve/project__hl/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/DeM-Conve/project__hl/internal/version.Date={{ .Date }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: hl
+    formats: [tar.gz]
+    # hl_0.1.0_linux_amd64.tar.gz; install.sh relies on this name.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: DeM-Conve
+    name: project__hl
+  draft: false
+  prerelease: auto
+
+# Homebrew: off until the tap repo github.com/DeM-Conve/homebrew-tap exists.
+# To turn it on: create that repo, add a token that can push to it as the
+# HOMEBREW_TAP_TOKEN secret, pass it to goreleaser in release.yml, and
+# uncomment this. `brew install DeM-Conve/tap/hl` then installs hl.
+# homebrew_casks:
+#   - name: hl
+#     repository:
+#       owner: DeM-Conve
+#       name: homebrew-tap
+#       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+#     directory: Casks
+#     homepage: https://github.com/DeM-Conve/project__hl
+#     description: Run self-hosted apps behind one proxy, each from its own folder
+#     license: MIT
+#     hooks:
+#       post:
+#         # The binary isn't notarized; let macOS run it.
+#         install: |
+#           if OS.mac?
+#             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hl"]
+#           end
