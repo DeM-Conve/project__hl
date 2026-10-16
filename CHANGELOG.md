@@ -18,8 +18,9 @@ All notable changes to hl are listed here. The format follows
 - Apps run unmodified: hl layers a generated compose override on top (`hl config <app>`).
 - Shared `env` for every app, per-app `env` and `env_files`, and `${HL_URL}`, `${HL_PREFIX}`,
   `${HL_HOST}`, `${HL_DATA}`, `${HL_APP}` for an app's settings.
-- Commands: `status`/`ls`, `up`, `down`, `restart`, `rebuild`, `update`, `logs`, `ps`, `open`,
-  `shell`, `config`, `path`, `proxy up|down|logs`, `doctor`, `version` and shell `completion`.
+- Commands: `status`/`ls`, `up`/`start`, `down`/`stop`, `restart`, `rebuild`, `update`, `logs`,
+  `ps`, `open`, `shell`, `config`, `path`, `proxy up|down|logs`, `doctor`, `version` and shell
+  `completion`.
 - Release archives for Linux and macOS (amd64, arm64) with checksums, and `install.sh`.
 
 [Unreleased]: https://github.com/DeM-Conve/project__hl/commits/main
