@@ -13,6 +13,7 @@ package version
 import (
 	"fmt"
 	"runtime/debug"
+	"strings"
 )
 
 // Set at build time; "dev" and "unknown" when not.
@@ -54,7 +55,18 @@ func resolve(i Info, bi *debug.BuildInfo) Info {
 	return i
 }
 
-// String is the one line `hl version` prints.
+// String is the one line `hl version` prints; commit and date only when known
+// (`go install ...@version` builds carry neither).
 func (i Info) String() string {
-	return fmt.Sprintf("hl %s (commit %s, built %s)", i.Version, i.Commit, i.Date)
+	var extra []string
+	if i.Commit != "unknown" {
+		extra = append(extra, "commit "+i.Commit)
+	}
+	if i.Date != "unknown" {
+		extra = append(extra, "built "+i.Date)
+	}
+	if len(extra) == 0 {
+		return "hl " + i.Version
+	}
+	return fmt.Sprintf("hl %s (%s)", i.Version, strings.Join(extra, ", "))
 }

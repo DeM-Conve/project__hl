@@ -40,3 +40,12 @@ func TestString(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+func TestStringOmitsUnknown(t *testing.T) {
+	if got := (Info{"v0.1.0", "unknown", "unknown"}).String(); got != "hl v0.1.0" {
+		t.Errorf("got %q", got)
+	}
+	if got := (Info{"dev", "abc", "unknown"}).String(); got != "hl dev (commit abc)" {
+		t.Errorf("got %q", got)
+	}
+}
