@@ -1,6 +1,5 @@
 # hl
 
-[![ci](https://github.com/DeM-Conve/project__hl/actions/workflows/ci.yml/badge.svg)](https://github.com/DeM-Conve/project__hl/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/DeM-Conve/project__hl)](https://github.com/DeM-Conve/project__hl/releases/latest)
 [![license](https://img.shields.io/github/license/DeM-Conve/project__hl)](LICENSE)
 

@@ -12,11 +12,11 @@ You need Go (the version in `go.mod`) and, to try it for real, Docker with the c
 ```sh
 go build -o hl ./cmd/hl
 go test ./...
-gofmt -l . && go vet ./...      # CI fails on either
+gofmt -l . && go vet ./...      # both must be clean
 shellcheck install.sh           # if you touch the installer
 ```
 
-CI runs the same checks, plus `go test -race` and `goreleaser check`.
+Run them before you open a pull request.
 
 ## Commits and pull requests
 
@@ -31,8 +31,9 @@ Releases are built by [GoReleaser](https://goreleaser.com) from a version tag:
 
 1. Move the `Unreleased` entries in CHANGELOG.md under the new version and date, and commit.
 2. Tag and push: `git tag -a v0.2.0 -m v0.2.0 && git push origin v0.2.0`.
-3. The release workflow builds the archives for Linux and macOS (amd64, arm64), writes
-   `checksums.txt` and publishes a GitHub release with them.
+3. Build and publish: `GITHUB_TOKEN=$(gh auth token) goreleaser release --clean`. It builds the
+   archives for Linux and macOS (amd64, arm64), writes `checksums.txt` and publishes a GitHub
+   release with them.
 
 To see what a release would contain without publishing anything:
 `goreleaser release --snapshot --clean` (output in `dist/`).

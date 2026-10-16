@@ -1,4 +1,4 @@
-# Release builds. Run by .github/workflows/release.yml on a v* tag.
+# Release builds, run from a v* tag: GITHUB_TOKEN=$(gh auth token) goreleaser release --clean
 # Try it locally: goreleaser release --snapshot --clean (writes dist/).
 version: 2
 
