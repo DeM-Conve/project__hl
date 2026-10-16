@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -76,13 +77,65 @@ func targets(cfg *config.Config, args []string) ([]string, error) {
 	return args, nil
 }
 
-// completeApps completes app names from hl.yml.
+// completeApps completes app names from hl.yml, leaving out the ones already typed.
 func completeApps(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	cfg, err := load()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	return cfg.Names(), cobra.ShellCompDirectiveNoFileComp
+	return without(cfg.Names(), args), cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeApp completes one app name: the command's only argument.
+func completeApp(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return completeApps(cmd, args, toComplete)
+}
+
+// completeAppServices completes an app name, then that app's services.
+func completeAppServices(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) == 0 {
+		return completeApps(cmd, args, toComplete)
+	}
+	cfg, err := load()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	a, err := cfg.App(args[0])
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	p, err := project(cfg, args[0], a)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	m, err := p.Model()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	services := make([]string, 0, len(m.Services))
+	for s := range m.Services {
+		services = append(services, s)
+	}
+	sort.Strings(services)
+	return without(services, args[1:]), cobra.ShellCompDirectiveNoFileComp
+}
+
+// without is names minus the ones in typed.
+func without(names, typed []string) []string {
+	seen := map[string]bool{}
+	for _, t := range typed {
+		seen[t] = true
+	}
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		if !seen[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 func initCmd() *cobra.Command {
@@ -210,7 +263,7 @@ func removeCmd() *cobra.Command {
 		Use:               "remove <app>",
 		Short:             "Stop an app and remove it from hl.yml; its data stays in data/<app>",
 		Args:              cobra.ExactArgs(1),
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeApp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
 			if err != nil {
@@ -280,8 +333,10 @@ func eachApp(use, short string, needProxy bool, compose func(name string) []stri
 }
 
 func upCmd() *cobra.Command {
-	return eachApp("up", "Start apps (all by default); builds images that don't exist yet", true,
+	c := eachApp("up", "Start apps (all by default); builds images that don't exist yet", true,
 		func(string) []string { return []string{"up", "--detach"} }, printStatus)
+	c.Aliases = []string{"start"}
+	return c
 }
 
 func rebuildCmd() *cobra.Command {
@@ -297,6 +352,7 @@ func restartCmd() *cobra.Command {
 func downCmd() *cobra.Command {
 	c := eachApp("down", "Stop and remove apps' containers; data stays. With no app, also stops the proxy", false,
 		func(string) []string { return []string{"down"} }, nil)
+	c.Aliases = []string{"stop"}
 	run := c.RunE
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		if err := run(cmd, args); err != nil {
@@ -440,7 +496,7 @@ func logsCmd() *cobra.Command {
 		Use:               "logs <app> [service...]",
 		Short:             "Show an app's logs",
 		Args:              cobra.MinimumNArgs(1),
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeAppServices,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := appProject(args[0])
 			if err != nil {
@@ -462,7 +518,7 @@ func psCmd() *cobra.Command {
 		Use:               "ps [app]",
 		Short:             "List containers (of one app, or of the whole homelab)",
 		Args:              cobra.MaximumNArgs(1),
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeApp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
 				p, err := appProject(args[0])
@@ -492,7 +548,7 @@ func openCmd() *cobra.Command {
 		Use:               "open <app>",
 		Short:             "Print an app's URL and open it in the browser",
 		Args:              cobra.ExactArgs(1),
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeApp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
 			if err != nil {
@@ -526,7 +582,7 @@ func shellCmd() *cobra.Command {
 		Use:               "shell <app> [service]",
 		Short:             "Open a shell in an app's container (default: the service behind the proxy)",
 		Args:              cobra.RangeArgs(1, 2),
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeAppServices,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
 			if err != nil {
@@ -553,7 +609,7 @@ func configCmd() *cobra.Command {
 		Use:               "config <app>",
 		Short:             "Show an app's compose config as hl runs it (its own files + hl's override)",
 		Args:              cobra.ExactArgs(1),
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeApp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := appProject(args[0])
 			if err != nil {
@@ -569,7 +625,7 @@ func pathCmd() *cobra.Command {
 		Use:               "path [app]",
 		Short:             "Print an app's folder, or with no app the homelab folder  (cd \"$(hl path my-app)\")",
 		Args:              cobra.MaximumNArgs(1),
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeApp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
 			if err != nil {
