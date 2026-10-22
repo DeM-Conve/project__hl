@@ -59,7 +59,7 @@ release:
 
 # Homebrew: off until the tap repo github.com/DeM-Conve/homebrew-tap exists.
 # To turn it on: create that repo, add a token that can push to it as the
-# HOMEBREW_TAP_TOKEN secret, pass it to goreleaser in release.yml, and
+# HOMEBREW_TAP_TOKEN environment variable when running goreleaser, and
 # uncomment this. `brew install DeM-Conve/tap/hl` then installs hl.
 # homebrew_casks:
 #   - name: hl

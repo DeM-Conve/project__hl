@@ -16,7 +16,9 @@ gofmt -l . && go vet ./...      # both must be clean
 shellcheck install.sh           # if you touch the installer
 ```
 
-Run them before you open a pull request.
+There is no CI, so run them before you open a pull request. How hl works inside is described in
+[docs/architecture.md](docs/architecture.md), and the decisions behind it in
+[docs/requirements.md](docs/requirements.md).
 
 ## Commits and pull requests
 

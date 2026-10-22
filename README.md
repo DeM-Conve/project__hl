@@ -61,7 +61,8 @@ stays until you delete it.
 ## How it works
 
 - **The homelab folder** holds `hl.yml` (the proxy and the apps), `data/` (every app's data) and
-  `.hl/` (files hl generates). `hl init` makes it the default; `--home` or `$HL_HOME` pick another.
+  `.hl/` (files hl generates). hl uses, in this order: `--home`, `$HL_HOME`, the nearest folder
+  at or above the current one that has an `hl.yml`, and the default that `hl init` set.
 - **An app** is any folder with a compose file. `hl add` finds the service that publishes a port,
   and saves it to `hl.yml`. The proxy forwards to that service, which no longer publishes a host
   port. Each app runs as its own compose project, `hl-<app>`.
@@ -137,12 +138,12 @@ then the app's `env_files`, then the shared `env`, then the app's `env`.
 | `add <folder>` | add an app (`--name`, `--routing`, `--prefix`, `--host`, `--service`, `--port`, `--compose`) |
 | `remove <app>` | stop an app and remove it from hl.yml; its data stays |
 | `status`, `ls` | the proxy, every app's state and URL |
-| `up [app...]` | start apps (all by default), proxy first |
-| `down [app...]` | stop apps; with no app also the proxy. Data stays |
+| `up [app...]`, `start` | start apps (all by default), proxy first |
+| `down [app...]`, `stop` | stop apps; with no app also the proxy. Data stays |
 | `restart [app...]` | restart without rebuilding |
 | `rebuild [app...]` | rebuild images from the apps' current code |
 | `update [app...]` | `git pull --ff-only` each app's folder (skips uncommitted changes), then rebuild |
-| `logs <app> [service] [-f]` | logs |
+| `logs <app> [service...] [-f]` | the last 200 lines of logs; `-f` follows |
 | `ps [app]` | containers |
 | `open <app>` | print the URL and open it in the browser |
 | `shell <app> [service]` | shell in a container (default: the service behind the proxy) |
@@ -153,7 +154,8 @@ then the app's `env_files`, then the shared `env`, then the app's `env`.
 | `version` | version, commit and build date (also `--version`) |
 | `completion bash\|zsh\|fish` | shell completion, e.g. `source <(hl completion bash)` |
 
-The Traefik dashboard is at `http://traefik.<domain>`.
+The Traefik dashboard is at `http://traefik.<domain>`. Output is coloured on a terminal unless
+`NO_COLOR` is set.
 
 ## Development
 
