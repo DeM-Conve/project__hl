@@ -31,13 +31,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
 
 Before tagging v0.1.0:
 
-- Merge the feature branches meant for 0.1.0 (feat/production-core and any others), and for each:
-  add its CHANGELOG lines under `Unreleased`, and fill the README's `<!-- slot ... -->` markers
-  (commands table, hl.yml reference, quickstart) with what was actually built.
-- Check README claims that depend on feat/production-core once merged (all implemented there):
-  dashboard off by default with `proxy.dashboard` / `proxy.dashboard_public`, `hl restart`
-  starting the proxy first, Windows "not supported" message; also document `name:`, `--wait`,
-  the HEALTH column, `hl logs` without an app, exit codes and `scripts/check.sh`.
+- Feature branches for 0.1.0 are merged; README, CONTRIBUTING and the CHANGELOG's `Unreleased`
+  match the code (no `<!-- slot ... -->` markers left). Re-check them if anything else merges.
 - Cut the release: [RELEASING.md](../RELEASING.md) (maintainer only; needs goreleaser v2 and
   syft installed).
 

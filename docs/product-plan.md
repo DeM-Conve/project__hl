@@ -139,7 +139,8 @@ in hl may assume the maintainer's setup.
 
 - [ ] `--json` for `status`, `ls`, `ps`, `config`, `doctor` (stable, documented fields).
 - [ ] `--quiet` / `--no-color` / `NO_COLOR`; output that works in pipes.
-- [ ] Shell completion includes app names. Man page generated from cobra.
+- [x] Shell completion includes app names (and an app's services where a command takes one).
+- [ ] Man page generated from cobra.
 
 ## 8. Quality (P0)
 
@@ -166,8 +167,8 @@ in hl may assume the maintainer's setup.
 ## 10. Docs and community (P0)
 
 - [x] README as a product page: pitch, comparison with similar tools, 60-second quickstart, full
-  command and hl.yml reference. Features still on branches have `<!-- slot ... -->` markers
-  where their docs go.
+  command and hl.yml reference, matching the merged code (no `<!-- slot ... -->` markers left;
+  `hl backup`/`hl restore` and Homebrew are marked as planned).
 - [x] Guides (`docs/guides/`): "add an app that needs a base path", "move an existing compose app into hl",
   "reach it from your phone (bind 0.0.0.0)", "back up the homelab", "put hl behind HTTPS".
 - [x] Issue/PR templates, code of conduct (Contributor Covenant 2.1), security policy.
