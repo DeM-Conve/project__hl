@@ -102,11 +102,11 @@ Needs Linux or macOS and Docker with the compose plugin v2.24 or newer.
 curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh
 hl doctor                       # checks Docker and compose
 
-# 2. create a homelab folder (config + data) and make it the default
+# 2. set up a homelab folder (config + data): hl init asks where things go, finds the
+#    apps in your projects folder (e.g. ~/code) and lets you pick which to add
 hl init ~/homelab
-
-# 3. add an app: any folder with a compose file
-hl add ~/code/my-app
+#    or with no questions:  hl init ~/homelab --projects ~/code --yes
+#    or one app at a time:  hl add ~/code/my-app
 
 # 4. start everything (the proxy first)
 hl up
@@ -119,8 +119,8 @@ If the app's page loads but its links, styles or redirects are broken, it needs 
 see [path routing](#routing) or use `hl add --routing host`. To try hl without an app of your
 own, use the two apps in [examples/](examples/).
 
-<!-- slot (feat/init-sync): guided `hl init` (questions, projects folder scan, app checklist) and
-`hl sync` replace steps 2-3 here once they are merged. -->
+Later, when a project folder appears or is deleted, `hl sync` brings `hl.yml` up to date: it
+shows what it would add, remove or re-detect, and asks before changing anything.
 
 ## Install
 
@@ -271,8 +271,28 @@ provider for extra routes), proxy.access_log, and the generated .hl/proxy/traefi
 
 A map of variables passed to every app, e.g. `TZ: UTC`. An app's own `env` wins over it.
 
-<!-- slot (feat/init-sync): top-level `projects:` (folders scanned for apps) and `ignore:`
-(patterns; a `.hlignore` file in a folder opts it out). -->
+### `projects`, `ignore`, `scan_depth`
+
+Where `hl init` and `hl sync` look for apps. `hl init` writes `projects` from your answer.
+
+```yaml
+projects: [~/code]          # folders with your projects
+ignore: [scratch-*, old]    # folder names sync never picks up
+# scan_depth: 1             # 2 also looks in ~/code/<group>/<app>
+```
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `projects` | none | Folders holding your projects: absolute, `~/...`, or relative to the homelab folder. Each subfolder with a compose file (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) is an app, named after the folder (lowercased). A folder with a compose file is not looked into further. |
+| `ignore` | none | Folder-name patterns (`*`, `?`, `[...]`) to skip. Always skipped as well: hidden folders (`.*`), `node_modules`, `vendor`, `__pycache__`, `venv`. |
+| `scan_depth` | `1` | How many levels below a projects folder to look. |
+
+A folder with a `.hlignore` file in it is skipped too, so a library or an experiment can opt out
+without touching `hl.yml`. Ignoring only stops sync from adding a folder; an app already in
+`hl.yml` stays. Apps outside the projects folders (added with `hl add`) are never changed by
+sync, and an app whose projects folder is missing altogether (say, an unmounted drive) is not
+removed.
+
 <!-- slot (feat/config-ux): `version: 1` at the top, and the JSON schema line. -->
 
 ### `apps.<name>`
@@ -333,7 +353,8 @@ every app when none is named. Errors print `error: ...` and exit with status 1.
 
 | Command | What it does |
 | --- | --- |
-| `hl init [folder]` | Create a homelab folder (default: the current one) with `hl.yml`, `data/` and `.gitignore`, and make it the default. Leaves an existing `hl.yml` alone. |
+| `hl init [folder]` | Set up a homelab folder (default: the current one) with `hl.yml`, `data/` and `.gitignore`, and make it the default. First checks Docker, compose and that the proxy port is free. On a terminal it asks for the projects folders, `path` or `host` routing, this machine only or your network, and which of the apps found to add; each has a flag: `--projects`, `--routing`, `--bind`, `--port`, `--apps a,b` (or `none`). With `--yes` or without a terminal it asks nothing and adds every app found. Never overwrites an existing `hl.yml`; on one it offers the new apps instead. |
+| `hl sync` | Make `hl.yml` follow the `projects` folders. Shows a plan first: new folders with a compose file are added (service and port detected like `hl add`), apps whose folder is gone are removed (stopped if running; their data stays), apps whose pinned service or port left their compose file are re-detected, and folders it can't add are listed with the `hl add` command to use. Asks before applying; `--yes` applies without asking, `--dry-run` only shows. |
 | `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`. |
 | `hl remove <app>` | Stop the app and remove it from `hl.yml`. Its data in `data/<app>` stays. |
 | `hl status` (`ls`) | The proxy's state, and every app's state, URL and folder. |
@@ -353,7 +374,7 @@ every app when none is named. Errors print `error: ...` and exit with status 1.
 | `hl version` (`--version`) | Version, commit and build date. |
 | `hl completion bash\|zsh\|fish` | Shell completion script. |
 
-<!-- slots: `hl sync` (feat/init-sync); `hl set`/`hl unset`/`hl edit`/`hl config check`
+<!-- slots: `hl set`/`hl unset`/`hl edit`/`hl config check`
 (feat/config-ux); `hl proxy status` (feat/proxy-file); `hl up --wait`, health in `hl status`,
 `hl logs` with no app (feat/production-core). -->
 

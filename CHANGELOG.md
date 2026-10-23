@@ -15,7 +15,17 @@ Everything below becomes 0.1.0, the first release.
 ### Added
 
 - `hl init` creates a homelab folder (`hl.yml`, `data/`, `.hl/`) and makes it the default;
-  `--home` and `$HL_HOME` pick another.
+  `--home` and `$HL_HOME` pick another. On a terminal it asks a few questions (projects folders,
+  routing, this machine or the network, another port if the default one is busy) and offers the
+  apps it finds as a checklist; `--projects`, `--routing`, `--bind`, `--port`, `--apps` and
+  `--yes` answer them in scripts. It checks Docker and compose first, and on an existing homelab
+  never overwrites `hl.yml` but offers the new apps.
+- `projects:` in `hl.yml`: folders whose subfolders with a compose file are apps; `ignore:`
+  patterns, a `.hlignore` file or `scan_depth` control what is picked up.
+- `hl sync` keeps `hl.yml` in step with the projects folders: adds new apps, removes ones whose
+  folder is gone (data kept), re-detects a pinned service or port that disappeared. It shows the
+  plan first; `--dry-run` only shows it, `--yes` applies it without asking.
+- `hl status` says when `hl sync` has something to do.
 - `hl add` adds any folder with a compose file as an app, finding the service that publishes a
   port; `hl remove` takes it out again and keeps its data.
 - One Traefik proxy in front of every app, with `path` (`http://localhost/<app>/`), `host`
