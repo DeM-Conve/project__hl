@@ -184,3 +184,109 @@ func TestSetAndUnset(t *testing.T) {
 		t.Error("a refused change was written")
 	}
 }
+
+// fakeEditor sets $EDITOR to a script that, on its n-th run, replaces the file with
+// versions[n] (the last one repeats), and counts its runs in the returned file.
+func fakeEditor(t *testing.T, versions ...string) (runs string) {
+	t.Helper()
+	dir := t.TempDir()
+	runs = filepath.Join(dir, "runs")
+	script := "#!/bin/sh\nn=$(cat '" + runs + "' 2>/dev/null || echo 0)\necho $((n+1)) > '" + runs + "'\n"
+	for i, v := range versions {
+		f := filepath.Join(dir, "v"+string(rune('0'+i)))
+		if err := os.WriteFile(f, []byte(v), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		script += "[ \"$n\" -ge " + string(rune('0'+i)) + " ] && cp '" + f + "' \"$1\"\n"
+	}
+	script += "exit 0\n"
+	ed := filepath.Join(dir, "my editor")
+	if err := os.WriteFile(ed, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "'"+ed+"'")
+	return runs
+}
+
+func editorRuns(t *testing.T, runs string) string {
+	b, _ := os.ReadFile(runs)
+	return strings.TrimSpace(string(b))
+}
+
+const good = "version: 1\n# kept\napps:\n  my-app: {path: ~/code/my-app}  # mine\n"
+const bad = "version: 1\napps:\n  my-app: {path: ~/code/my-app, prot: 80}\n"
+
+func TestEditNoChanges(t *testing.T) {
+	home, _ := homelab(t, good)
+	fakeEditor(t)
+	if out, err := run(t, "", "edit"); err != nil || !strings.Contains(out, "no changes") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(home, config.EditDraft)); err == nil {
+		t.Error("draft left behind")
+	}
+}
+
+func TestEditSavesValidFile(t *testing.T) {
+	home, _ := homelab(t, "apps: {}\n")
+	fakeEditor(t, good)
+	if out, err := run(t, "", "edit"); err != nil || !strings.Contains(out, "saved") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); got != good {
+		t.Errorf("hl.yml = %q", got)
+	}
+}
+
+func TestEditReopensOnError(t *testing.T) {
+	home, _ := homelab(t, "apps: {}\n")
+	onTerminal(t)
+	runs := fakeEditor(t, bad, good)
+	out, err := run(t, "\n", "edit")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !strings.Contains(out, `hl.yml:3:33: apps.my-app.prot: unknown key - did you mean "port"?`) || !strings.Contains(out, "open the editor again?") {
+		t.Errorf("output:\n%s", out)
+	}
+	if editorRuns(t, runs) != "2" || hlYML(t, home) != good {
+		t.Errorf("runs %s, hl.yml:\n%s", editorRuns(t, runs), hlYML(t, home))
+	}
+}
+
+func TestEditGivesUpWithoutBreakingHlYml(t *testing.T) {
+	for _, tc := range []struct {
+		name, answer string
+		terminal     bool
+	}{{"no terminal", "", false}, {"answered no", "n\n", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			home, _ := homelab(t, good)
+			if tc.terminal {
+				onTerminal(t)
+			}
+			runs := fakeEditor(t, bad)
+			out, err := run(t, tc.answer, "edit")
+			if err == nil || !strings.Contains(err.Error(), "hl.yml not changed") {
+				t.Fatalf("err = %v\n%s", err, out)
+			}
+			if hlYML(t, home) != good || editorRuns(t, runs) != "1" {
+				t.Errorf("hl.yml changed or editor reopened")
+			}
+			if b, _ := os.ReadFile(filepath.Join(home, config.EditDraft)); string(b) != bad {
+				t.Errorf("draft = %q, want the edit kept", b)
+			}
+		})
+	}
+}
+
+func TestEditWorksOnBrokenFile(t *testing.T) {
+	home, _ := homelab(t, "apps: [\n")
+	fakeEditor(t, good)
+	if out, err := run(t, "", "edit"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if hlYML(t, home) != good {
+		t.Error("not saved")
+	}
+}

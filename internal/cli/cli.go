@@ -51,7 +51,7 @@ app's data (data/<app>/).
 		logsCmd(), psCmd(), openCmd(), shellCmd(), configCmd(), pathCmd(),
 		proxyCmd(), doctorCmd(), versionCmd())
 	c.AddCommand(syncCmd())
-	c.AddCommand(setCmd(), unsetCmd())
+	c.AddCommand(setCmd(), unsetCmd(), editCmd())
 	return c
 }
 
