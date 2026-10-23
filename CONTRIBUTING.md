@@ -24,13 +24,27 @@ plugin v2.24+.
 
 ```sh
 go build -o hl ./cmd/hl
-go test ./...
-test -z "$(gofmt -l .)" && go vet ./...   # both must be clean
-shellcheck install.sh                     # if you touch the installer
+scripts/check.sh            # every check; run it before each commit and before a release
+scripts/check.sh --quick    # the same without the race detector, golangci-lint and cross builds
 ```
 
-There is no CI, so run these before you open a pull request. To try a change end to end, use a
-throwaway homelab and the apps in [examples/](examples/):
+`scripts/check.sh` runs gofmt, `go vet`, staticcheck, golangci-lint, the tests with the race
+detector, shellcheck on `install.sh` and `scripts/*.sh` (skipped if shellcheck isn't installed),
+and builds for every release platform. There is no CI, so it is the check before you commit,
+open a pull request or cut a release, and everything in it must pass.
+
+It needs network access the first time: staticcheck and golangci-lint run with `go run` at pinned
+versions (downloaded into Go's module cache), and Go downloads the toolchain they need if yours
+is older (`GOTOOLCHAIN=auto`, the default). With no network, run what works offline:
+
+```sh
+test -z "$(gofmt -l .)" && go vet ./... && go test ./...
+```
+
+The CLI tests run every command against a fake `docker` and `git` (see "Tests of the CLI" in
+[docs/architecture.md](docs/architecture.md)); add a test there when you change a command.
+
+To try a change end to end, use a throwaway homelab and the apps in [examples/](examples/):
 
 ```sh
 export HL_HOME=/tmp/hl-try
@@ -42,9 +56,9 @@ export HL_HOME=/tmp/hl-try
 ```
 
 Two things to know: `hl init` also records the folder as your default homelab (run `hl init` on
-your real one again afterwards), and every homelab's proxy currently runs as the compose project
-`hl-proxy` on the same network name - stop a homelab you already run (`hl down`) before trying
-another one on the same machine.
+your real one again afterwards), and two homelabs on one Docker share the project and network
+names unless one has a `name:` - if you already run a homelab, put `name: try` and a free
+`proxy.port` (e.g. `8080`) in the throwaway one's `hl.yml`, or stop yours first (`hl down`).
 
 ## Changes
 
