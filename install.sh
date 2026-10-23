@@ -11,6 +11,7 @@
 #                   sudo is used only when DIR isn't writable
 #   -h, --help      show this help
 #
+# HL_REPO           the GitHub repository to install from (default: DeM-Conve/project__hl)
 # HL_DOWNLOAD_URL   for testing: a base URL holding the release files, used
 #                   instead of GitHub (e.g. file:///path/to/dist)
 #
@@ -18,12 +19,20 @@
 # anything is installed. Supported: Linux and macOS on amd64 and arm64.
 set -eu
 
-repo=DeM-Conve/project__hl
+# Defaults, each overridable from the environment (or the options below).
+repo=${HL_REPO:-DeM-Conve/project__hl}
+user_dir=${HOME:-}/.local/bin   # default install folder
+root_dir=/usr/local/bin         # default install folder when run as root
+github=https://github.com
+github_api=https://api.github.com
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 has() { command -v "$1" >/dev/null 2>&1; }
-usage() { sed -n '2,18s/^# \{0,1\}//p' "$0" 2>/dev/null || say "see https://github.com/$repo#install"; }
+usage() { # the comment block at the top of this file
+	awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0" 2>/dev/null ||
+		say "see $github/$repo#install"
+}
 
 version=${HL_VERSION:-}
 dir=${HL_INSTALL_DIR:-}
@@ -79,13 +88,13 @@ trap 'exit 1' INT TERM HUP
 
 if [ -z "$base" ]; then
 	if [ -z "$version" ]; then
-		fetch "https://api.github.com/repos/$repo/releases/latest" "$tmp/latest.json" ||
+		fetch "$github_api/repos/$repo/releases/latest" "$tmp/latest.json" ||
 			die "couldn't look up the latest release of $repo (pass --version to pick one)"
 		version=$(sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' "$tmp/latest.json" | head -n 1)
 		[ -n "$version" ] || die "couldn't find the latest release (pass --version to pick one)"
 	fi
 	case $version in v*) ;; *) version=v$version ;; esac
-	base="https://github.com/$repo/releases/download/$version"
+	base="$github/$repo/releases/download/$version"
 fi
 [ -n "$version" ] || die "set HL_VERSION (or --version) along with HL_DOWNLOAD_URL"
 case $version in v*) ;; *) version=v$version ;; esac
@@ -106,9 +115,9 @@ tar -xzf "$tmp/$archive" -C "$tmp" hl || die "couldn't unpack $archive"
 
 if [ -z "$dir" ]; then
 	if [ "$(id -u)" = 0 ]; then
-		dir=/usr/local/bin
+		dir=$root_dir
 	else
-		dir=$HOME/.local/bin
+		dir=$user_dir
 	fi
 	explicit=
 else
