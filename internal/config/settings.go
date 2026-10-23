@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -54,11 +55,27 @@ func listSettings(def, raw, eff reflect.Value, prefix string, out *[]Setting) {
 			continue // apps and env: per-name settings, no defaults
 		}
 		s := Setting{Key: key, Default: show(def.Field(i)), Value: show(eff.Field(i)), Source: "default"}
+		// Left empty in hl.yml's defaults but filled in where it's used.
+		if d, ok := appliedLater[key]; ok {
+			if s.Default == "-" {
+				s.Default = d
+			}
+			if s.Value == "-" {
+				s.Value = d
+			}
+		}
 		if !raw.Field(i).IsZero() {
 			s.Source = FileName
 		}
 		*out = append(*out, s)
 	}
+}
+
+// appliedLater are settings defaults() leaves empty because the empty value
+// means something (e.g. log_level can't be combined with proxy.config), but
+// whose effective default is applied where the setting is used.
+var appliedLater = map[string]string{
+	"proxy.log_level": defaults.DefaultProxyLogLevel,
 }
 
 func show(v reflect.Value) string {
