@@ -572,16 +572,27 @@ func shellCmd() *cobra.Command {
 			if _, err := targets(cfg, args[:1]); err != nil {
 				return err
 			}
-			svc := cfg.Apps[args[0]].Service
+			a := cfg.Apps[args[0]]
+			svc := a.Service
 			if len(args) == 2 {
 				svc = args[1]
 			}
-			if svc == "" {
+			if svc == "" && cfg.Routing(a) == config.RoutingNone {
 				return &usageError{err: errNoService, cmd: "hl shell"}
 			}
 			p, err := prepared(ctx, cfg, args[0])
 			if err != nil {
 				return err
+			}
+			if svc == "" {
+				// The service behind the proxy, as prepared picked it.
+				m, err := p.Model(ctx)
+				if err != nil {
+					return err
+				}
+				if svc, err = m.Exposed(); err != nil {
+					return &usageError{err: errNoService, cmd: "hl shell"}
+				}
 			}
 			err = p.Run(ctx, "exec", svc, "sh", "-c", defaults.Shell)
 			var ce *compose.Error
