@@ -62,6 +62,7 @@ the app folders where `hl.yml` expects them, then `hl up`.
 
 If you restore to a different path, compose may report that a volume "already exists" with
 other options: the Docker volumes still point at the old folder. Remove them with
-`docker volume rm hl-<app>_<volume>`; they are only pointers, the data is in `data/`.
+`docker volume rm hl-<app>_<volume>` (`hl-<name>-<app>_<volume>` in a homelab with a `name`);
+they are only pointers, the data is in `data/`.
 
-<!-- slot (product plan section 6): `hl backup` / `hl restore` will automate the steps above. -->
+Planned: `hl backup` and `hl restore` commands that automate the steps above (not built yet).
