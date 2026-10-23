@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -218,17 +220,76 @@ Otherwise it lists them and offers to open the editor again, so hl.yml is never 
 // runEditor opens file in $VISUAL, $EDITOR or the default editor, attached to the terminal.
 // The variable may hold arguments too (e.g. "code --wait").
 func runEditor(file string) error {
-	editor := os.Getenv("VISUAL")
-	if editor == "" {
-		editor = os.Getenv("EDITOR")
-	}
-	if editor == "" {
-		editor = config.DefaultEditor
-	}
+	editor, _ := editorCommand()
 	cmd := exec.Command("sh", "-c", editor+` "$1"`, "sh", file)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("editor %q: %v (set $EDITOR to the one you use)", editor, err)
 	}
 	return nil
+}
+
+// editorCommand is the editor hl edit runs, and where that came from.
+func editorCommand() (cmd, source string) {
+	for _, v := range []string{"VISUAL", "EDITOR"} {
+		if e := os.Getenv(v); e != "" {
+			return e, "env ($" + v + ")"
+		}
+	}
+	return config.DefaultEditor, "default"
+}
+
+// homeSource says where the homelab folder home came from, in config.Home's order.
+func homeSource(home string) string {
+	switch {
+	case homeFlag != "":
+		return "flag (--home)"
+	case os.Getenv("HL_HOME") != "":
+		return "env ($HL_HOME)"
+	}
+	if wd, err := os.Getwd(); err == nil {
+		if r, err := filepath.Rel(home, wd); err == nil && !strings.HasPrefix(r, "..") {
+			return "nearest " + config.FileName
+		}
+	}
+	return "default (hl init)"
+}
+
+func configDefaultsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "defaults",
+		Short: "Every setting that has a default: the default, the value in effect, and where it comes from",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			home, err := homeDir()
+			if err != nil {
+				return err
+			}
+			settings, err := config.Settings(home)
+			if err != nil {
+				return err
+			}
+			b, err := os.ReadFile(filepath.Join(home, config.FileName))
+			if err != nil {
+				return err
+			}
+			ver, verFrom := strconv.Itoa(config.FileVersion(b)), config.FileName
+			if ver == "0" {
+				ver, verFrom = "-", "none (the format before versions)"
+			}
+			editor, editorFrom := editorCommand()
+			settings = append(settings,
+				config.Setting{Key: "home", Default: "-", Value: home, Source: homeSource(home)},
+				config.Setting{Key: "version", Default: strconv.Itoa(config.Version), Value: ver, Source: verFrom},
+				config.Setting{Key: "editor", Default: config.DefaultEditor, Value: editor, Source: editorFrom},
+				config.Setting{Key: "schema", Default: config.SchemaURL, Value: config.SchemaURL, Source: "default"},
+			)
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "SETTING\tDEFAULT\tVALUE\tFROM")
+			for _, s := range settings {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Key, s.Default, s.Value, s.Source)
+			}
+			return w.Flush()
+		},
+	}
 }

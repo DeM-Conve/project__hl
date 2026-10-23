@@ -357,3 +357,35 @@ func TestAddWithoutTerminalNamesTheFlag(t *testing.T) {
 		t.Errorf("%v\n%s", err, out)
 	}
 }
+
+func TestConfigDefaults(t *testing.T) {
+	home, _ := homelab(t, "proxy:\n  port: 8080\n")
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "my-editor")
+	out, err := run(t, "", "config", "defaults")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	rows := map[string][]string{}
+	for _, l := range strings.Split(out, "\n") {
+		if f := strings.Fields(l); len(f) > 0 {
+			rows[f[0]] = f[1:]
+		}
+	}
+	for key, want := range map[string]string{
+		"proxy.port":    "80 8080 hl.yml",
+		"proxy.bind":    "127.0.0.1 127.0.0.1 default",
+		"proxy.routing": "path path default",
+		"home":          "- " + home + " env ($HL_HOME)",
+		"version":       "1 - none (the format before versions)",
+		"editor":        config.DefaultEditor + " my-editor env ($EDITOR)",
+		"schema":        config.SchemaURL + " " + config.SchemaURL + " default",
+	} {
+		if got := strings.Join(rows[key], " "); got != want {
+			t.Errorf("%s: %q, want %q", key, got, want)
+		}
+	}
+	if out, err := run(t, "", "config", "defaults", "--home", home); err != nil || !strings.Contains(out, "flag (--home)") {
+		t.Errorf("%v\n%s", err, out)
+	}
+}

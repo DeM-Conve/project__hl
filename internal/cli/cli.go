@@ -587,7 +587,7 @@ func configCmd() *cobra.Command {
 			return p.Run("config")
 		},
 	}
-	c.AddCommand(configCheckCmd())
+	c.AddCommand(configCheckCmd(), configDefaultsCmd())
 	return c
 }
 
