@@ -50,9 +50,8 @@ in hl may assume the maintainer's setup.
 - [x] **Several homelabs per user** work side by side (different folders, project names, proxy
   ports/networks), and two users on one machine don't collide (proxy port/network names are
   per-homelab or clearly reported when they clash).
-- [x] Audit found (2026-10-23): tests and code comments use one homelab's app name
-  (`tierlist.fm`) and timezone (`Asia/Kolkata`) as examples - replace with neutral ones
-  (`my-app.io`, `UTC`). No personal paths or names in code.
+- [x] Audit (2026-10-23): tests and code comments used one homelab's app name and timezone as
+  examples - replaced with neutral ones (`my-app.io`, `UTC`). No personal paths or names in code.
 
 ## 1. First run: `hl init` (P0)
 
