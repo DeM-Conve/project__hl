@@ -74,6 +74,9 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc) []Action {
 		case f.Name == "":
 			act.Kind, act.Name = Skip, f.Path
 			act.Reason = fmt.Sprintf("no usable app name - hl add %s --name <name>", quote(f.Dir))
+		case reserved(f.Name):
+			act.Kind = Skip
+			act.Reason = fmt.Sprintf("%s is a name hl keeps for itself - hl add %s --name <other>", f.Name, quote(f.Dir))
 		case taken[f.Name]:
 			act.Kind = Skip
 			act.Reason = fmt.Sprintf("an app named %s already exists - hl add %s --name <other>", f.Name, quote(f.Dir))
@@ -155,4 +158,13 @@ func quote(s string) string {
 		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 	}
 	return s
+}
+
+func reserved(name string) bool {
+	for _, r := range ReservedNames {
+		if name == r {
+			return true
+		}
+	}
+	return false
 }

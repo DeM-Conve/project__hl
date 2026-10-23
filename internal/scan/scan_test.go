@@ -149,7 +149,7 @@ apps:
   broken: {path: ~/my code/broken, service: web, port: 80}
   gone: {path: ~/my code/gone, service: web, port: 80}
 `)
-	for _, a := range []string{"same", "moved-port", "renamed", "unpinned", "broken", "new-one", "two-ui", "no-port", "Same"} {
+	for _, a := range []string{"same", "moved-port", "renamed", "unpinned", "broken", "new-one", "two-ui", "no-port", "Same", "Proxy"} {
 		l.app("my code/" + a)
 	}
 	models := map[string]*compose.Model{
@@ -192,6 +192,7 @@ apps:
 		"update moved-port web:3000",
 		"update renamed frontend:8080",
 		"skip same (an app named same already exists",
+		"skip proxy (proxy is a name hl keeps for itself",
 		"skip no-port (no service publishes a port",
 		"skip two-ui (several services publish ports",
 		"skip broken (can't read its compose file: compose says no)",
