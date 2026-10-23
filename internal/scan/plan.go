@@ -3,6 +3,7 @@ package scan
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
@@ -72,16 +73,16 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc) []Action {
 		switch {
 		case f.Name == "":
 			act.Kind, act.Name = Skip, f.Path
-			act.Reason = fmt.Sprintf("no usable app name - hl add %s --name <name>", f.Dir)
+			act.Reason = fmt.Sprintf("no usable app name - hl add %s --name <name>", quote(f.Dir))
 		case taken[f.Name]:
 			act.Kind = Skip
-			act.Reason = fmt.Sprintf("an app named %s already exists - hl add %s --name <other>", f.Name, f.Dir)
+			act.Reason = fmt.Sprintf("an app named %s already exists - hl add %s --name <other>", f.Name, quote(f.Dir))
 		default:
 			app := &config.App{Path: f.Path}
 			svc, port, err := detect(cfg, f.Name, app, model)
 			if err != nil {
 				act.Kind = Skip
-				act.Reason = fmt.Sprintf("%v - hl add %s with --service/--port", err, f.Dir)
+				act.Reason = fmt.Sprintf("%v; add it with hl add %s", err, quote(f.Dir))
 			}
 			act.Service, act.Port = svc, port
 		}
@@ -146,4 +147,12 @@ func planUpdate(cfg *config.Config, name string, model ModelFunc) *Action {
 		return nil
 	}
 	return &Action{Kind: Update, Name: name, Path: a.Path, Service: a.Service, Port: port, Old: old}
+}
+
+// quote makes a folder safe to paste into a shell.
+func quote(s string) string {
+	if strings.ContainsAny(s, " \t'\"$\\`!*?[](){};&|<>#~") {
+		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+	}
+	return s
 }

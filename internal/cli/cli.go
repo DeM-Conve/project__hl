@@ -50,6 +50,7 @@ app's data (data/<app>/).
 		upCmd(), downCmd(), restartCmd(), rebuildCmd(), updateCmd(),
 		logsCmd(), psCmd(), openCmd(), shellCmd(), configCmd(), pathCmd(),
 		proxyCmd(), doctorCmd(), versionCmd())
+	c.AddCommand(syncCmd())
 	return c
 }
 
