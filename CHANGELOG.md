@@ -2,9 +2,15 @@
 
 All notable changes to hl are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and hl uses
-[semantic versioning](https://semver.org/).
+[semantic versioning](https://semver.org/). Before 1.0.0, a minor version (0.x.0) may change
+behaviour or `hl.yml`; such changes are listed under **Changed** with what to do.
+
+<!-- Releasing: rename "Unreleased" to "[0.1.0] - YYYY-MM-DD", add a fresh empty "Unreleased"
+above it, and update the links at the bottom (RELEASING.md). -->
 
 ## [Unreleased]
+
+Everything below becomes 0.1.0, the first release.
 
 ### Added
 
@@ -21,6 +27,18 @@ All notable changes to hl are listed here. The format follows
 - Commands: `status`/`ls`, `up`/`start`, `down`/`stop`, `restart`, `rebuild`, `update`, `logs`,
   `ps`, `open`, `shell`, `config`, `path`, `proxy up|down|logs`, `doctor`, `version` and shell
   `completion`.
-- Release archives for Linux and macOS (amd64, arm64) with checksums, and `install.sh`.
+- Release archives for Linux and macOS (amd64, arm64) with `checksums.txt` and an SPDX SBOM per
+  archive; `install.sh` verifies the checksum, takes `--version` and `--dir`, and installs to
+  `~/.local/bin` (or `/usr/local/bin` as root).
+- Example apps in `examples/` and guides in `docs/guides/`: base paths, moving an existing compose
+  app into hl, reaching apps from your network, backups, putting hl behind HTTPS.
+
+<!-- Placeholder: entries from the feat/* branches merged before 0.1.0 go in the list above (in
+a first release everything is "Added"), e.g. the Traefik dashboard being opt-in with
+`proxy.dashboard` / `proxy.dashboard_public`, and `hl restart` starting the proxy first. -->
 
 [Unreleased]: https://github.com/DeM-Conve/project__hl/commits/main
+<!-- After v0.1.0 is tagged:
+[Unreleased]: https://github.com/DeM-Conve/project__hl/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/DeM-Conve/project__hl/releases/tag/v0.1.0
+-->
