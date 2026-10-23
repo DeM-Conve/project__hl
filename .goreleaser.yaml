@@ -1,11 +1,14 @@
-# Release builds, run from a v* tag: GITHUB_TOKEN=$(gh auth token) goreleaser release --clean
-# Try it locally: goreleaser release --snapshot --clean (writes dist/).
+# Release builds, run locally from a v* tag (full steps: RELEASING.md):
+#   GITHUB_TOKEN=$(gh auth token) goreleaser release --clean --release-notes dist-notes.md
+# Try it without publishing anything: goreleaser release --snapshot --clean (writes dist/).
+# Needs goreleaser v2 and syft (for the SBOMs) on PATH.
 version: 2
 
 project_name: hl
 
 before:
   hooks:
+    - go mod verify
     - go test ./...
 
 builds:
@@ -14,6 +17,7 @@ builds:
     binary: hl
     env:
       - CGO_ENABLED=0
+    # Windows isn't supported (hl drives docker compose and Unix tools).
     goos: [linux, darwin]
     goarch: [amd64, arm64]
     flags:
@@ -23,6 +27,7 @@ builds:
       - -X github.com/DeM-Conve/project__hl/internal/version.Version=v{{ .Version }}
       - -X github.com/DeM-Conve/project__hl/internal/version.Commit={{ .ShortCommit }}
       - -X github.com/DeM-Conve/project__hl/internal/version.Date={{ .Date }}
+    # File times inside the archives come from the tagged commit.
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
@@ -33,22 +38,43 @@ archives:
     files:
       - README.md
       - LICENSE
+      - CHANGELOG.md
 
 checksum:
+  # install.sh relies on this name and on sha256.
   name_template: checksums.txt
   algorithm: sha256
+
+# One SPDX SBOM per archive (hl_0.1.0_linux_amd64.tar.gz.sbom.json), made by syft.
+sboms:
+  - artifacts: archive
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
+# Only used when no --release-notes file is given; RELEASING.md uses the
+# CHANGELOG.md section instead.
 changelog:
   use: git
+  sort: asc
   abbrev: 7
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Other
+      order: 999
   filters:
     exclude:
       - "^docs:"
       - "^test:"
       - "^ci:"
+      - "^chore:"
+      - "^style:"
+      - "^refactor:"
 
 release:
   github:
@@ -56,25 +82,38 @@ release:
     name: project__hl
   draft: false
   prerelease: auto
+  footer: |
+    Install: `curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh`
+    (or `HL_VERSION={{ .Tag }}` to pin this release). Verify a manual download with
+    `sha256sum -c --ignore-missing checksums.txt`.
 
 # Homebrew: off until the tap repo github.com/DeM-Conve/homebrew-tap exists.
-# To turn it on: create that repo, add a token that can push to it as the
-# HOMEBREW_TAP_TOKEN environment variable when running goreleaser, and
-# uncomment this. `brew install DeM-Conve/tap/hl` then installs hl.
+# To turn it on (RELEASING.md, "Homebrew tap"):
+#   1. Create the public repo DeM-Conve/homebrew-tap with a README (it must not be empty).
+#   2. Create a fine-grained token with "Contents: read and write" on that repo only.
+#   3. Uncomment the block below.
+#   4. Release with HOMEBREW_TAP_TOKEN=<that token> in the environment.
+# `brew install DeM-Conve/tap/hl` then installs hl; goreleaser pushes Casks/hl.rb on each release.
 # homebrew_casks:
 #   - name: hl
+#     binaries: [hl]
 #     repository:
 #       owner: DeM-Conve
 #       name: homebrew-tap
 #       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
 #     directory: Casks
+#     commit_author:
+#       name: DeM-Conve
+#       email: 154665057+DeM-Conve@users.noreply.github.com
+#     commit_msg_template: "chore: hl {{ .Tag }}"
 #     homepage: https://github.com/DeM-Conve/project__hl
 #     description: Run self-hosted apps behind one proxy, each from its own folder
 #     license: MIT
+#     caveats: "hl needs Docker with the compose plugin v2.24+. Run `hl doctor` to check."
 #     hooks:
 #       post:
-#         # The binary isn't notarized; let macOS run it.
 #         install: |
+#           # The binary isn't notarized; let macOS run it.
 #           if OS.mac?
 #             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hl"]
 #           end
