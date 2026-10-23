@@ -329,8 +329,8 @@ func subnetFix(cfg *config.Config, used []*net.IPNet, nets []dockerNetwork) stri
 	return "set another proxy.subnet in " + cfg.File() + ", or remove it to let Docker pick"
 }
 
-// hostSubnets are the networks of this machine's interfaces.
-func hostSubnets() []*net.IPNet {
+// hostSubnets are the networks of this machine's interfaces; tests replace it.
+var hostSubnets = func() []*net.IPNet {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return nil
