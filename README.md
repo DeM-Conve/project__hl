@@ -328,8 +328,10 @@ the result has no problems, and keep its comments.
 ### `apps.<name>`
 
 App names use lowercase letters, digits, `.`, `_` and `-`, starting with a letter or digit. By
-default `hl add` uses the folder's name. `proxy` is reserved: its compose project would be the
-proxy's, `hl-proxy` (likewise, no app's `hl-<app>` may equal `proxy.project`).
+default `hl add` uses the folder's name. Reserved names (also `hl sync` and `hl init` skip
+folders with them): `proxy`, whose compose project would be the proxy's, `hl-proxy` (likewise,
+no app's `hl-<app>` may equal `proxy.project`), and the `hl config` subcommands, `check` and
+`defaults`, so `hl config <app>` always reaches the app. `hl config defaults` lists them.
 
 | Key | Default | What it does |
 | --- | --- | --- |

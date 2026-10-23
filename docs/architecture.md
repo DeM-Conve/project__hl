@@ -48,9 +48,14 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
 ## Names
 
 - App names match `^[a-z0-9][a-z0-9._-]*$` (dots allowed, e.g. `tierlist.fm`).
-- `proxy` is reserved (`config.ReservedAppName`): `ValidName` rejects a name whose ID is `proxy`, since
-  its project would be the proxy's default `hl-proxy`; `Validate` also rejects an app whose `hl-<id>` equals
-  `proxy.project`.
+- Reserved names: one list in `internal/config/reserved.go` (`IsReserved`, `ReservedAppNames`),
+  compared by ID. It starts with `proxy` (`config.ReservedAppName`: its project would be the
+  proxy's default `hl-proxy`); `internal/cli/reserved.go` adds, at start-up, every subcommand
+  name and alias of `hl config` plus `proxy` (read from the registered command, not a second
+  list), so `hl config <app>` is never shadowed. `ValidName` (so `Load`, `hl add`, `config
+  check`) and `scan` (init/sync skip such folders) use it; a cli test checks the schema's
+  `apps.propertyNames.not.enum` lists the same names. `Validate` also rejects an app whose
+  `hl-<id>` equals `proxy.project`.
 - `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>`,
   Traefik router/service/middleware names `<id>`, `<id>-slash`, `<id>-strip`.
 - The proxy is compose project `proxy.project` (default `hl-proxy`); its network defaults to `hl-proxy` (inside each override
@@ -169,7 +174,8 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
   every app prepares (which runs `docker compose config` per app).
 - Completion: commands taking one app complete only the first argument; multi-app commands leave
   out apps already typed; `logs` and `shell` complete the app's services after the app name.
-- Output: colours only on a terminal and never with `NO_COLOR` set; errors print `error: ...` and
+- Output: colours only on a terminal (`golang.org/x/term`; `/dev/null` is not one) and never with
+  `NO_COLOR` set; errors print `error: ...` and
   exit 1.
 
 ## Editing hl.yml

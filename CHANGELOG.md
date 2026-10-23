@@ -50,7 +50,9 @@ Everything below becomes 0.1.0, the first release.
 - The Traefik image is pinned to the tested version (`traefik:v3.6.25`); `hl doctor` warns when
   `proxy.image` is older.
 - hl refuses to use a proxy or Docker network that another homelab runs, and says how to run both
-  side by side. The app name `proxy` is reserved, since its compose project would be the proxy's.
+  side by side. The app name `proxy` is reserved, since its compose project would be the proxy's,
+  and so are `check` and `defaults` (the `hl config` subcommands), so `hl config <app>` always
+  shows the app. `hl add`, `hl.yml`, `hl init`, `hl sync` and the schema all refuse them.
 - `hl.yml` is versioned (`version: 1`). Older files without it keep working and get the line,
   with a message, the first time hl edits them; a newer file asks you to update hl.
 - A JSON Schema for `hl.yml` (`schema/hl.schema.json`); `hl init` writes the
