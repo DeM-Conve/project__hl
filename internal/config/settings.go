@@ -62,6 +62,9 @@ func listSettings(def, raw, eff reflect.Value, prefix string, out *[]Setting) {
 }
 
 func show(v reflect.Value) string {
+	if v.Kind() == reflect.Bool {
+		return fmt.Sprint(v.Bool())
+	}
 	if v.IsZero() {
 		return "-"
 	}
