@@ -142,3 +142,45 @@ func TestConfigCheck(t *testing.T) {
 		t.Errorf("err = %v\n%s", err, out)
 	}
 }
+
+func TestSetAndUnset(t *testing.T) {
+	home, _ := homelab(t, "# my homelab\napps:\n  my-app:\n    path: ~/code/my-app  # the folder\n")
+	out, err := run(t, "", "set", "my-app", "routing=host", "port=8080", "env.TZ=UTC")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, want := range []string{"set apps.my-app.port = 8080", "upgraded hl.yml to version 1", "hl up my-app"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	got := hlYML(t, home)
+	for _, want := range []string{"# my homelab", "# the folder", "routing: host", "port: 8080", "TZ: UTC", "version: 1"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q:\n%s", want, got)
+		}
+	}
+
+	if out, err := run(t, "", "unset", "my-app", "port", "env.TZ"); err != nil || !strings.Contains(out, "unset apps.my-app.port") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); strings.Contains(got, "port:") || strings.Contains(got, "TZ") || !strings.Contains(got, "# the folder") {
+		t.Errorf("after unset:\n%s", got)
+	}
+
+	before := hlYML(t, home)
+	for _, args := range [][]string{
+		{"set", "my-app", "routing=sideways"},
+		{"set", "my-app", "port"},
+		{"set", "my-app", "port="},
+		{"set", "nope", "port=1"},
+		{"unset", "my-app", "path"},
+	} {
+		if out, err := run(t, "", args...); err == nil {
+			t.Errorf("%v: expected an error\n%s", args, out)
+		}
+	}
+	if hlYML(t, home) != before {
+		t.Error("a refused change was written")
+	}
+}
