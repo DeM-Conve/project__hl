@@ -103,8 +103,8 @@ func ValidName(name string) error {
 	if !nameRE.MatchString(name) {
 		return fmt.Errorf("app name %q: use lowercase letters, digits, '.', '_' and '-'", name)
 	}
-	if ID(name) == ReservedAppName {
-		return fmt.Errorf("app name %q is reserved: its compose project would be %s, the proxy's - choose another name", name, ProjectName(name))
+	if why, ok := IsReserved(name); ok {
+		return fmt.Errorf("app name %q is reserved: %s - choose another name", name, why)
 	}
 	return nil
 }

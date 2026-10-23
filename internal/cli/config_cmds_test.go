@@ -2,9 +2,11 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -392,5 +394,59 @@ func TestConfigDefaults(t *testing.T) {
 	}
 	if out, err := run(t, "", "config", "defaults", "--home", home); err != nil || !strings.Contains(out, "flag (--home)") {
 		t.Errorf("%v\n%s", err, out)
+	}
+}
+
+// Every name `hl config` takes as its first argument besides an app is reserved, read from the
+// registered command, and the schema lists the same names.
+func TestConfigSubcommandNamesAreReserved(t *testing.T) {
+	var want []string
+	want = append(want, proxyArg)
+	for _, sub := range configCmd().Commands() {
+		want = append(want, sub.Name())
+		want = append(want, sub.Aliases...)
+	}
+	sort.Strings(want)
+	if got := config.ReservedAppNames(); strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("reserved %v, want %v", got, want)
+	}
+	for _, n := range want {
+		if err := config.ValidName(n); err == nil {
+			t.Errorf("ValidName(%s) accepted", n)
+		}
+	}
+
+	b, err := os.ReadFile("../../schema/hl.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Properties map[string]struct {
+			PropertyNames struct {
+				Not struct {
+					Enum []string `json:"enum"`
+				} `json:"not"`
+			} `json:"propertyNames"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(b, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if got := schema.Properties["apps"].PropertyNames.Not.Enum; strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("schema reserves %v, want %v", got, want)
+	}
+}
+
+func TestAddAndCheckRefuseReservedNames(t *testing.T) {
+	fakeDocker(t, oneService)
+	home, appDir := homelab(t, "version: 1\napps:\n  defaults: {path: ~/code/my-app}\n")
+	if out, err := run(t, "", "config", "check"); err == nil || !strings.Contains(out, "apps.defaults: app name \"defaults\" is reserved") {
+		t.Errorf("config check: %v\n%s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(home, config.FileName), []byte("version: 1\napps: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(t, "", "add", appDir, "--name", "check"); err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Errorf("add --name check: %v\n%s", err, out)
 	}
 }

@@ -160,5 +160,8 @@ func quote(s string) string {
 	return s
 }
 
-// reserved: a name whose ID is the one config keeps for the proxy.
-func reserved(name string) bool { return config.ID(name) == config.ReservedAppName }
+// reserved: a name config keeps for hl itself (config.ReservedAppNames).
+func reserved(name string) bool {
+	_, ok := config.IsReserved(name)
+	return ok
+}

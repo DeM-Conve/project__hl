@@ -122,7 +122,7 @@
       "$ref": "#/definitions/env"
     },
     "apps": {
-      "description": "The apps, by name. Added with `hl add <folder>`.",
+      "description": "The apps, by name. Added with `hl add <folder>`. Names hl keeps for itself (proxy, and the hl config subcommands) can't be used.",
       "type": [
         "object",
         "null"
@@ -130,7 +130,11 @@
       "propertyNames": {
         "pattern": "^[a-z0-9][a-z0-9._-]*$",
         "not": {
-          "const": "proxy"
+          "enum": [
+            "check",
+            "defaults",
+            "proxy"
+          ]
         }
       },
       "additionalProperties": {

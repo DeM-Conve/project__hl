@@ -270,7 +270,7 @@ func builtinDefaults() [][2]string {
 		{"traefik.dashboard_host", config.DashboardHostPrefix + "<domain>"},
 		{"proxy.files", filepath.Join(".hl", config.ProxyStateDir, config.ProxyComposeFile) + ", " + config.TraefikStaticFile},
 		{"proxy.restart", config.ProxyRestart},
-		{"app_name.reserved", config.ReservedAppName},
+		{"app_name.reserved", strings.Join(config.ReservedAppNames(), ", ")},
 		{"sync.ignore_file", scan.IgnoreFile},
 		{"init.projects", strings.Join(scan.CandidateProjects, ", ") + " (under your home, if they exist)"},
 		{"init.alt_port", itoa(scan.AltPort)},

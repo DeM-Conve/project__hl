@@ -59,7 +59,8 @@ const (
 	DashboardHostPrefix = "traefik."
 
 	// ReservedAppName can't be an app's name (nor a name whose ID becomes it):
-	// its compose project would be the proxy's default one.
+	// its compose project would be the proxy's default one. The full list of
+	// reserved names is ReservedAppNames (reserved.go).
 	ReservedAppName = "proxy"
 	// ExampleDynamicFile is where error messages suggest putting proxy.dynamic.
 	ExampleDynamicFile = "proxy/dynamic.yml"
