@@ -18,6 +18,32 @@ hl status                    # what runs where
 hl sync                      # hl.yml follows my projects folder
 ```
 
+## 0. Works for anyone, not one person's machine (P0, applies to every item below)
+
+hl will have many users, each with their own folders, apps, OS, user name and timezone. Nothing
+in hl may assume the maintainer's setup.
+
+- [ ] **No hard-coded personal values** anywhere - code, defaults, generated files, tests,
+  examples, docs: no user names, home paths (`/home/<name>/...`), project-folder names or
+  layouts, app names from one homelab, timezones, domains, emails. Examples use neutral names
+  (`my-app`, `blog`, `~/code`, `~/homelab`, `Europe/Berlin`/`UTC`).
+- [ ] **Every path comes from the user or the OS**: the homelab folder from `hl init`/`--home`/
+  `$HL_HOME`/nearest `hl.yml`; the projects folders from `projects:`; hl's own state from the OS
+  config dir (`os.UserConfigDir`); `~` expanded for the current user only. Paths in hl.yml may be
+  relative to the homelab, so a homelab folder can be moved or shared.
+- [ ] **Sensible, neutral defaults** that work on a fresh machine: no `TZ` unless the user sets
+  it (the container's default), port 80 with an offer of another if busy, `localhost`, no fixed
+  subnet unless asked.
+- [ ] **Fresh-user test**: an automated check that runs init -> add -> up (fake docker) as a
+  different user name, in a home folder with spaces in its path, with no prior hl state, and on a
+  second homelab next to the first - nothing leaks between them.
+- [ ] **Several homelabs per user** work side by side (different folders, project names, proxy
+  ports/networks), and two users on one machine don't collide (proxy port/network names are
+  per-homelab or clearly reported when they clash).
+- [ ] Audit found (2026-10-23): tests and code comments use one homelab's app name
+  (`tierlist.fm`) and timezone (`Asia/Kolkata`) as examples - replace with neutral ones
+  (`my-app.io`, `UTC`). No personal paths or names in code.
+
 ## 1. First run: `hl init` (P0)
 
 - [ ] **Guided init**: on a terminal, `hl init` asks (with defaults on Enter): where the homelab
