@@ -10,15 +10,20 @@ cmd/hl/main.go          calls cli.Execute()
 internal/cli            the cobra commands; project.go builds compose projects, output.go colours
 internal/config         hl.yml: types, defaults, validation, derived values, comment-keeping edits,
                         finding the homelab folder
-internal/compose        runs `docker compose`; reads the resolved model (`config --format json`)
+internal/compose        runs `docker compose`; reads the resolved model (`config --format json`);
+                        Exec keeps the tail of a failed command's stderr for the error (compose.Error)
+internal/defaults       every default and every name hl gives files, labels and Docker objects
+                        (one file; `hl config defaults` lists them)
+internal/fsutil         atomic file writes (temp file + rename, mode and symlinks kept)
+internal/interrupt      Ctrl-C/SIGTERM while docker runs (Notify, Run, exit code 128+signal)
 internal/gen            writes the per-app override, the proxy's compose file and its Traefik
                         static config, and checks a user-supplied one (pure functions)
 internal/scan           finds apps in the `projects` folders and plans `hl sync` (no writes, no Docker)
 internal/version        version, commit, build date (ldflags, else Go build info)
 ```
 
-Dependencies point one way: `cli` -> `gen` -> `compose`, `config`. `gen` and `config` do no Docker
-calls, which is why they are the unit-tested packages. Third-party deps are `cobra`, `yaml.v3`
+Dependencies point one way: `cli` -> `gen` -> `compose`, `config` -> `defaults`. `gen` and `config`
+do no Docker calls; `cli` is tested against a fake `docker` (below). Third-party deps are `cobra`, `yaml.v3`
 and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/jsonschema`.
 
 ## What every command does first
@@ -26,10 +31,12 @@ and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/j
 1. **Find the homelab folder** (`config.Home`): `--home`, then `$HL_HOME`, then the nearest folder
    at or above the working directory that has an `hl.yml`, then the default recorded by `hl init`
    in `<os.UserConfigDir()>/hl/home`.
-2. **Load `hl.yml`** (`config.Load`): unmarshal, fill defaults (`bind 127.0.0.1`, `port 80`,
-   `domain localhost`, `routing path`, `network hl-proxy`, `project hl-proxy`, `image` the tested
-   Traefik - the proxy ones are named in `internal/config/defaults_proxy.go`), validate. hl.yml is
-   re-read on every command; there is no daemon and no cached state besides the generated files.
+2. **Load `hl.yml`** (`config.Load`): check it strictly (`config.check`, below: every problem with
+   file:line:column), unmarshal, fill defaults (`bind 127.0.0.1`, `port 80`, `domain localhost`,
+   `routing path`, `network`/`project` `hl-proxy` or `hl-<name>-proxy`, `image` the tested Traefik -
+   all named in `internal/defaults`). A missing hl.yml is a `config.NotFoundError` naming `hl init`.
+   hl.yml is re-read on every command; there is no daemon and no cached state besides the
+   generated files.
 3. **Build the app's compose project** (`cli.project`): the app folder (`path`, `~` and relative
    paths resolved against the homelab folder), its compose files (`compose:` or the first of
    `compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`), its env files
@@ -40,14 +47,27 @@ and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/j
    `<homelab>/.hl/<app>/override.yml` with `gen.Override`, create the `data/<app>/<volume>` folders,
    and append the override as the last `--file`.
 5. **Run** `docker compose --project-name hl-<id> --project-directory <app folder> --file ...
-   --env-file ... <args>` attached to the terminal.
+   --env-file ... <args>` attached to the terminal (`compose.Project.Run`; arguments are passed
+   as they are, never through a shell, so paths with spaces or quotes are safe).
+
+Commands that start or stop apps first take one inventory of every compose container
+(`cli.containers`: one `docker ps --all` with the project, service, state, status and
+`config_files` labels). It answers "is the proxy running", the HEALTH column, `ps`, and who owns
+a project: a project whose containers were started from another homelab's `.hl/` folder
+(`inventory.owner`) is never started, stopped or replaced - `up`/`restart`/`rebuild`/`update`/
+`remove` refuse with the fix, `down` and `ps` leave it out with a warning. If Docker can't be
+reached, that first call fails with docker's own message and a hint.
 
 hl never parses compose files itself: everything it knows about an app comes from compose's own
 resolved model, so anything compose accepts (includes, extends, profiles, interpolation) works.
 
 ## Names
 
-- App names match `^[a-z0-9][a-z0-9._-]*$` (dots allowed, e.g. `tierlist.fm`).
+- App names match `^[a-z0-9][a-z0-9._-]*$` (dots allowed, e.g. `my-app.io`). `hl add` derives one
+  from the folder name (`config.NameFor`: `My App` -> `my-app`).
+- A homelab's optional top-level `name` prefixes its Docker names: projects `hl-<name>-<id>`,
+  default proxy project and network `hl-<name>-proxy` (`Config.ProjectName`, `ProxyProject`).
+  Without it they are `hl-<id>` and `hl-proxy` as before, so existing setups keep their names.
 - Reserved names: one list in `internal/config/reserved.go` (`IsReserved`, `ReservedAppNames`),
   compared by ID. It starts with `proxy` (`config.ReservedAppName`: its project would be the
   proxy's default `hl-proxy`); `internal/cli/reserved.go` adds, at start-up, every subcommand
@@ -56,15 +76,17 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
   check`) and `scan` (init/sync skip such folders) use it; a cli test checks the schema's
   `apps.propertyNames.not.enum` lists the same names. `Validate` also rejects an app whose
   `hl-<id>` equals `proxy.project`.
-- `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>`,
+- `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>` (two apps
+  with the same ID are a config error),
   Traefik router/service/middleware names `<id>`, `<id>-slash`, `<id>-strip`.
 - The proxy is compose project `proxy.project` (default `hl-proxy`); its network defaults to `hl-proxy` (inside each override
   it is always referred to by the key `hl-proxy`, mapped to `proxy.network` as an external network).
 
 ## Generated files
 
-All under `<homelab>/.hl/`, rewritten on every command that uses them, headed "Generated by hl ...
-edit hl.yml, not this file". `hl init` writes a `.gitignore` with `data/` and `.hl/`.
+All under `<homelab>/.hl/`, regenerated on every command that uses them (written atomically, and
+only when the content changed: `cli.writeGenerated`), headed "Generated by hl ... edit hl.yml, not
+this file". `hl init` writes a `.gitignore` with `data/` and `.hl/`.
 
 **`.hl/<app>/override.yml`** (`gen.Override`), only for routing `path`/`host`:
 - the exposed service gets `ports: !reset []` (no host port; `!reset` is why compose v2.24+ is
@@ -81,12 +103,13 @@ edit hl.yml, not this file". `hl init` writes a `.gitignore` with `data/` and `.
   hl creates those folders (mode 0755) before compose runs; containers may later chown them.
 
 **`.hl/proxy/traefik.yml`** (`gen.Traefik`): Traefik's static config, readable and commented, with
-no inline literals (every name, path and value is a constant in `internal/config/defaults_proxy.go`
-or an `hl.yml` setting): entrypoint `web` on `:80` (every app router uses it), entrypoint `traefik`
+no inline literals (every name, path and value is a constant in `internal/defaults` or an `hl.yml`
+setting): entrypoint `web` on `:80` (every app router uses it), entrypoint `traefik`
 on `:8080` for `ping` only (not published), the Docker provider with `exposedByDefault: false` on
 `proxy.network`, the file provider reading `proxy.dynamic` when set (`watch: true`), `api.dashboard`
-when the dashboard is on (`gen.Dashboard`, the single switch for the `api` section and the
-dashboard router labels), `log.level` (`proxy.log_level`, default `ERROR`, Traefik's own default),
+when the dashboard is on (`gen.Dashboard`, i.e. `proxy.dashboard`, off by default; the single
+switch for the `api` section and the dashboard router labels; `Validate` refuses it on a
+non-loopback `proxy.bind` unless `proxy.dashboard_public` is set), `log.level` (`proxy.log_level`, default `ERROR`, Traefik's own default),
 and `accessLog` (format `common`) when `proxy.access_log` is on. With `proxy.config` set, hl writes
 no `traefik.yml` (and removes a stale one); it reads the user's file and `gen.CheckTraefik` reports
 problems (no `entryPoints.web` on port 80, no `providers.docker`, `providers.docker.network` not
@@ -99,7 +122,7 @@ config errors together with `proxy.config`.
 **`.hl/proxy/compose.yml`** (`gen.Proxy`): compose project `proxy.project` (default `hl-proxy`),
 one `traefik` service, `restart: unless-stopped`, no `command:` - Traefik reads its static config
 from `/etc/traefik/traefik.yml`, where the generated file or `proxy.config` is mounted read-only.
-`web` is published at `<bind>:<port>`. The Docker socket is mounted read-only; with
+`web` is published at `<bind>:<port>` (an IPv6 bind in brackets). The Docker socket is mounted read-only; with
 `proxy.dynamic`, the folder holding that file is mounted read-only at `/etc/traefik/dynamic` (a
 folder, not the file, so Traefik's watch survives editors that replace the file). Because the whole folder is
 mounted, `Validate` requires `proxy.dynamic` in a subfolder of the homelab that is not the homelab
@@ -158,25 +181,58 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
   config file with its path.
 - `doctor` also checks the proxy config (as above), the project/network ownership, and warns (not a
   failure) when `proxy.image` is older than the tested Traefik or its version can't be told.
-- `up`/`start`, `rebuild`, `update` start the proxy first if no `hl-proxy` container runs
-  (`ensureProxy`), because each override joins the proxy network as `external`. `restart` doesn't.
-- `down`/`stop` with no app stops every app, then the proxy. `remove` runs `down` for the app (if
-  it still prepares), deletes it from `hl.yml` and `.hl/<app>/`, and keeps `data/<app>/`.
+- `up`/`start`, `rebuild`, `update` and `restart` start the proxy first if none of its containers
+  runs (`ensureProxy`), because each override joins the proxy network as `external`. Before
+  starting it (`startProxy`, also `hl proxy up`): `checkPort` - something else on `bind:port`?
+  (`net.Listen`; when hl may not open a low port, a connect instead), named by `docker ps --filter
+  publish=<port>`, else `lsof`, else `ss`, with a free port suggested - and `checkNetwork` - with
+  `proxy.subnet` set, the proxy network existing with another subnet, or the subnet overlapping
+  another Docker network or one of the machine's own, each with the fix (a free `172.x.0.0/16`).
+- Multi-app commands (`eachApp`) run every app even when one fails, print each failure as it
+  happens and end with "n of m apps failed: ..." (exit 1). An interruption stops the loop.
+- `--wait` (`up`, `rebuild`, `update`) passes `--wait --wait-timeout <s>` to compose; when an app
+  doesn't come up, hl lists its services that aren't running or healthy and prints their last
+  `defaults.FailLogTail` log lines.
+- `down`/`stop` with no app stops every app that has containers, then the proxy; apps and a proxy
+  that aren't there are skipped, so it is safe to repeat. An app hl can no longer prepare (folder
+  gone) is stopped by project name alone (`downByName`). `remove` does the same for the app,
+  deletes it from `hl.yml` and `.hl/<app>/`, and keeps `data/<app>/`.
 - `update` per app: skip if `git status --porcelain` fails (not a repo) or shows changes; otherwise
-  `git pull --ff-only` (a failed pull is reported and skipped), then `up --detach --build`.
-- `status` state comes from `docker ps -a` filtered by the compose project label: `down`,
-  `up n/m`, `starting`, `partial`, `unhealthy` (restarting counts as unhealthy).
-- `ps` with no app lists containers of every compose project whose name starts with `hl-`.
+  `git pull --ff-only` (a failed pull is a failure for that app; the folder is left as it was),
+  then `up --detach --build`. It ends with the updated and the skipped apps and why.
+- `status`: STATE `down`, `up n/m` or `partial n/m`; HEALTH from the containers' status:
+  `healthy` (every healthcheck passes), `starting: <services>`, `unhealthy: <services>` (also
+  restarting or exited ones), `-` without healthchecks. Without Docker it still prints hl.yml's
+  apps, states `?`, and a warning with the hint.
+- `logs` with no app runs `docker compose logs` for every app at once, each line prefixed by its
+  app; `--tail` (default `defaults.LogTail`) and `-f` apply to all.
+- `ps` with no app lists the containers of this homelab's projects (the proxy and each app).
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.
-- `shell` runs `bash` if the container has it, else `sh`.
-- `doctor` checks docker on PATH, `docker info`, compose >= 2.24, that `hl.yml` loads, and that
-  every app prepares (which runs `docker compose config` per app).
+- `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the
+  service name is validated so it can't pass as a flag). Without a service it uses the pinned or
+  detected one. It exits with the shell's own status.
+- `doctor` prints hl's version, Go version and platform, then checks docker on PATH (and its
+  version), the daemon (`docker info`: version, OS, architecture), compose >= 2.24, that `hl.yml`
+  loads (every problem with its line), the proxy (config, ownership, image), a non-loopback bind
+  or public dashboard (warnings), the port and subnet when the proxy isn't running, projects owned
+  by another homelab, and that every app prepares. It ends "all good" or "n problem(s) found"
+  (exit 1) with a note to paste it into bug reports.
 - Completion: commands taking one app complete only the first argument; multi-app commands leave
   out apps already typed; `logs` and `shell` complete the app's services after the app name.
 - Output: colours only on a terminal (`golang.org/x/term`; `/dev/null` is not one) and never with
-  `NO_COLOR` set; errors print `error: ...` and
-  exit 1.
+  `NO_COLOR` set. Commands write through `cli.stdout`/`stderr`, set from cobra's writers.
+- Errors (`cli.report`): `error: <what failed>`, then `hint: <what to do>` when known - from a
+  `hintError` the code attached, or read from docker's own error output (`dockerHint`: daemon
+  down, permission, port allocated, old compose, pool overlap, missing network, name conflict,
+  pull denied, disk full). Exit codes: 0 ok, 1 failure, 2 usage (cobra's unknown command/flag
+  and every `Args` check, wrapped in `usageError`), 128+signal when interrupted.
+- Ctrl-C (`internal/interrupt`): `cli.Main` cancels the command's context on the first SIGINT or
+  SIGTERM. A running docker/git command (`compose.Exec` -> `interrupt.Run`) is waited for; SIGINT
+  from a terminal already reached it, other signals are passed on; a second signal kills it. No
+  further app is started, and hl exits 128+signal without an error line.
+- Windows: `supported` (the root's PersistentPreRunE) refuses every command but `version`,
+  `help` and `completion` with a friendly error suggesting WSL 2.
 
 ## Editing hl.yml
 
@@ -200,13 +256,16 @@ normalises indentation to two spaces).
 change), reporting syntax errors, unknown keys with a Levenshtein "did you mean", keys set twice,
 type mismatches, required keys, and per-key rules (`rules`, keyed by path with app names as `*`:
 routing values, ports, prefix, app names, `proxy.project`, `proxy.log_level`, version). If the walk
-finds nothing it decodes and runs `Validate` as a backstop (no line number then). `Load` doesn't
-call `Check`; unknown keys are only reported by `hl config check`, `set`, `unset` and `edit`.
+finds nothing it decodes and runs `Validate`, which collects every value problem and clash (bind
+is an IP, domain/host names, network, subnet, image, env names, the dashboard on a public bind,
+two apps with the same Docker project, URL prefix or host) as `Problem`s keyed by path; `check`
+gives them the line of their key. `Load` calls it, so every command reports unknown keys and bad
+values with their lines.
 
-**Versions** (`config.Version`, `internal/config/defaults_config.go`): `version: 1`; no line means
+**Versions** (`defaults.ConfigVersion`): `version: 1`; no line means
 the format before versions (0), which loads as before. `config.Upgrade` adds the line (at the top,
 after any header comment) and the CLI prints a note; it runs before `add`/`remove` and after
-`set`/`unset`. `Validate` refuses a version above `config.Version`.
+`set`/`unset`. `Validate` refuses a version above `defaults.ConfigVersion`.
 
 **Schema**: `schema/hl.schema.json` (draft-07), referenced from new files by
 `config.SchemaComment`. `internal/config/schema_test.go` keeps it in step with the code: same keys
@@ -214,22 +273,24 @@ as the Go types, same enums, patterns and defaults, and it accepts the README's 
 
 **Defaults listing** (`hl config defaults`, `config.Settings`): the homelab-wide fields of `Config`
 by reflection, the default taken by running `defaults()` on an empty config, the source `hl.yml` when
-the raw file sets it; the CLI fills in `scan_depth`/`ignore` from `internal/scan`, adds the homelab
-folder, version and editor with their sources, and the named values hl.yml can't set from
-`cli.builtinDefaults` (the one accessor to repoint at a shared defaults package).
+the raw file sets it; the CLI fills in `scan_depth`/`ignore` from `internal/defaults`, adds the
+homelab folder, version and editor with their sources, and the named values hl.yml can't set from
+`cli.builtinDefaults` (all read from `internal/defaults`).
 
 ## Version
 
 `internal/version` holds `Version`/`Commit`/`Date`, set by GoReleaser's `-ldflags -X`. Without them
 `Get` fills in from `runtime/debug` build info: the module version for `go install ...@vX`, and
-`vcs.revision`/`vcs.time` for builds from a checkout. `String` omits commit and date when unknown.
+``vcs.revision`/`vcs.time` for builds from a checkout (`-dirty` with `vcs.modified`). `String`
+omits commit and date when unknown; `Full` (what `hl version` and `--version` print) adds the Go
+version and OS/architecture for bug reports; `hl version --short` prints only the version.
 
 ## Projects folders: `hl init` and `hl sync`
 
 hl.yml's `projects`, `ignore` and `scan_depth` (a separate block in `config.Config`; edits in
 `config/projects.go`) drive both commands. Their defaults (`.hlignore`, the always-ignored name
-patterns, scan depth 1, the folders init suggests, init's fallback port and network bind) are one
-block in `internal/scan/defaults_scan.go`; the compose file names are `compose.DefaultFiles`.
+patterns, scan depth 1, the folders init suggests, init's fallback port and network bind) are in
+`internal/defaults`; the compose file names are `defaults.ComposeFiles`.
 
 - **`scan.Compare`** (file system only): lists the subfolders of each projects folder, down to
   `scan_depth`, that have a compose file (`compose.FindFile`, a name check - never parsed). A
@@ -260,3 +321,15 @@ block in `internal/scan/defaults_scan.go`; the compose file names are `compose.D
   tree (`config.WriteNew`, `O_EXCL`, so it never overwrites); projects folders are stored relative
   inside the homelab, with `~` inside the user's home, else absolute. On an existing hl.yml init only
   saves `projects` if there are none and offers the new apps (`scan.PlanAdds`).
+
+## Tests of the CLI
+
+`internal/cli/fake_test.go`: `TestMain` turns the test binary into a fake `docker` (and `git`,
+`lsof`, `xdg-open`) when it runs under that name. `newFake` links it into a folder that is the
+whole PATH, makes a fresh home folder with spaces in its path (`HOME`, `XDG_CONFIG_HOME`) and no hl
+state, and replaces the port and host-network probes. Each fake call appends its arguments, working
+folder and `HL_*` environment to a JSON-lines file; what it prints and its exit code come from
+rules (`f.on`), and by default `compose ... config --format json` prints the app folder's
+`model.json`, `ps --all` lists nothing and `network inspect` finds nothing. `f.hl(...)` runs
+`runCLI` with buffers and returns the exit code and both outputs. Interrupts are tested by
+cancelling the context with an `interrupt.Error` while a fake waits for a signal.

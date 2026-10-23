@@ -35,21 +35,27 @@ github.com/DeM-Conve/project__hl, MIT, module `github.com/DeM-Conve/project__hl`
 ## Code map
 
 `cmd/hl` (entry) -> `internal/cli` (cobra commands; `project.go` builds and prepares compose
-projects) -> `internal/gen` (override and proxy compose text) and `internal/compose` (runs
-`docker compose`, reads the model) -> `internal/config` (hl.yml) ; `internal/version`.
-Details in docs/architecture.md.
+projects, `docker.go` asks Docker what runs and checks port/network) -> `internal/gen` (override
+and proxy files) and `internal/compose` (runs `docker compose`, reads the model) ->
+`internal/config` (hl.yml) -> `internal/defaults` (every default and name, in one place);
+`internal/interrupt` (Ctrl-C), `internal/fsutil` (atomic writes), `internal/scan`,
+`internal/version`. Details in docs/architecture.md.
+
+- Every default or fixed name goes into `internal/defaults` (and, if users may want to know it,
+  `cli.builtinDefaults` for `hl config defaults`); no literals elsewhere.
+- Errors say what failed and what to do: wrap with `withHint(err, "...")`; usage errors exit 2.
+- Never run a command through a shell; pass arguments to `exec.Command` as they are.
 
 ## Checks
 
 ```sh
-gofmt -l .            # must print nothing
-go vet ./...
-go test ./...         # config, gen, compose, version; cli has no tests
-shellcheck install.sh # if install.sh changed
+scripts/check.sh          # gofmt, vet, staticcheck, golangci-lint, go test -race, shellcheck, cross builds
+scripts/check.sh --quick  # the same without race, golangci-lint and cross builds
 go build -o hl ./cmd/hl
 ```
 
-There is no CI; run these before every commit. Go 1.21 (`go.mod`). Trying it for real needs Docker
+There is no CI; run these before every commit. CLI tests use a fake `docker` (see
+docs/architecture.md, "Tests of the CLI"); add a test there for any command change. Go 1.21 (`go.mod`). Trying it for real needs Docker
 with compose v2.24+.
 
 ## Git

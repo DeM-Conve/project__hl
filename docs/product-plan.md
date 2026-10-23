@@ -23,11 +23,11 @@ hl sync                      # hl.yml follows my projects folder
 hl will have many users, each with their own folders, apps, OS, user name and timezone. Nothing
 in hl may assume the maintainer's setup.
 
-- [ ] **No hard-coded personal values** anywhere - code, defaults, generated files, tests,
+- [x] **No hard-coded personal values** anywhere - code, defaults, generated files, tests,
   examples, docs: no user names, home paths (`/home/<name>/...`), project-folder names or
   layouts, app names from one homelab, timezones, domains, emails. Examples use neutral names
   (`my-app`, `blog`, `~/code`, `~/homelab`, `Europe/Berlin`/`UTC`).
-- [ ] **No hard-coding at all, not only personal values.** Every value hl uses is either the
+- [x] **No hard-coding at all, not only personal values.** Every value hl uses is either the
   user's setting or a named default defined in exactly one place (one `defaults` file in Go,
   listed in the README's hl.yml reference) - never a literal scattered in code or generated
   files. That covers: proxy port, bind address, routing mode, domain, Traefik image and version,
@@ -37,20 +37,20 @@ in hl may assume the maintainer's setup.
   pattern, ignore patterns, editor fallback, update-check URL and interval. Each default can be
   overridden in hl.yml (or a flag/env var where it makes sense), and `hl config defaults` prints
   them all. Tests assert that changing a setting changes every place it's used.
-- [ ] **Every path comes from the user or the OS**: the homelab folder from `hl init`/`--home`/
+- [x] **Every path comes from the user or the OS**: the homelab folder from `hl init`/`--home`/
   `$HL_HOME`/nearest `hl.yml`; the projects folders from `projects:`; hl's own state from the OS
   config dir (`os.UserConfigDir`); `~` expanded for the current user only. Paths in hl.yml may be
   relative to the homelab, so a homelab folder can be moved or shared.
-- [ ] **Sensible, neutral defaults** that work on a fresh machine: no `TZ` unless the user sets
+- [x] **Sensible, neutral defaults** that work on a fresh machine: no `TZ` unless the user sets
   it (the container's default), port 80 with an offer of another if busy, `localhost`, no fixed
   subnet unless asked.
-- [ ] **Fresh-user test**: an automated check that runs init -> add -> up (fake docker) as a
+- [x] **Fresh-user test**: an automated check that runs init -> add -> up (fake docker) as a
   different user name, in a home folder with spaces in its path, with no prior hl state, and on a
   second homelab next to the first - nothing leaks between them.
-- [ ] **Several homelabs per user** work side by side (different folders, project names, proxy
+- [x] **Several homelabs per user** work side by side (different folders, project names, proxy
   ports/networks), and two users on one machine don't collide (proxy port/network names are
   per-homelab or clearly reported when they clash).
-- [ ] Audit found (2026-10-23): tests and code comments use one homelab's app name
+- [x] Audit found (2026-10-23): tests and code comments use one homelab's app name
   (`tierlist.fm`) and timezone (`Asia/Kolkata`) as examples - replace with neutral ones
   (`my-app.io`, `UTC`). No personal paths or names in code.
 
@@ -107,8 +107,8 @@ in hl may assume the maintainer's setup.
   provider hl needs and says what's missing. One file, your choice, default generated.
 - [x] **Extra routes/middlewares**: `proxy.dynamic: dynamic.yml` (Traefik file provider) for
   things that aren't hl apps (another machine, a NAS, redirects).
-- [ ] **Dashboard off by default**; `proxy.dashboard: true` turns it on at `traefik.<domain>`,
-  refused on a non-loopback bind unless `proxy.dashboard_public: true`. (in progress, core agent)
+- [x] **Dashboard off by default**; `proxy.dashboard: true` turns it on at `traefik.<domain>`,
+  refused on a non-loopback bind unless `proxy.dashboard_public: true`.
 - [x] **Pinned Traefik version** with a tested default; `hl doctor` warns when the configured
   image is older than the tested one.
 - [x] Access log on/off (`proxy.access_log`), proxy healthcheck, `hl proxy status`.
@@ -116,17 +116,16 @@ in hl may assume the maintainer's setup.
 
 ## 5. Running apps reliably (P0)
 
-- [ ] **Clear errors everywhere** (what failed, why, what to do), consistent exit codes. (in
-  progress, core agent)
-- [ ] **Port 80 in use** detected before starting the proxy, naming the process if possible.
-- [ ] **Subnet/network clash** detection with a fix.
-- [ ] **`hl up --wait`**: waits for healthchecks and reports which app is unhealthy and its last
+- [x] **Clear errors everywhere** (what failed, why, what to do), consistent exit codes.
+- [x] **Port 80 in use** detected before starting the proxy, naming the process if possible.
+- [x] **Subnet/network clash** detection with a fix.
+- [x] **`hl up --wait`**: waits for healthchecks and reports which app is unhealthy and its last
   log lines.
-- [ ] **`hl status` shows health** (healthy/unhealthy/starting), not only up/down counts.
-- [ ] `hl restart` starts the proxy first like `up`. (in progress, core agent)
-- [ ] `hl logs` with no app: every app's logs, prefixed by app name.
-- [ ] Ctrl-C during long docker commands stops cleanly. (in progress, core agent)
-- [ ] `hl update` never pulls over uncommitted work; says which apps it skipped and why.
+- [x] **`hl status` shows health** (healthy/unhealthy/starting), not only up/down counts.
+- [x] `hl restart` starts the proxy first like `up`.
+- [x] `hl logs` with no app: every app's logs, prefixed by app name.
+- [x] Ctrl-C during long docker commands stops cleanly.
+- [x] `hl update` never pulls over uncommitted work; says which apps it skipped and why.
 
 ## 6. Data (P1)
 
@@ -144,13 +143,13 @@ in hl may assume the maintainer's setup.
 
 ## 8. Quality (P0)
 
-- [~] Automated tests for every command with a fake `docker` (core agent).
+- [x] Automated tests for every command with a fake `docker` (`internal/cli/fake_test.go`).
 - [ ] Optional end-to-end script (`make e2e` / `scripts/e2e.sh`) that runs a real tiny homelab
   with Docker: init -> add two sample apps -> up -> curl both URLs -> sync -> down.
 - [x] Sample apps in `examples/` (a static site, an app needing a base path) used by docs and e2e.
-- [~] gofmt, vet, staticcheck clean (core agent). No CI, by the maintainer's choice - all checks
+- [x] gofmt, vet, staticcheck and golangci-lint clean. No CI, by the maintainer's choice - all checks
   run locally before every release (`scripts/check.sh`).
-- [~] Linux and macOS, amd64 and arm64 builds; Windows gets a friendly "not supported". (Builds
+- [x] Linux and macOS, amd64 and arm64 builds; Windows gets a friendly "not supported". (Builds
   done in `.goreleaser.yaml`; the Windows message is in code.)
 
 ## 9. Release and distribution (P0)
