@@ -183,7 +183,7 @@ kept in <homelab>/data/<app>/<volume>.`,
 				return err
 			}
 			if cfg.Routing(&a) != config.RoutingNone {
-				if err := pickServicePort(m, &a); err != nil {
+				if err := pickServicePort(m, &a, cmd.InOrStdin()); err != nil {
 					return err
 				}
 			}

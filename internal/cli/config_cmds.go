@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/scan"
 )
 
 // upgradeConfig brings hl.yml to the current format before hl edits it, and says so: an older
@@ -205,11 +206,8 @@ Otherwise it lists them and offers to open the editor again, so hl.yml is never 
 					say("%s", p.In(draft))
 				}
 				keep := fmt.Errorf("hl.yml not changed; your edit is in %s (fix it there, or run hl edit again to start over)", draft)
-				if !stdinIsTerminal() {
-					return keep
-				}
-				again, err := confirm(plural(len(ps), "problem", "problems")+" - open the editor again?", true)
-				if err != nil || !again {
+				if !stdinTerminal(cmd.InOrStdin()) ||
+					!newPrompter(cmd.InOrStdin(), os.Stdout).confirm(plural(len(ps), "problem", "problems")+" - open the editor again?", true) {
 					return keep
 				}
 			}
@@ -255,6 +253,33 @@ func homeSource(home string) string {
 	return "default (hl init)"
 }
 
+// builtinDefaults are the named values hl uses that hl.yml doesn't set (yet), as name, value.
+// The one place `hl config defaults` reads them from; point it at a shared defaults package
+// once there is one.
+func builtinDefaults() [][2]string {
+	itoa := strconv.Itoa
+	return [][2]string{
+		{"traefik.tested_version", config.TestedTraefikVersion},
+		{"traefik.entrypoint", config.EntryPointWeb},
+		{"traefik.container_port", itoa(config.ProxyContainerPort)},
+		{"traefik.ping", config.EntryPointPing + ":" + itoa(config.PingPort)},
+		{"traefik.healthcheck", fmt.Sprintf("every %s, timeout %s, %d retries, start %s",
+			config.ProxyHealthInterval, config.ProxyHealthTimeout, config.ProxyHealthRetries, config.ProxyHealthStartPeriod)},
+		{"traefik.access_log_format", config.AccessLogFormat},
+		{"traefik.log_level", config.DefaultProxyLogLevel},
+		{"traefik.dashboard_host", config.DashboardHostPrefix + "<domain>"},
+		{"proxy.files", filepath.Join(".hl", config.ProxyStateDir, config.ProxyComposeFile) + ", " + config.TraefikStaticFile},
+		{"proxy.restart", config.ProxyRestart},
+		{"app_name.reserved", config.ReservedAppName},
+		{"sync.ignore_file", scan.IgnoreFile},
+		{"init.projects", strings.Join(scan.CandidateProjects, ", ") + " (under your home, if they exist)"},
+		{"init.alt_port", itoa(scan.AltPort)},
+		{"init.network_bind", scan.BindNetwork},
+		{"edit.draft", config.EditDraft},
+		{"schema", config.SchemaURL},
+	}
+}
+
 func configDefaultsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "defaults",
@@ -277,13 +302,27 @@ func configDefaultsCmd() *cobra.Command {
 			if ver == "0" {
 				ver, verFrom = "-", "none (the format before versions)"
 			}
+			// Settings whose default lives outside config (0 / empty in hl.yml means "use it").
+			for i, st := range settings {
+				switch st.Key {
+				case "scan_depth":
+					settings[i].Default = strconv.Itoa(scan.DefaultDepth)
+					if st.Source == "default" {
+						settings[i].Value = settings[i].Default
+					}
+				case "ignore":
+					settings[i].Default = "-  (always: " + strings.Join(scan.DefaultIgnore, ", ") + ")"
+				}
+			}
 			editor, editorFrom := editorCommand()
 			settings = append(settings,
 				config.Setting{Key: "home", Default: "-", Value: home, Source: homeSource(home)},
 				config.Setting{Key: "version", Default: strconv.Itoa(config.Version), Value: ver, Source: verFrom},
 				config.Setting{Key: "editor", Default: config.DefaultEditor, Value: editor, Source: editorFrom},
-				config.Setting{Key: "schema", Default: config.SchemaURL, Value: config.SchemaURL, Source: "default"},
 			)
+			for _, b := range builtinDefaults() {
+				settings = append(settings, config.Setting{Key: b[0], Default: b[1], Value: b[1], Source: "built in"})
+			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "SETTING\tDEFAULT\tVALUE\tFROM")
 			for _, s := range settings {

@@ -5,10 +5,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/scan"
 )
 
 // fakeDocker puts a `docker` on PATH that answers `compose ... config --format json` with
@@ -61,8 +63,6 @@ func run(t *testing.T, stdin string, args ...string) (string, error) {
 	}
 	oldOut, oldErr := os.Stdout, os.Stderr
 	os.Stdout, os.Stderr = w, w
-	oldIn := input
-	input = strings.NewReader(stdin)
 	done := make(chan string)
 	go func() {
 		var b bytes.Buffer
@@ -71,18 +71,18 @@ func run(t *testing.T, stdin string, args ...string) (string, error) {
 	}()
 	c := root()
 	c.SetArgs(args)
+	c.SetIn(strings.NewReader(stdin))
 	runErr := c.Execute()
 	w.Close()
 	os.Stdout, os.Stderr = oldOut, oldErr
-	input = oldIn
 	return <-done, runErr
 }
 
 // onTerminal makes hl believe stdin is a terminal for the rest of the test.
 func onTerminal(t *testing.T) {
-	old := stdinIsTerminal
-	stdinIsTerminal = func() bool { return true }
-	t.Cleanup(func() { stdinIsTerminal = old })
+	old := stdinTerminal
+	stdinTerminal = func(io.Reader) bool { return true }
+	t.Cleanup(func() { stdinTerminal = old })
 }
 
 func hlYML(t *testing.T, home string) string {
@@ -305,7 +305,7 @@ func TestAddAsksWhenItHasToGuess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	for _, want := range []string{"Which one should the proxy forward to?", "db  (container port 5432)", "web  (container port 80, 443)", "choose [2]", "Which container port"} {
+	for _, want := range []string{"Which one should the proxy forward to?", "db  (container port 5432)", "web  (container port 80, 443)", "choice [2]", "Which container port"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q:\n%s", want, out)
 		}
@@ -315,11 +315,11 @@ func TestAddAsksWhenItHasToGuess(t *testing.T) {
 	}
 }
 
-func TestAddPicksByNameOrNumberAndFlagsWin(t *testing.T) {
+func TestAddPicksByNumberAndFlagsWin(t *testing.T) {
 	fakeDocker(t, twoServices)
 	home, appDir := homelab(t, "version: 1\napps: {}\n")
 	onTerminal(t)
-	if out, err := run(t, "db\n", "add", appDir); err != nil {
+	if out, err := run(t, "1\n", "add", appDir); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if got := hlYML(t, home); !strings.Contains(got, "service: db") || !strings.Contains(got, "port: 5432") {
@@ -373,13 +373,18 @@ func TestConfigDefaults(t *testing.T) {
 		}
 	}
 	for key, want := range map[string]string{
-		"proxy.port":    "80 8080 hl.yml",
-		"proxy.bind":    "127.0.0.1 127.0.0.1 default",
-		"proxy.routing": "path path default",
-		"home":          "- " + home + " env ($HL_HOME)",
-		"version":       "1 - none (the format before versions)",
-		"editor":        config.DefaultEditor + " my-editor env ($EDITOR)",
-		"schema":        config.SchemaURL + " " + config.SchemaURL + " default",
+		"proxy.port":       "80 8080 hl.yml",
+		"proxy.bind":       "127.0.0.1 127.0.0.1 default",
+		"proxy.routing":    "path path default",
+		"home":             "- " + home + " env ($HL_HOME)",
+		"version":          "1 - none (the format before versions)",
+		"editor":           config.DefaultEditor + " my-editor env ($EDITOR)",
+		"schema":           config.SchemaURL + " " + config.SchemaURL + " built in",
+		"scan_depth":       strconv.Itoa(scan.DefaultDepth) + " " + strconv.Itoa(scan.DefaultDepth) + " default",
+		"proxy.image":      config.DefaultProxyImage + " " + config.DefaultProxyImage + " default",
+		"proxy.project":    config.DefaultProxyProject + " " + config.DefaultProxyProject + " default",
+		"sync.ignore_file": scan.IgnoreFile + " " + scan.IgnoreFile + " built in",
+		"edit.draft":       config.EditDraft + " " + config.EditDraft + " built in",
 	} {
 		if got := strings.Join(rows[key], " "); got != want {
 			t.Errorf("%s: %q, want %q", key, got, want)

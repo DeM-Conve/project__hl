@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,7 +15,14 @@ import (
 // pickServicePort fills in the app's service and port for `hl add` from the compose model.
 // Flags win. When there is more than one candidate it asks on a terminal (hl's usual pick is
 // the default); without a terminal it stops and names the flag to pass, rather than guess.
-func pickServicePort(m *compose.Model, a *config.App) error {
+func pickServicePort(m *compose.Model, a *config.App, in io.Reader) error {
+	var p *prompter // one, so its buffered input is shared by both questions
+	ask := func() *prompter {
+		if p == nil {
+			p = newPrompter(in, os.Stdout)
+		}
+		return p
+	}
 	if a.Service == "" {
 		var published []string
 		for name, s := range m.Services {
@@ -33,7 +42,7 @@ func pickServicePort(m *compose.Model, a *config.App) error {
 			if usual, err := m.Exposed(); err == nil {
 				def = indexOf(published, usual)
 			}
-			if !stdinIsTerminal() {
+			if !stdinTerminal(in) {
 				return fmt.Errorf("several services publish ports (%s) - pass --service, e.g. --service %s",
 					strings.Join(published, ", "), published[def])
 			}
@@ -41,11 +50,7 @@ func pickServicePort(m *compose.Model, a *config.App) error {
 			for i, s := range published {
 				opts[i] = fmt.Sprintf("%s  (container port %s)", s, joinInts(targetPorts(m.Services[s])))
 			}
-			i, err := choose("Several services publish ports. Which one should the proxy forward to?", opts, def)
-			if err != nil {
-				return fmt.Errorf("%w - pass --service", err)
-			}
-			a.Service = published[i]
+			a.Service = published[ask().choose("Several services publish ports. Which one should the proxy forward to?", opts, def)]
 		}
 	}
 	if a.Port == 0 {
@@ -66,7 +71,7 @@ func pickServicePort(m *compose.Model, a *config.App) error {
 		case 1:
 			a.Port = ports[0]
 		default:
-			if !stdinIsTerminal() {
+			if !stdinTerminal(in) {
 				return fmt.Errorf("service %s publishes several ports (%s) - pass --port, e.g. --port %d",
 					a.Service, joinInts(ports), ports[0])
 			}
@@ -74,11 +79,7 @@ func pickServicePort(m *compose.Model, a *config.App) error {
 			for i, p := range ports {
 				opts[i] = strconv.Itoa(p)
 			}
-			i, err := choose(fmt.Sprintf("%s publishes several ports. Which container port serves the app?", a.Service), opts, 0)
-			if err != nil {
-				return fmt.Errorf("%w - pass --port", err)
-			}
-			a.Port = ports[i]
+			a.Port = ports[ask().choose(fmt.Sprintf("%s publishes several ports. Which container port serves the app?", a.Service), opts, 0)]
 		}
 	}
 	return nil
