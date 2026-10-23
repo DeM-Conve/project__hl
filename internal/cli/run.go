@@ -453,7 +453,7 @@ func logsAll(ctx context.Context, cfg *config.Config, names []string, args []str
 		r, w := io.Pipe()
 		cmd.Stdout, cmd.Stderr = w, w
 		if err := cmd.Start(); err != nil {
-			w.Close()
+			_ = w.Close()
 			f.add(n, &compose.Error{Cmd: "docker compose logs", Code: -1, Err: err})
 			continue
 		}
@@ -475,7 +475,7 @@ func logsAll(ctx context.Context, cfg *config.Config, names []string, args []str
 	var stopped error
 	for _, pr := range procs {
 		err := interrupt.Wait(ctx, pr.cmd)
-		pr.w.Close()
+		_ = pr.w.Close()
 		switch {
 		case errors.Is(err, interrupt.ErrInterrupted):
 			stopped = err

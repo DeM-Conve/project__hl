@@ -179,7 +179,7 @@ func downByName(ctx context.Context, project string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	p := &compose.Project{Name: project, Dir: dir, Stdin: stdin, Stdout: stdout, Stderr: stderr}
 	return p.Run(ctx, "down")
 }

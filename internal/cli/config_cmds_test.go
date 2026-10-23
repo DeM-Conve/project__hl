@@ -75,7 +75,7 @@ func run(t *testing.T, stdin string, args ...string) (string, error) {
 	c.SetArgs(args)
 	c.SetIn(strings.NewReader(stdin))
 	runErr := c.Execute()
-	w.Close()
+	_ = w.Close()
 	os.Stdout, os.Stderr = oldOut, oldErr
 	return <-done, runErr
 }

@@ -1,0 +1,10 @@
+# golangci-lint v2, run locally (scripts/check.sh); there is no CI.
+version: "2"
+linters:
+  settings:
+    errcheck:
+      # Printing to the terminal: nothing useful to do when it fails.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln

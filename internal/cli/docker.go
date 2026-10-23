@@ -180,7 +180,7 @@ func addrInUse(bind string, port int) bool {
 	addr := net.JoinHostPort(bind, strconv.Itoa(port))
 	l, err := net.Listen("tcp", addr)
 	if err == nil {
-		l.Close()
+		_ = l.Close()
 		return false
 	}
 	if errors.Is(err, syscall.EADDRINUSE) {
@@ -194,7 +194,7 @@ func addrInUse(bind string, port int) bool {
 	if err != nil {
 		return false
 	}
-	c.Close()
+	_ = c.Close()
 	return true
 }
 

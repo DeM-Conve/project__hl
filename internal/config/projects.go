@@ -77,7 +77,7 @@ func WriteNew(dir string, s InitSettings) error {
 		return err
 	}
 	if _, err := f.WriteString(Template); err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	if err := f.Close(); err != nil {

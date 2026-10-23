@@ -118,12 +118,14 @@ func Wait(ctx context.Context, cmd *exec.Cmd) error {
 		// Cancelled without a signal: ask it to stop.
 		_ = cmd.Process.Signal(syscall.SIGTERM)
 	}
+	var waitErr error // the command's own result no longer matters
 	select {
-	case <-done:
+	case waitErr = <-done:
 	case <-hardChan(ctx):
 		_ = cmd.Process.Kill()
-		<-done
+		waitErr = <-done
 	}
+	_ = waitErr
 	return Err(ctx)
 }
 

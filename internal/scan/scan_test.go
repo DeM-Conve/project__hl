@@ -121,7 +121,7 @@ func TestMissingProjectsFolderRemovesNothing(t *testing.T) {
 
 func TestAppName(t *testing.T) {
 	for in, want := range map[string]string{"My App": "my-app", "my-app.io": "my-app.io", "_x": "x", "日本": "--"} {
-		if got := AppName(in); got != want && !(want == "--" && got == "") {
+		if got := AppName(in); got != want && (want != "--" || got != "") {
 			t.Errorf("AppName(%q) = %q, want %q", in, got, want)
 		}
 	}

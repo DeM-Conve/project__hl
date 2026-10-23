@@ -176,10 +176,7 @@ func TestSchemaMatchesTypes(t *testing.T) {
 	if got := jsonString(root.Properties["proxy"].Properties["routing"].Enum); got != jsonString([]string{RoutingPath, RoutingHost}) {
 		t.Errorf("proxy.routing enum %s", got)
 	}
-	var levels []string
-	for _, l := range defaults.ProxyLogLevels {
-		levels = append(levels, l)
-	}
+	levels := append([]string(nil), defaults.ProxyLogLevels...)
 	for _, l := range defaults.ProxyLogLevels {
 		levels = append(levels, strings.ToLower(l))
 	}

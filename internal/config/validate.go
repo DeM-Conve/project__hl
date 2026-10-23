@@ -318,7 +318,7 @@ func walk(n *yaml.Node, t reflect.Type, path, pattern string, ps *[]Problem) {
 	add := func(at *yaml.Node, msg string) {
 		*ps = append(*ps, Problem{Line: at.Line, Column: at.Column, Key: path, Message: msg})
 	}
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if n.Tag == "!!null" && n.Kind == yaml.ScalarNode {

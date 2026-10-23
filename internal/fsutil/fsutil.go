@@ -22,13 +22,13 @@ func WriteFile(path string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	tmp := f.Name()
-	defer os.Remove(tmp) // no-op once renamed
+	defer func() { _ = os.Remove(tmp) }() // no-op once renamed
 	if _, err := f.Write(data); err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	if err := f.Sync(); err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	if err := f.Close(); err != nil {
