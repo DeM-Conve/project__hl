@@ -148,6 +148,10 @@ func AppName(folder string) string {
 		}
 	}
 	name := strings.TrimLeft(b.String(), "._-")
+	// A reserved name is a usable name hl won't add; plan says why.
+	if reserved(name) {
+		return name
+	}
 	if config.ValidName(name) != nil {
 		return ""
 	}

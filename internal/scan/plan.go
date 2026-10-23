@@ -160,11 +160,5 @@ func quote(s string) string {
 	return s
 }
 
-func reserved(name string) bool {
-	for _, r := range ReservedNames {
-		if name == r {
-			return true
-		}
-	}
-	return false
-}
+// reserved: a name whose ID is the one config keeps for the proxy.
+func reserved(name string) bool { return config.ID(name) == config.ReservedAppName }

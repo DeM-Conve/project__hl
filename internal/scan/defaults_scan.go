@@ -24,9 +24,4 @@ var DefaultIgnore = []string{".*", "node_modules", "vendor", "__pycache__", "ven
 // the user's home, when they exist. Only a suggestion: the user is asked.
 var CandidateProjects = []string{"code", "projects", "src"}
 
-// ReservedNames are app names hl keeps for itself (the proxy's compose
-// project is hl-proxy); sync and init never add a folder under one of them.
-// To be merged with config's reserved names when that lands.
-var ReservedNames = []string{"proxy"}
-
 // ===== end defaults =====
