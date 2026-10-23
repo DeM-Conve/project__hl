@@ -13,6 +13,7 @@ internal/config         hl.yml: types, defaults, validation, derived values, com
 internal/compose        runs `docker compose`; reads the resolved model (`config --format json`)
 internal/gen            writes the per-app override, the proxy's compose file and its Traefik
                         static config, and checks a user-supplied one (pure functions)
+internal/scan           finds apps in the `projects` folders and plans `hl sync` (no writes, no Docker)
 internal/version        version, commit, build date (ldflags, else Go build info)
 ```
 
@@ -173,3 +174,40 @@ turned into a block mapping). Everything else in `hl.yml` is the user's to edit 
 `internal/version` holds `Version`/`Commit`/`Date`, set by GoReleaser's `-ldflags -X`. Without them
 `Get` fills in from `runtime/debug` build info: the module version for `go install ...@vX`, and
 `vcs.revision`/`vcs.time` for builds from a checkout. `String` omits commit and date when unknown.
+
+## Projects folders: `hl init` and `hl sync`
+
+hl.yml's `projects`, `ignore` and `scan_depth` (a separate block in `config.Config`; edits in
+`config/projects.go`) drive both commands. Their defaults (`.hlignore`, the always-ignored name
+patterns, scan depth 1, the folders init suggests, init's fallback port and network bind) are one
+block in `internal/scan/defaults_scan.go`; the compose file names are `compose.DefaultFiles`.
+
+- **`scan.Compare`** (file system only): lists the subfolders of each projects folder, down to
+  `scan_depth`, that have a compose file (`compose.FindFile`, a name check - never parsed). A
+  folder with a compose file is an app and is not looked into further. Names matching the default
+  patterns or `ignore:` (`filepath.Match` on the folder name) and folders containing `.hlignore`
+  are skipped. It returns new folders (no app uses them, compared after resolving symlinks), apps
+  inside a projects folder whose folder is gone, the apps still there, and projects folders that
+  don't exist. An app under a missing projects folder (e.g. an unmounted drive) is never "gone".
+  Apps outside every projects folder are not looked at.
+- **`scan.Plan`** adds Docker through a `ModelFunc` (`docker compose config` via `cli.project`):
+  a new folder gets the service and port `hl add` would pick (`Exposed`/`TargetPort`), or a skip
+  with the reason and the `hl add` command to run instead (name taken, ambiguous services, compose
+  error). A kept app with a pinned `service` is checked against its model: service gone -> detect
+  both again; pinned port not among the service's published targets -> pin its first one. Apps
+  with nothing pinned are detected on every run anyway and are left alone.
+- **Applying**: adds go through `config.AddApp` with `path` = the projects entry as written joined
+  with the subfolder (so `~/code/blog`, not an absolute path); removes stop the app by compose
+  project name if it still runs (its files are gone), then `config.RemoveApp` and delete
+  `.hl/<app>/` - `data/<app>/` is never touched; updates use `config.PinApp`. All edits keep
+  hl.yml's comments.
+- **`hl status`** calls `syncHint`, which runs only `scan.Compare` (no Docker), and prints one line
+  when there are new folders or gone apps.
+- **`hl init`**: questions only when stdin is a terminal and `--yes` isn't given (`prompt.go`,
+  plain bufio, Enter = default, end of input = default). Pre-flight runs the doctor's docker checks;
+  without a working docker it still writes hl.yml but leaves app detection to `hl sync`. Port check:
+  `net.Listen` on bind:port; only "address in use" counts as busy (a normal user may not open
+  port 80, Docker can). A new hl.yml is the `Template` with the answers set through the yaml node
+  tree (`config.WriteNew`, `O_EXCL`, so it never overwrites); projects folders are stored relative
+  inside the homelab, with `~` inside the user's home, else absolute. On an existing hl.yml init only
+  saves `projects` if there are none and offers the new apps (`scan.PlanAdds`).

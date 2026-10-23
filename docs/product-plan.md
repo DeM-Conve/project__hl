@@ -56,29 +56,30 @@ in hl may assume the maintainer's setup.
 
 ## 1. First run: `hl init` (P0)
 
-- [ ] **Guided init**: on a terminal, `hl init` asks (with defaults on Enter): where the homelab
+- [x] **Guided init**: on a terminal, `hl init` asks (with defaults on Enter): where the homelab
   folder goes, where your projects live (e.g. `~/code`), `path` or `host` routing, listen on this
   machine only or the network. Then it scans the projects folder (step 2) and lets you pick which
   apps to add from a checklist. Writes a commented `hl.yml` and prints the next command.
-- [ ] **Non-interactive init** for scripts: every question has a flag (`--projects ~/code
+- [x] **Non-interactive init** for scripts: every question has a flag (`--projects ~/code
   --routing path --bind 127.0.0.1 --yes`); no prompt when stdin isn't a terminal.
-- [ ] **Re-running init is safe**: on an existing homelab it never overwrites `hl.yml`; it offers
+- [x] **Re-running init is safe**: on an existing homelab it never overwrites `hl.yml`; it offers
   to add newly found apps instead.
-- [ ] **Pre-flight**: init runs the `hl doctor` checks first (Docker running, compose v2.24+,
-  port 80 free or offer another) and says exactly what to fix.
+- [x] **Pre-flight**: init runs the `hl doctor` checks first (Docker running, compose v2.24+,
+  port 80 free or offer another) and says exactly what to fix. (Naming the process holding the
+  port is left to section 5.)
 
 ## 2. Syncing with your projects folder (P0)
 
-- [ ] **`projects:` in hl.yml**: one or more folders hl watches for apps (`projects: [~/code]`).
-  An app is a direct subfolder with a compose file.
-- [ ] **`hl sync`**: compares `projects` with `hl.yml` and shows a plan before changing anything:
+- [x] **`projects:` in hl.yml**: one or more folders hl watches for apps (`projects: [~/code]`).
+  An app is a direct subfolder with a compose file (`scan_depth: 2` also looks one level deeper).
+- [x] **`hl sync`**: compares `projects` with `hl.yml` and shows a plan before changing anything:
   new folders with a compose file -> add (service and port detected like `hl add`); apps whose
   folder is gone -> remove from hl.yml (data kept, never deleted); apps whose compose changed
   (service/port no longer there) -> re-detect. `--yes` applies without asking; `--dry-run` only
   shows.
-- [ ] **Ignore list**: `ignore:` patterns in hl.yml, and a folder can opt out with a `.hlignore`
+- [x] **Ignore list**: `ignore:` patterns in hl.yml, and a folder can opt out with a `.hlignore`
   file - so libraries/experiments aren't picked up.
-- [ ] **`hl status` hints** when sync would change something ("2 new apps in ~/code - run hl
+- [x] **`hl status` hints** when sync would change something ("2 new apps in ~/code - run hl
   sync").
 - [ ] P2: `hl sync --watch` (re-sync on folder changes).
 
