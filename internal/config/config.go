@@ -33,6 +33,15 @@ type Config struct {
 	Env  map[string]string `yaml:"env,omitempty"`
 	Apps map[string]*App   `yaml:"apps"`
 
+	// --- projects folders for `hl init` / `hl sync` (see projects.go) ---
+	// Folders whose subfolders with a compose file are apps.
+	Projects []string `yaml:"projects,omitempty"`
+	// Folder-name patterns sync skips, on top of scan.DefaultIgnore.
+	Ignore []string `yaml:"ignore,omitempty"`
+	// How deep below a projects folder to look for apps; 0 = scan.DefaultDepth.
+	ScanDepth int `yaml:"scan_depth,omitempty"`
+	// --- end projects ---
+
 	// Dir is the homelab folder hl.yml was read from.
 	Dir string `yaml:"-"`
 }
@@ -153,6 +162,9 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("proxy.routing: %q is not path or host", r)
 	}
 	if err := c.validateProxy(); err != nil {
+		return err
+	}
+	if err := c.validateProjects(); err != nil {
 		return err
 	}
 	for name, a := range c.Apps {
