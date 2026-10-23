@@ -183,15 +183,8 @@ kept in <homelab>/data/<app>/<volume>.`,
 				return err
 			}
 			if cfg.Routing(&a) != config.RoutingNone {
-				if a.Service == "" {
-					if a.Service, err = m.Exposed(); err != nil {
-						return err
-					}
-				}
-				if a.Port == 0 {
-					if a.Port, err = m.TargetPort(a.Service); err != nil {
-						return err
-					}
+				if err := pickServicePort(m, &a); err != nil {
+					return err
 				}
 			}
 			if err := upgradeConfig(cfg.Dir); err != nil {

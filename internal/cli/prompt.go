@@ -11,6 +11,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // stdinTerminal reports whether r is a terminal; tests replace it.
@@ -19,8 +21,8 @@ var stdinTerminal = func(r io.Reader) bool {
 	if !ok {
 		return false
 	}
-	st, err := f.Stat()
-	return err == nil && st.Mode()&os.ModeCharDevice != 0
+	// Not a character-device check: /dev/null is one too.
+	return term.IsTerminal(int(f.Fd()))
 }
 
 type prompter struct {

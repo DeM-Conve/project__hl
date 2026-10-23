@@ -290,3 +290,70 @@ func TestEditWorksOnBrokenFile(t *testing.T) {
 		t.Error("not saved")
 	}
 }
+
+const twoServices = `{"services": {
+  "db":  {"ports": [{"target": 5432, "published": "5432"}]},
+  "web": {"ports": [{"target": 80, "published": "8080"}, {"target": 443, "published": "8443"}, {"target": 80, "published": "8081"}]}
+}}`
+
+func TestAddAsksWhenItHasToGuess(t *testing.T) {
+	fakeDocker(t, twoServices)
+	home, appDir := homelab(t, "version: 1\napps: {}\n")
+	onTerminal(t)
+	// Enter takes the usual pick (web); then port 2 of 80, 443.
+	out, err := run(t, "\n2\n", "add", appDir)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, want := range []string{"Which one should the proxy forward to?", "db  (container port 5432)", "web  (container port 80, 443)", "choose [2]", "Which container port"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "service: web") || !strings.Contains(got, "port: 443") {
+		t.Errorf("hl.yml:\n%s", got)
+	}
+}
+
+func TestAddPicksByNameOrNumberAndFlagsWin(t *testing.T) {
+	fakeDocker(t, twoServices)
+	home, appDir := homelab(t, "version: 1\napps: {}\n")
+	onTerminal(t)
+	if out, err := run(t, "db\n", "add", appDir); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "service: db") || !strings.Contains(got, "port: 5432") {
+		t.Errorf("hl.yml:\n%s", got)
+	}
+	// Flags: no question at all.
+	out, err := run(t, "", "add", appDir, "--name", "my-app-2", "--service", "web", "--port", "80")
+	if err != nil || strings.Contains(out, "choose") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+}
+
+func TestAddWithoutTerminalNamesTheFlag(t *testing.T) {
+	fakeDocker(t, twoServices)
+	home, appDir := homelab(t, "version: 1\napps: {}\n")
+	before := hlYML(t, home)
+	_, err := run(t, "", "add", appDir)
+	if err == nil || !strings.Contains(err.Error(), "several services publish ports (db, web) - pass --service, e.g. --service web") {
+		t.Errorf("err = %v", err)
+	}
+	_, err = run(t, "", "add", appDir, "--service", "web")
+	if err == nil || !strings.Contains(err.Error(), "service web publishes several ports (80, 443) - pass --port, e.g. --port 80") {
+		t.Errorf("err = %v", err)
+	}
+	_, err = run(t, "", "add", appDir, "--service", "nope")
+	if err == nil || !strings.Contains(err.Error(), `no service "nope"`) {
+		t.Errorf("err = %v", err)
+	}
+	if hlYML(t, home) != before {
+		t.Error("hl.yml changed by a failed add")
+	}
+	// One service with one port needs no question, terminal or not.
+	fakeDocker(t, oneService)
+	if out, err := run(t, "", "add", appDir); err != nil || !strings.Contains(out, "service web, port 80") {
+		t.Errorf("%v\n%s", err, out)
+	}
+}

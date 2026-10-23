@@ -7,16 +7,16 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // input is where questions are answered from; tests replace it.
 var input io.Reader = os.Stdin
 
 // stdinIsTerminal reports whether someone can answer a question; tests replace it.
-var stdinIsTerminal = func() bool {
-	fi, err := os.Stdin.Stat()
-	return err == nil && fi.Mode()&os.ModeCharDevice != 0
-}
+// (A character-device check isn't enough: /dev/null is one too.)
+var stdinIsTerminal = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
 
 // errNoAnswer is returned when the input ends before a question is answered.
 var errNoAnswer = errors.New("no answer")
