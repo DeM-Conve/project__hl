@@ -15,7 +15,8 @@ github.com/DeM-Conve/project__hl, MIT, module `github.com/DeM-Conve/project__hl`
 | [docs/architecture.md](docs/architecture.md) | Before changing code: what each package does, how a command runs, what the generated files contain, env layering, per-command details. |
 | [docs/product-plan.md](docs/product-plan.md) | The v1 product task list (priorities, status) - pick work from here and tick it when done. |
 | [docs/status.md](docs/status.md) | Before starting work: current state, pending items, open questions. |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Building, checks, commit style, and the release steps (GoReleaser). |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Building, checks, commit style (Conventional Commits). |
+| [RELEASING.md](RELEASING.md) | The release steps (GoReleaser, syft, Homebrew tap). |
 | [CHANGELOG.md](CHANGELOG.md) | What a user would notice, per version; add to `Unreleased`. |
 | [SECURITY.md](SECURITY.md) | Reporting policy and hl's security stance. |
 
@@ -64,7 +65,7 @@ with compose v2.24+.
   commit messages or PR descriptions.
 - Public repo: no real names, work emails or employers, absolute home paths or other personal data
   in code, docs or commit messages.
-- Message style: see CONTRIBUTING.md (plain, one change per commit); `docs:`, `test:` and `ci:`
-  prefixed commits are left out of GoReleaser's release notes.
-- Releases: tag `vX.Y.Z` and run GoReleaser locally (CONTRIBUTING.md). Never tag or publish a
+- Message style: Conventional Commits (`feat:`, `fix(config):`, `docs:`, ...), one change per
+  commit; see CONTRIBUTING.md. Release notes come from CHANGELOG.md, not from commits.
+- Releases: tag `vX.Y.Z` and run GoReleaser locally (RELEASING.md). Never tag or publish a
   release without the maintainer asking.

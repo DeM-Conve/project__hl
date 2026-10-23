@@ -146,15 +146,17 @@ in hl may assume the maintainer's setup.
 - [~] Automated tests for every command with a fake `docker` (core agent).
 - [ ] Optional end-to-end script (`make e2e` / `scripts/e2e.sh`) that runs a real tiny homelab
   with Docker: init -> add two sample apps -> up -> curl both URLs -> sync -> down.
-- [ ] Sample apps in `examples/` (a static site, an app needing a base path) used by docs and e2e.
+- [x] Sample apps in `examples/` (a static site, an app needing a base path) used by docs and e2e.
 - [~] gofmt, vet, staticcheck clean (core agent). No CI, by the maintainer's choice - all checks
   run locally before every release (`scripts/check.sh`).
-- [ ] Linux and macOS, amd64 and arm64 builds; Windows gets a friendly "not supported".
+- [~] Linux and macOS, amd64 and arm64 builds; Windows gets a friendly "not supported". (Builds
+  done in `.goreleaser.yaml`; the Windows message is in code.)
 
 ## 9. Release and distribution (P0)
 
-- [~] GoReleaser config checked, install.sh with checksum verification (product agent).
-- [~] CHANGELOG (Keep a Changelog), RELEASING steps, Conventional Commits (product agent).
+- [x] GoReleaser config checked (`goreleaser check` + snapshot, SBOMs), install.sh with checksum
+  verification, `--version`/`--dir`, shellcheck clean.
+- [x] CHANGELOG (Keep a Changelog), RELEASING.md steps, Conventional Commits in CONTRIBUTING.
 - [!] Tag and publish v0.1.0 - maintainer's go.
 - [!] Homebrew tap repo `DeM-Conve/homebrew-tap` - maintainer creates it, then the commented block
   in `.goreleaser.yaml` is enabled.
@@ -163,11 +165,12 @@ in hl may assume the maintainer's setup.
 
 ## 10. Docs and community (P0)
 
-- [~] README as a product page: pitch, comparison with similar tools, 60-second quickstart, full
-  command and hl.yml reference (product agent).
-- [ ] Guides: "add an app that needs a base path", "move an existing compose app into hl",
+- [x] README as a product page: pitch, comparison with similar tools, 60-second quickstart, full
+  command and hl.yml reference. Features still on branches have `<!-- slot ... -->` markers
+  where their docs go.
+- [x] Guides (`docs/guides/`): "add an app that needs a base path", "move an existing compose app into hl",
   "reach it from your phone (bind 0.0.0.0)", "back up the homelab", "put hl behind HTTPS".
-- [~] Issue/PR templates, code of conduct, security policy (product agent).
+- [x] Issue/PR templates, code of conduct (Contributor Covenant 2.1), security policy.
 
 ## Not doing (on purpose)
 
