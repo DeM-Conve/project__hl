@@ -119,9 +119,9 @@ running proxy predates the current config (compose's `config-hash` label vs `doc
 `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` that exists; otherwise an error asking for
 `--service`. `TargetPort` is the container (`target`) port of that service's first published port.
 `hl add` (`cli.pickServicePort`) asks instead when there is more than one candidate service, or
-the service publishes several distinct container ports: a numbered list on a terminal, with
-`Exposed`'s pick (or the first port) as the default; without a terminal (`golang.org/x/term`) it
-fails naming `--service`/`--port`. Flags skip the question.
+the service publishes several distinct container ports: a numbered list on a terminal (the
+shared `prompter` from `prompt.go`), with `Exposed`'s pick (or the first port) as the default;
+without a terminal (`stdinTerminal`, `golang.org/x/term`) it fails naming `--service`/`--port`. Flags skip the question.
 `hl add` writes the picked `service` and `port` into `hl.yml` so later changes to the app's compose
 file don't silently move the route; `prepared` only detects them when `hl.yml` leaves them empty.
 Routing `none` needs neither.
@@ -208,7 +208,9 @@ as the Go types, same enums, patterns and defaults, and it accepts the README's 
 
 **Defaults listing** (`hl config defaults`, `config.Settings`): the homelab-wide fields of `Config`
 by reflection, the default taken by running `defaults()` on an empty config, the source `hl.yml` when
-the raw file sets it.
+the raw file sets it; the CLI fills in `scan_depth`/`ignore` from `internal/scan`, adds the homelab
+folder, version and editor with their sources, and the named values hl.yml can't set from
+`cli.builtinDefaults` (the one accessor to repoint at a shared defaults package).
 
 ## Version
 
