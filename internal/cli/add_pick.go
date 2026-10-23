@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,7 +18,7 @@ func pickServicePort(m *compose.Model, a *config.App, in io.Reader) error {
 	var p *prompter // one, so its buffered input is shared by both questions
 	ask := func() *prompter {
 		if p == nil {
-			p = newPrompter(in, os.Stdout)
+			p = newPrompter(in, stdout)
 		}
 		return p
 	}

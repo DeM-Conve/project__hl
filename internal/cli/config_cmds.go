@@ -24,7 +24,7 @@ func upgradeConfig(dir string) error {
 		return err
 	}
 	if from != defaults.ConfigVersion {
-		fmt.Fprintf(os.Stderr, "%snote:%s upgraded %s to version %d (added `version: %d` at the top; nothing else changed)\n",
+		fmt.Fprintf(stderr, "%snote:%s upgraded %s to version %d (added `version: %d` at the top; nothing else changed)\n",
 			yellow, reset, config.FileName, defaults.ConfigVersion, defaults.ConfigVersion)
 	}
 	return nil
@@ -207,7 +207,7 @@ Otherwise it lists them and offers to open the editor again, so hl.yml is never 
 				}
 				keep := fmt.Errorf("hl.yml not changed; your edit is in %s (fix it there, or run hl edit again to start over)", draft)
 				if !stdinTerminal(cmd.InOrStdin()) ||
-					!newPrompter(cmd.InOrStdin(), os.Stdout).confirm(plural(len(ps), "problem", "problems")+" - open the editor again?", true) {
+					!newPrompter(cmd.InOrStdin(), stdout).confirm(plural(len(ps), "problem", "problems")+" - open the editor again?", true) {
 					return keep
 				}
 			}
@@ -323,7 +323,7 @@ func configDefaultsCmd() *cobra.Command {
 			for _, b := range builtinDefaults() {
 				settings = append(settings, config.Setting{Key: b[0], Default: b[1], Value: b[1], Source: "built in"})
 			}
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			w := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "SETTING\tDEFAULT\tVALUE\tFROM")
 			for _, s := range settings {
 				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Key, s.Default, s.Value, s.Source)

@@ -147,7 +147,7 @@ func hintFor(err error) string {
 	}
 	var ce *compose.Error
 	if errors.As(err, &ce) {
-		if errors.Is(ce.Err, exec.ErrNotFound) {
+		if errors.Is(ce.Err, exec.ErrNotFound) && strings.HasPrefix(ce.Cmd, "docker") {
 			return "install Docker (https://docs.docker.com/engine/install/) and make sure `docker` is on your PATH, then run `hl doctor`"
 		}
 		return dockerHint(ce.Stderr)

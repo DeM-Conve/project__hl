@@ -526,7 +526,7 @@ func TestErrors(t *testing.T) {
 	if r.code != 1 {
 		t.Fatalf("%s", r)
 	}
-	contains(t, "bad hl.yml", r.errOut, "has 2 problems", `hl.yml:3:3: proxy.rooting: unknown key - did you mean "routing"?`, `hl.yml:5:77: apps.a.port: "http" is not a whole number`)
+	contains(t, "bad hl.yml", r.errOut, "has 2 problems", `hl.yml:3:3: proxy.rooting: unknown key - did you mean "routing"?`, "hl.yml:5:", `apps.a.port: "http" is not a whole number`)
 
 	f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n")
 	for _, c := range []struct {

@@ -94,7 +94,8 @@ type Error struct {
 
 func (e *Error) Error() string {
 	if errors.Is(e.Err, exec.ErrNotFound) {
-		return "docker not found on PATH"
+		name, _, _ := strings.Cut(e.Cmd, " ")
+		return name + " not found on PATH"
 	}
 	if e.Code >= 0 {
 		return fmt.Sprintf("%s failed (exit status %d)", e.Cmd, e.Code)
