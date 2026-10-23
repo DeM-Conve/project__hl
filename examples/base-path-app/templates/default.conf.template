@@ -1,0 +1,20 @@
+# ${BASE_PATH} is filled in by the nginx image when the container starts
+# (empty when the app runs on its own at /).
+server {
+    listen 8080;
+    default_type text/html;
+
+    location = / {
+        return 200 '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>base-path-app</title><link rel="stylesheet" href="${BASE_PATH}/style.css"></head><body><h1>base-path-app</h1><p>Base path: <code>"${BASE_PATH}"</code>. Every link on this page starts with it.</p><p><a href="${BASE_PATH}/about">About</a></p></body></html>';
+    }
+    location = /about {
+        return 200 '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>base-path-app: about</title><link rel="stylesheet" href="${BASE_PATH}/style.css"></head><body><h1>About</h1><p>A tiny example app for hl.</p><p><a href="${BASE_PATH}/">Home</a></p></body></html>';
+    }
+    location = /style.css {
+        default_type text/css;
+        return 200 'body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; } h1 { color: #2a6; }';
+    }
+    location / {
+        return 404 'not found\n';
+    }
+}

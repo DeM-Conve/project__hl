@@ -1,0 +1,26 @@
+# An app that builds absolute links (/about, /style.css), like most web apps.
+# Under path routing it must know its prefix, so it reads BASE_PATH - the same
+# kind of setting real apps have (often called BASE_PATH, BASE_URL or ROOT_PATH).
+#
+# On its own:  docker compose up        -> http://localhost:8081/
+# With hl:     hl add examples/base-path-app, then in hl.yml:
+#
+#   apps:
+#     base-path-app:
+#       env:
+#         BASE_PATH_APP_BASE_PATH: ${HL_PREFIX}     # becomes /base-path-app
+#
+#              hl up base-path-app      -> http://localhost/base-path-app/
+#
+# Without that setting the page loads but its links and stylesheet point at /
+# and break - which is what the base-path guide (docs/guides) shows how to fix.
+services:
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "${BASE_PATH_APP_PORT:-8081}:8080"
+    environment:
+      BASE_PATH: ${BASE_PATH_APP_BASE_PATH:-}
+    volumes:
+      # The nginx image fills in ${BASE_PATH} in these templates on start.
+      - ./templates:/etc/nginx/templates:ro

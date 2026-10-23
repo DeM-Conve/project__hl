@@ -1,0 +1,13 @@
+# A static site: nginx serving ./site. Its links are relative, so it works at
+# any path - with hl's default path routing it needs no settings at all.
+#
+# On its own:  docker compose up        -> http://localhost:8080/
+# With hl:     hl add examples/static-site && hl up static-site
+#                                       -> http://localhost/static-site/
+services:
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "${STATIC_SITE_PORT:-8080}:80"
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
