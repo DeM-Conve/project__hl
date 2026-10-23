@@ -193,6 +193,9 @@ kept in <homelab>/data/<app>/<volume>.`,
 					}
 				}
 			}
+			if err := upgradeConfig(cfg.Dir); err != nil {
+				return err
+			}
 			if err := config.AddApp(cfg.Dir, name, &a); err != nil {
 				return err
 			}
@@ -240,6 +243,9 @@ func removeCmd() *cobra.Command {
 				if err := p.Run("down"); err != nil {
 					return err
 				}
+			}
+			if err := upgradeConfig(cfg.Dir); err != nil {
+				return err
 			}
 			if err := config.RemoveApp(cfg.Dir, name); err != nil {
 				return err

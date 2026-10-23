@@ -3,7 +3,6 @@
 package config
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -28,7 +27,9 @@ const (
 )
 
 type Config struct {
-	Proxy Proxy `yaml:"proxy"`
+	// The hl.yml format; 0 (no version line) is the format before versions.
+	Version int   `yaml:"version,omitempty"`
+	Proxy   Proxy `yaml:"proxy"`
 	// Settings passed to every app (e.g. TZ); an app's own env wins.
 	Env  map[string]string `yaml:"env,omitempty"`
 	Apps map[string]*App   `yaml:"apps"`
@@ -161,6 +162,9 @@ func (c *Config) defaults() {
 
 // Validate checks the settings hl can't work with.
 func (c *Config) Validate() error {
+	if c.Version > Version {
+		return tooNew(c.Version)
+	}
 	if r := c.Proxy.Routing; r != RoutingPath && r != RoutingHost {
 		return fmt.Errorf("proxy.routing: %q is not path or host", r)
 	}
@@ -359,48 +363,26 @@ func RemoveApp(dir, name string) error {
 }
 
 func editApps(dir string, edit func(apps *yaml.Node) error) error {
-	path := filepath.Join(dir, FileName)
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	var doc yaml.Node
-	if err := yaml.Unmarshal(b, &doc); err != nil {
-		return fmt.Errorf("%s: %w", path, err)
-	}
-	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
-		return fmt.Errorf("%s: expected a mapping at the top", path)
-	}
-	root := doc.Content[0]
-	var apps *yaml.Node
-	for i := 0; i < len(root.Content); i += 2 {
-		if root.Content[i].Value == "apps" {
-			apps = root.Content[i+1]
+	return editFile(dir, func(root *yaml.Node) error {
+		apps := lookup(root, "apps")
+		if apps == nil {
+			apps = &yaml.Node{Kind: yaml.MappingNode}
+			root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "apps"}, apps)
 		}
-	}
-	if apps == nil {
-		apps = &yaml.Node{Kind: yaml.MappingNode}
-		root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "apps"}, apps)
-	}
-	if apps.Kind != yaml.MappingNode {
-		// `apps:` with nothing under it, or `apps: {}`.
-		*apps = yaml.Node{Kind: yaml.MappingNode, HeadComment: apps.HeadComment, LineComment: apps.LineComment}
-	}
-	apps.Style = 0
-	if err := edit(apps); err != nil {
-		return err
-	}
-	var out bytes.Buffer
-	enc := yaml.NewEncoder(&out)
-	enc.SetIndent(2)
-	if err := enc.Encode(&doc); err != nil {
-		return err
-	}
-	return os.WriteFile(path, out.Bytes(), 0o644)
+		if apps.Kind != yaml.MappingNode {
+			// `apps:` with nothing under it, or `apps: {}`.
+			*apps = yaml.Node{Kind: yaml.MappingNode, HeadComment: apps.HeadComment, LineComment: apps.LineComment}
+		}
+		apps.Style = 0
+		return edit(apps)
+	})
 }
 
 // Template is the hl.yml `hl init` writes.
-const Template = `# hl homelab: the proxy, and the apps behind it. Edit freely; hl reads it on every command.
+const Template = SchemaComment + `
+# hl homelab: the proxy, and the apps behind it. Edit freely; hl reads it on every command.
+
+version: 1
 
 proxy:
   # 127.0.0.1 = this machine only; 0.0.0.0 = reachable from your network.
