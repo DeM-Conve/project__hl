@@ -19,12 +19,13 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   shellcheck clean. Steps: [RELEASING.md](../RELEASING.md).
 - Docs: README is the product page and full reference; guides in `docs/guides/`; example apps in
   `examples/`; CODE_OF_CONDUCT, SECURITY, issue and PR templates in place.
-- No CI, on purpose (see [requirements.md](requirements.md)); `gofmt`, `go vet`, `go test` and
-  `shellcheck install.sh` are run by hand.
-- Tests cover `config` (defaults, URLs, validation, comment-keeping add/remove, env layering),
-  `gen` (override for path/host/none, proxy file), `compose` (service detection) and `version`.
-  `internal/cli` and anything that calls Docker have no automated tests; they are checked by hand
-  against a real homelab.
+- No CI, on purpose (see [requirements.md](requirements.md)); `scripts/check.sh` runs gofmt,
+  go vet, staticcheck, golangci-lint, `go test -race`, shellcheck (when installed) and the cross
+  builds, all locally.
+- Tests cover every package. `internal/cli` runs every command against a fake `docker` and `git`
+  (the test binary itself, linked under those names on an otherwise empty PATH) in a fresh home
+  folder with spaces in its path, including two homelabs side by side, error paths and Ctrl-C
+  (about 82% of its statements; 83% overall). A real Docker is still only exercised by hand.
 
 ## Pending
 
@@ -33,9 +34,10 @@ Before tagging v0.1.0:
 - Merge the feature branches meant for 0.1.0 (feat/production-core and any others), and for each:
   add its CHANGELOG lines under `Unreleased`, and fill the README's `<!-- slot ... -->` markers
   (commands table, hl.yml reference, quickstart) with what was actually built.
-- Check README claims that depend on feat/production-core once merged: dashboard off by default
-  with `proxy.dashboard` / `proxy.dashboard_public`, `hl restart` starting the proxy first,
-  Windows "not supported" message.
+- Check README claims that depend on feat/production-core once merged (all implemented there):
+  dashboard off by default with `proxy.dashboard` / `proxy.dashboard_public`, `hl restart`
+  starting the proxy first, Windows "not supported" message; also document `name:`, `--wait`,
+  the HEALTH column, `hl logs` without an app, exit codes and `scripts/check.sh`.
 - Cut the release: [RELEASING.md](../RELEASING.md) (maintainer only; needs goreleaser v2 and
   syft installed).
 
@@ -43,8 +45,9 @@ After v0.1.0:
 
 - Homebrew tap: create `DeM-Conve/homebrew-tap` and a token, then turn on the commented
   `homebrew_casks` block in `.goreleaser.yaml` (RELEASING.md, "Homebrew tap").
-- Two homelabs on one machine share the proxy project name `hl-proxy` and network `hl-proxy`
-  (CONTRIBUTING.md warns about it); product-plan section 0 tracks making them per-homelab.
+- Two homelabs on one Docker: handled (2026-10-23) - a clash is refused with the fix, and a
+  top-level `name:` gives a homelab its own project and network names. Two users on one machine
+  share one Docker daemon, so the same applies to them.
 
 ## Open questions
 
@@ -56,11 +59,10 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    maintainer's other repos.
 3. ~~HTTPS~~ - decided: out of scope for v0.1; documented as putting hl behind your own TLS proxy
    ([guide](guides/behind-https.md)). Built-in HTTPS is P2 in the product plan.
-4. **Dashboard exposure**: the Traefik dashboard is always on at `http://traefik.<domain>` with no
-   auth. With `proxy.bind: 0.0.0.0` it is reachable from the network. Make it optional or protect
-   it?
-5. **`hl restart` and the proxy**: unlike `up`/`rebuild`/`update`, `restart` doesn't start the
-   proxy first. Intended?
-6. **Windows** support: out of scope, or just not done yet?
-7. **CLI tests**: should `internal/cli` get tests (e.g. with a fake `docker` on PATH), or stay
-   hand-tested?
+4. ~~Dashboard exposure~~ - decided 2026-10-23 (maintainer's call via Claude, revisit if wrong):
+   off by default, `proxy.dashboard: true` turns it on, refused on a non-loopback bind unless
+   `proxy.dashboard_public: true` ([requirements.md](requirements.md)).
+5. ~~`hl restart` and the proxy~~ - decided 2026-10-23 (same): `restart` starts the proxy first,
+   like `up`, `rebuild` and `update`.
+6. ~~Windows~~ - decided 2026-10-23 (same): not supported; hl says so and suggests WSL 2.
+7. ~~CLI tests~~ - done 2026-10-23: `internal/cli` is tested with a fake `docker` on PATH.
