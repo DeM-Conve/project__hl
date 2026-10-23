@@ -58,6 +58,12 @@ const (
 	DashboardRouter     = "hl-dashboard"
 	DashboardHostPrefix = "traefik."
 
+	// ReservedAppName can't be an app's name (nor a name whose ID becomes it):
+	// its compose project would be the proxy's default one.
+	ReservedAppName = "proxy"
+	// ExampleDynamicFile is where error messages suggest putting proxy.dynamic.
+	ExampleDynamicFile = "proxy/dynamic.yml"
+
 	// StaticConfigLabel holds a hash of the static config on the proxy
 	// container, so a changed file recreates the container on `hl proxy up`.
 	StaticConfigLabel = "hl.static-config"
