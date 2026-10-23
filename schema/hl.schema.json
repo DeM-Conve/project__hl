@@ -1,0 +1,286 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/DeM-Conve/project__hl/main/schema/hl.schema.json",
+  "title": "hl.yml",
+  "description": "hl homelab config: the proxy, and the apps behind it. Reference: https://github.com/DeM-Conve/project__hl#hlyml",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "description": "The hl.yml format. hl writes 1; a file without it is the format before versions and is upgraded the next time hl edits it.",
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "proxy": {
+      "description": "The Traefik proxy every app is reached through.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bind": {
+          "description": "Address the proxy listens on. 127.0.0.1 = this machine only; 0.0.0.0 = reachable from your network.",
+          "type": "string",
+          "default": "127.0.0.1",
+          "examples": [
+            "127.0.0.1",
+            "0.0.0.0"
+          ]
+        },
+        "port": {
+          "description": "Host port the proxy listens on.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 80
+        },
+        "routing": {
+          "description": "Default routing for apps that don't set their own. path: http://<domain>/<app>/ (the app must support a base path); host: http://<app>.<domain>.",
+          "enum": [
+            "path",
+            "host"
+          ],
+          "default": "path"
+        },
+        "domain": {
+          "description": "Path routing serves apps at <domain>/<app>/, host routing at <app>.<domain>.",
+          "type": "string",
+          "default": "localhost",
+          "examples": [
+            "localhost",
+            "example.com"
+          ]
+        },
+        "network": {
+          "description": "Docker network the proxy shares with the apps.",
+          "type": "string",
+          "default": "hl-proxy"
+        },
+        "subnet": {
+          "description": "Optional fixed subnet for that network, so apps can trust the proxy by address.",
+          "type": "string",
+          "examples": [
+            "172.31.0.0/16"
+          ]
+        },
+        "image": {
+          "description": "The Traefik image the proxy runs. hl is tested with the default; hl doctor warns about older ones.",
+          "type": "string",
+          "default": "traefik:v3.6.25"
+        },
+        "project": {
+          "description": "Compose project the proxy runs as; set it to run a second homelab's proxy beside the first.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "default": "hl-proxy"
+        },
+        "config": {
+          "description": "Your own Traefik static config file instead of the generated one, relative to the homelab folder.",
+          "type": "string",
+          "examples": [
+            "traefik.yml"
+          ]
+        },
+        "dynamic": {
+          "description": "A Traefik dynamic config file (file provider) for routes that aren't hl apps, relative to the homelab folder.",
+          "type": "string",
+          "examples": [
+            "dynamic.yml"
+          ]
+        },
+        "access_log": {
+          "description": "Traefik's access log, on the proxy's output (hl proxy logs). Not with proxy.config.",
+          "type": "boolean",
+          "default": false
+        },
+        "log_level": {
+          "description": "Traefik's log level (default ERROR). Not with proxy.config.",
+          "enum": [
+            "TRACE",
+            "DEBUG",
+            "INFO",
+            "WARN",
+            "ERROR",
+            "FATAL",
+            "PANIC",
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "fatal",
+            "panic"
+          ]
+        }
+      }
+    },
+    "env": {
+      "description": "Settings passed to every app's compose file, e.g. TZ. An app's own env wins.",
+      "$ref": "#/definitions/env"
+    },
+    "apps": {
+      "description": "The apps, by name. Added with `hl add <folder>`.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9._-]*$",
+        "not": {
+          "const": "proxy"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/app"
+      }
+    },
+    "projects": {
+      "description": "Folders whose subfolders with a compose file are apps, for hl init and hl sync: absolute, ~, or relative to the homelab folder.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "examples": [
+        [
+          "~/code"
+        ]
+      ]
+    },
+    "ignore": {
+      "description": "Folder-name patterns (shell globs) hl sync never picks up, on top of the built-in ones. A folder with a .hlignore file is skipped too.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "examples": [
+        [
+          "scratch-*",
+          "old"
+        ]
+      ]
+    },
+    "scan_depth": {
+      "description": "How deep below a projects folder to look for apps: 1 = direct subfolders, 2 also <group>/<app>. 0 or unset = the default.",
+      "type": "integer",
+      "minimum": 0,
+      "default": 1
+    }
+  },
+  "definitions": {
+    "env": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      },
+      "examples": [
+        {
+          "TZ": "UTC"
+        }
+      ]
+    },
+    "files": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "description": "The app's folder (with its own compose file): absolute, ~, or relative to the homelab folder.",
+          "type": "string",
+          "examples": [
+            "~/code/my-app"
+          ]
+        },
+        "compose": {
+          "description": "Compose files inside the app's folder. Default: the one docker compose would pick.",
+          "$ref": "#/definitions/files",
+          "examples": [
+            [
+              "compose.yml",
+              "compose.prod.yml"
+            ]
+          ]
+        },
+        "service": {
+          "description": "The service the proxy forwards to. hl add picks it.",
+          "type": "string",
+          "examples": [
+            "frontend",
+            "web"
+          ]
+        },
+        "port": {
+          "description": "That service's port inside its container.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "routing": {
+          "description": "path, host or none (not behind the proxy). Default: proxy.routing.",
+          "enum": [
+            "path",
+            "host",
+            "none"
+          ]
+        },
+        "prefix": {
+          "description": "Path routing: the URL prefix, without a trailing slash. Default: /<app>.",
+          "type": "string",
+          "pattern": "^(/[A-Za-z0-9._~-]+)+$",
+          "examples": [
+            "/my-app",
+            "/tools/my-app"
+          ]
+        },
+        "host": {
+          "description": "Host routing: the host name. Default: <app>.<domain>.",
+          "type": "string",
+          "examples": [
+            "my-app.example.com"
+          ]
+        },
+        "env_files": {
+          "description": "Extra env files, relative to the homelab folder, read after the app's own .env.",
+          "$ref": "#/definitions/files",
+          "examples": [
+            [
+              "my-app.env"
+            ]
+          ]
+        },
+        "env": {
+          "description": "Settings passed to the app's compose file. Values can use ${HL_URL}, ${HL_PREFIX}, ${HL_HOST}, ${HL_DATA} and ${HL_APP}.",
+          "$ref": "#/definitions/env"
+        }
+      }
+    }
+  }
+}

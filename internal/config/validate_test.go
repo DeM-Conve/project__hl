@@ -39,7 +39,7 @@ apps:
 		{9, "apps.my-app.servce", `did you mean "service"?`},
 		{10, "apps.my-app.port", "from 1 to 65535"},
 		{11, "apps.my-app.prefix", "without a trailing slash"},
-		{12, "apps.My App", "lowercase"},
+		{12, "apps.My App", "use lowercase"},
 		{15, "apps.no-path", "path is required"},
 		{18, "apps.blog.compose", "expected a list"},
 		{20, "apps.blog.routing", "set twice (also on line 19)"},
@@ -74,6 +74,9 @@ func TestCheckSyntaxAndShape(t *testing.T) {
 		"apps:\n  my-app: {}\n":       "path is required",
 		"apps:\n  my-app:\n":          "path is required",
 		"apps:\n  my-app: {pth: x}\n": `did you mean "path"?`,
+		"proxy: {log_level: debg}":    `did you mean "DEBUG"?`,
+		"proxy: {project: My_Proxy}":  "lowercase",
+		"proxy: {access_log: on}":     "not true or false",
 	} {
 		ps := Check([]byte(body))
 		if len(ps) == 0 || !strings.Contains(joinProblems(ps), has) {

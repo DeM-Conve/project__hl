@@ -137,8 +137,22 @@ var rules = map[string]rule{
 		}
 		return ""
 	},
-	"proxy.routing":  oneOf(RoutingPath, RoutingHost),
-	"proxy.port":     portRule,
+	"proxy.routing": oneOf(RoutingPath, RoutingHost),
+	"proxy.port":    portRule,
+	"proxy.project": func(v string) string {
+		if !projectRE.MatchString(v) {
+			return fmt.Sprintf("%q - use lowercase letters, digits, '_' and '-'", v)
+		}
+		return ""
+	},
+	"proxy.log_level": func(v string) string {
+		for _, l := range ProxyLogLevels {
+			if strings.EqualFold(v, l) {
+				return ""
+			}
+		}
+		return oneOf(ProxyLogLevels...)(strings.ToUpper(v))
+	},
 	"apps.*.routing": oneOf(RoutingPath, RoutingHost, RoutingNone),
 	"apps.*.port":    portRule,
 	"apps.*.prefix": func(v string) string {
@@ -266,7 +280,7 @@ func walk(n *yaml.Node, t reflect.Type, path, pattern string, ps *[]Problem) {
 			seen[k.Value] = k.Line
 			if pattern == "apps" {
 				if err := ValidName(k.Value); err != nil {
-					*ps = append(*ps, Problem{Line: k.Line, Column: k.Column, Key: kp, Message: strings.TrimPrefix(err.Error(), fmt.Sprintf("app name %q: ", k.Value)) + " in app names"})
+					*ps = append(*ps, Problem{Line: k.Line, Column: k.Column, Key: kp, Message: strings.TrimPrefix(err.Error(), fmt.Sprintf("app name %q", k.Value)+": ")})
 				}
 			}
 			if pattern == "apps" && v.Kind == yaml.ScalarNode && v.Tag == "!!null" {
@@ -339,7 +353,7 @@ func yamlFields(t reflect.Type) map[string]reflect.Type {
 func suggest(s string, candidates []string) string {
 	best, bestD := "", -1
 	for _, c := range candidates {
-		d := distance(strings.ToLower(s), c)
+		d := distance(strings.ToLower(s), strings.ToLower(c))
 		if bestD < 0 || d < bestD {
 			best, bestD = c, d
 		}
