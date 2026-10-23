@@ -140,7 +140,8 @@ func describe(args []string) string {
 		switch {
 		case skip:
 			skip = false
-		case a == "--project-name" || a == "--project-directory" || a == "--file" || a == "--env-file" || a == "-C":
+		case a == "--project-name" || a == "--project-directory" || a == "--file" || a == "--env-file" || a == "-C" ||
+			a == "--format" || a == "--filter" || a == "--tail" || a == "--wait-timeout":
 			skip = true
 		case strings.HasPrefix(a, "-"):
 		default:

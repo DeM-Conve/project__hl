@@ -74,7 +74,7 @@ kept in <homelab>/data/<app>/<volume>.`,
 					}
 				}
 				if err := pickServicePort(m, &a, stdin); err != nil {
-					return withHint(fmt.Errorf("%s: %w", name, err), "services: %s", strings.Join(sortedServices(m.Services), ", "))
+					return fmt.Errorf("%s: %w", name, err)
 				}
 			}
 			if err := upgradeConfig(cfg.Dir); err != nil {

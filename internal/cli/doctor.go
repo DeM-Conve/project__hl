@@ -74,7 +74,12 @@ func doctor(ctx context.Context) error {
 	client, _ := docker(ctx, "version", "--format", "{{.Client.Version}}")
 	c.ok(fmt.Sprintf("docker %s (%s)", strings.TrimSpace(client), path))
 	server, err := docker(ctx, "info", "--format", "{{.ServerVersion}} on {{.OperatingSystem}} ({{.OSType}}/{{.Architecture}})")
-	daemon := c.check(err, "docker daemon: "+strings.TrimSpace(server))
+	daemon := err == nil
+	if daemon {
+		c.ok("docker daemon " + strings.TrimSpace(server))
+	} else {
+		c.check(err, "docker daemon")
+	}
 	v, err := docker(ctx, "compose", "version", "--short")
 	v = strings.TrimSpace(v)
 	switch {
