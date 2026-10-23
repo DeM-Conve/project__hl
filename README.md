@@ -223,6 +223,9 @@ DNS.
 setting's default is in the tables below. hl reads the file on every command.
 
 ```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/DeM-Conve/project__hl/main/schema/hl.schema.json
+version: 1
+
 proxy:
   bind: 127.0.0.1          # 0.0.0.0 to reach the apps from your network
   port: 80
@@ -306,7 +309,21 @@ without touching `hl.yml`. Ignoring only stops sync from adding a folder; an app
 sync, and an app whose projects folder is missing altogether (say, an unmounted drive) is not
 removed.
 
-<!-- slot (feat/config-ux): `version: 1` at the top, and the JSON schema line. -->
+### `version` and editor support
+
+`version: 1` is the `hl.yml` format. A file without it (from before versions) keeps working;
+the first time hl changes the file (`hl add`, `hl remove`, `hl set`, `hl unset`) it adds
+`version: 1` at the top and says so. A file with a newer version than your hl understands is
+refused with a message to update hl.
+
+`hl init` starts `hl.yml` with a `# yaml-language-server: $schema=...` line pointing at
+[schema/hl.schema.json](schema/hl.schema.json), so editors with the YAML language server (VS
+Code's YAML extension, Neovim, Helix, ...) autocomplete keys, show what each one does, and flag
+mistakes as you type. Add the line yourself to an older `hl.yml`.
+
+`hl config check` lists every problem in `hl.yml` with its line, the key and a fix, including
+unknown keys ("did you mean ..."). `hl set`, `hl unset` and `hl edit` change `hl.yml` only when
+the result has no problems, and keep its comments.
 
 ### `apps.<name>`
 
@@ -317,8 +334,8 @@ proxy's, `hl-proxy` (likewise, no app's `hl-<app>` may equal `proxy.project`).
 | Key | Default | What it does |
 | --- | --- | --- |
 | `path` | required | The app's folder: absolute, `~/...`, or relative to the homelab folder. |
-| `service` | the service that publishes a port | Service the proxy forwards to. With several, the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui`; otherwise pass `--service`. `hl add` writes it here. |
-| `port` | that service's first published container port | Port inside the container. `hl add` writes it here. |
+| `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it stops and asks for `--service`. `hl add` writes it here. |
+| `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `--port`). `hl add` writes it here. |
 | `routing` | `proxy.routing` | `path`, `host` or `none`. |
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
 | `host` | `<name>.<domain>` | Host routing: the host name. |
@@ -356,8 +373,9 @@ today and not yet settings:
 | `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` | service names `hl add` prefers when several publish ports |
 | `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 
-<!-- slot (section 0 of docs/product-plan.md): `hl config defaults` prints every default; values
-above that become settings move into the tables. -->
+`hl config defaults` prints every setting that has a default, the value in effect and where it
+comes from (`hl.yml`, default, flag or environment), including the homelab folder and the
+editor `hl edit` runs (`$VISUAL`, then `$EDITOR`, else `vi`).
 
 **Environment variables hl reads:** `HL_HOME` (the homelab folder) and `NO_COLOR` (no colours;
 colours are also off when output isn't a terminal).
@@ -371,7 +389,10 @@ every app when none is named. Errors print `error: ...` and exit with status 1.
 | --- | --- |
 | `hl init [folder]` | Set up a homelab folder (default: the current one) with `hl.yml`, `data/` and `.gitignore`, and make it the default. First checks Docker, compose and that the proxy port is free. On a terminal it asks for the projects folders, `path` or `host` routing, this machine only or your network, and which of the apps found to add; each has a flag: `--projects`, `--routing`, `--bind`, `--port`, `--apps a,b` (or `none`). With `--yes` or without a terminal it asks nothing and adds every app found. Never overwrites an existing `hl.yml`; on one it offers the new apps instead. |
 | `hl sync` | Make `hl.yml` follow the `projects` folders. Shows a plan first: new folders with a compose file are added (service and port detected like `hl add`), apps whose folder is gone are removed (stopped if running; their data stays), apps whose pinned service or port left their compose file are re-detected, and folders it can't add are listed with the `hl add` command to use. Asks before applying; `--yes` applies without asking, `--dry-run` only shows. |
-| `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`. |
+| `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`. When several services or ports could be the one to route, it asks on a terminal; without one it names the flag to pass. |
+| `hl set <app> key=value...` | Change an app's settings in `hl.yml`: `routing`, `prefix`, `host`, `port`, `service`, `path`, `compose` and `env_files` (comma-separated), `env.NAME`. Keeps comments; writes only a valid result. `hl up <app>` applies it. |
+| `hl unset <app> key...` | Remove an app's settings so their defaults apply again; `env.NAME` removes one variable, `env` all. |
+| `hl edit` | Open `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
 | `hl remove <app>` | Stop the app and remove it from `hl.yml`. Its data in `data/<app>` stays. |
 | `hl status` (`ls`) | The proxy's state, and every app's state, URL and folder. |
 | `hl up [app...]` (`start`) | Start apps, the proxy first; builds images that don't exist yet. |
@@ -385,6 +406,8 @@ every app when none is named. Errors print `error: ...` and exit with status 1.
 | `hl shell <app> [service]` | A shell (`bash`, else `sh`) in a running container; default: the routed service. |
 | `hl config <app>` | The app's full compose config as hl runs it: its own files plus hl's override. |
 | `hl config proxy` | The proxy's Traefik static config (same as `hl proxy config`). |
+| `hl config check` | Check `hl.yml`: every problem as `file:line:column: key: message - fix`, unknown keys with "did you mean". Exits 1 when there are problems. |
+| `hl config defaults` | Every setting with a default, the value in effect, and where it comes from. |
 | `hl path [app]` | The app's folder, or the homelab folder: `cd "$(hl path my-app)"`. |
 | `hl proxy up\|down\|logs` | The proxy on its own. |
 | `hl proxy status` | The proxy's state and health, image, listen address, config files, dashboard and access log; warns when the running proxy is behind `hl.yml` or its image is older than the tested Traefik. |
@@ -393,8 +416,7 @@ every app when none is named. Errors print `error: ...` and exit with status 1.
 | `hl version` (`--version`) | Version, commit and build date. |
 | `hl completion bash\|zsh\|fish` | Shell completion script. |
 
-<!-- slots: `hl set`/`hl unset`/`hl edit`/`hl config check`
-(feat/config-ux); `hl up --wait`, health in `hl status`,
+<!-- slots: `hl up --wait`, health in `hl status`,
 `hl logs` with no app (feat/production-core). -->
 
 ## Data and backups

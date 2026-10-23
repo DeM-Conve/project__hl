@@ -18,8 +18,8 @@ internal/version        version, commit, build date (ldflags, else Go build info
 ```
 
 Dependencies point one way: `cli` -> `gen` -> `compose`, `config`. `gen` and `config` do no Docker
-calls, which is why they are the unit-tested packages. Third-party deps are only `cobra` and
-`yaml.v3`.
+calls, which is why they are the unit-tested packages. Third-party deps are `cobra`, `yaml.v3`
+and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/jsonschema`.
 
 ## What every command does first
 
@@ -118,6 +118,10 @@ running proxy predates the current config (compose's `config-hash` label vs `doc
 `compose.Model.Exposed`: the only service that publishes a port; among several, the first of
 `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` that exists; otherwise an error asking for
 `--service`. `TargetPort` is the container (`target`) port of that service's first published port.
+`hl add` (`cli.pickServicePort`) asks instead when there is more than one candidate service, or
+the service publishes several distinct container ports: a numbered list on a terminal, with
+`Exposed`'s pick (or the first port) as the default; without a terminal (`golang.org/x/term`) it
+fails naming `--service`/`--port`. Flags skip the question.
 `hl add` writes the picked `service` and `port` into `hl.yml` so later changes to the app's compose
 file don't silently move the route; `prepared` only detects them when `hl.yml` leaves them empty.
 Routing `none` needs neither.
@@ -170,9 +174,41 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
 
 ## Editing hl.yml
 
-`hl add`/`hl remove` edit `hl.yml` through the `yaml.Node` tree (`config.AddApp`, `RemoveApp`), so
-comments and key order survive; only the `apps:` mapping is touched (`apps: {}` from the template is
-turned into a block mapping). Everything else in `hl.yml` is the user's to edit by hand.
+Every change hl makes to `hl.yml` goes through the `yaml.Node` tree (`config.edited`/`editFile` in
+`internal/config/edit.go`), so comments and key order survive (yaml.v3 drops blank lines and
+normalises indentation to two spaces).
+
+- `hl add`/`hl remove` (`config.AddApp`, `RemoveApp`) touch only the `apps:` mapping (`apps: {}`
+  from the template is turned into a block mapping).
+- `hl set`/`hl unset` (`config.EditApp`, `internal/config/set.go`) change keys of one app; the
+  keys and their types come from the `App` struct by reflection (ints parsed, lists split on
+  commas, map fields as `env.NAME`). A replaced value keeps the old one's comments. The new
+  content is run through `config.Check` and written only if it has no problems.
+- `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
+  `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
+  checks out. It and `hl config check` find the homelab with `config.Home`, not `Load`, so they
+  work on a file that doesn't load.
+
+**Checking** (`config.Check`, `internal/config/validate.go`): walks the node tree against the
+`Config` type by reflection (yaml tags give the known keys, so a new field needs no checker
+change), reporting syntax errors, unknown keys with a Levenshtein "did you mean", keys set twice,
+type mismatches, required keys, and per-key rules (`rules`, keyed by path with app names as `*`:
+routing values, ports, prefix, app names, `proxy.project`, `proxy.log_level`, version). If the walk
+finds nothing it decodes and runs `Validate` as a backstop (no line number then). `Load` doesn't
+call `Check`; unknown keys are only reported by `hl config check`, `set`, `unset` and `edit`.
+
+**Versions** (`config.Version`, `internal/config/defaults_config.go`): `version: 1`; no line means
+the format before versions (0), which loads as before. `config.Upgrade` adds the line (at the top,
+after any header comment) and the CLI prints a note; it runs before `add`/`remove` and after
+`set`/`unset`. `Validate` refuses a version above `config.Version`.
+
+**Schema**: `schema/hl.schema.json` (draft-07), referenced from new files by
+`config.SchemaComment`. `internal/config/schema_test.go` keeps it in step with the code: same keys
+as the Go types, same enums, patterns and defaults, and it accepts the README's yaml examples.
+
+**Defaults listing** (`hl config defaults`, `config.Settings`): the homelab-wide fields of `Config`
+by reflection, the default taken by running `defaults()` on an empty config, the source `hl.yml` when
+the raw file sets it.
 
 ## Version
 

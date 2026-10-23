@@ -51,6 +51,19 @@ Everything below becomes 0.1.0, the first release.
   `proxy.image` is older.
 - hl refuses to use a proxy or Docker network that another homelab runs, and says how to run both
   side by side. The app name `proxy` is reserved, since its compose project would be the proxy's.
+- `hl.yml` is versioned (`version: 1`). Older files without it keep working and get the line,
+  with a message, the first time hl edits them; a newer file asks you to update hl.
+- A JSON Schema for `hl.yml` (`schema/hl.schema.json`); `hl init` writes the
+  `yaml-language-server` line so editors autocomplete and flag mistakes.
+- `hl config check` lists every problem in `hl.yml` with its line number and a fix, including
+  unknown keys with a "did you mean".
+- `hl set <app> key=value` and `hl unset <app> key` change an app's settings, keeping `hl.yml`'s
+  comments and writing only a valid result.
+- `hl edit` opens `hl.yml` in your editor, checks it on save and reopens it on a problem;
+  `hl.yml` is never left broken.
+- `hl add` asks which service or port to route when there are several; flags still win, and
+  without a terminal it names the flag to pass instead of guessing.
+- `hl config defaults` shows every default, the value in effect and where it comes from.
 - Example apps in `examples/` and guides in `docs/guides/`: base paths, moving an existing compose
   app into hl, reaching apps from your network, backups, putting hl behind HTTPS.
 

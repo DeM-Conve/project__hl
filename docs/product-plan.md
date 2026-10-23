@@ -85,16 +85,16 @@ in hl may assume the maintainer's setup.
 
 ## 3. Easy config (P0)
 
-- [ ] **`hl add` asks when it has to guess**: several services publishing ports, or several ports
+- [x] **`hl add` asks when it has to guess**: several services publishing ports, or several ports
   -> pick from a list (flags still win; non-terminal -> clear error naming the flag to pass).
-- [ ] **`hl set <app> key=value` / `hl unset`** (routing, prefix, host, port, service, env.X) -
+- [x] **`hl set <app> key=value` / `hl unset`** (routing, prefix, host, port, service, env.X) -
   edits hl.yml keeping its comments, validates first.
-- [ ] **`hl config check`** (or `hl doctor`): validates hl.yml with line numbers and a fix for
+- [x] **`hl config check`** (or `hl doctor`): validates hl.yml with line numbers and a fix for
   each problem; unknown keys are errors with a "did you mean".
-- [ ] **`hl edit`**: opens hl.yml in `$EDITOR`, validates on save, re-opens on error.
-- [ ] **Versioned config**: `version: 1` at the top of hl.yml; older files keep working and are
+- [x] **`hl edit`**: opens hl.yml in `$EDITOR`, validates on save, re-opens on error.
+- [x] **Versioned config**: `version: 1` at the top of hl.yml; older files keep working and are
   upgraded with a message, never silently.
-- [ ] **JSON Schema** for hl.yml (published in the repo; `# yaml-language-server: $schema=...`
+- [x] **JSON Schema** for hl.yml (published in the repo; `# yaml-language-server: $schema=...`
   line written by init) so editors autocomplete and flag mistakes.
 
 ## 4. The proxy: one Traefik file (P0)
