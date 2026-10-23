@@ -268,7 +268,7 @@ func builtinDefaults() [][2]string {
 		{"traefik.access_log_format", defaults.AccessLogFormat},
 		{"traefik.log_level", defaults.DefaultProxyLogLevel},
 		{"traefik.dashboard_host", defaults.DashboardHostPrefix + "<domain>"},
-		{"proxy.files", filepath.Join(".hl", defaults.ProxyStateDir, defaults.ProxyComposeFile) + ", " + defaults.TraefikStaticFile},
+		{"proxy.files", filepath.Join(defaults.StateDir, defaults.ProxyStateDir, defaults.ProxyComposeFile) + ", " + defaults.TraefikStaticFile},
 		{"proxy.restart", defaults.ProxyRestart},
 		{"app_name.reserved", strings.Join(config.ReservedAppNames(), ", ")},
 		{"sync.ignore_file", defaults.IgnoreFile},
@@ -277,6 +277,15 @@ func builtinDefaults() [][2]string {
 		{"init.network_bind", defaults.BindNetwork},
 		{"edit.draft", defaults.EditDraft},
 		{"schema", defaults.SchemaURL},
+		{"docker.project_prefix", defaults.Prefix + "<app>, " + defaults.Prefix + "<name>-<app> with name:"},
+		{"docker.compose_min", fmt.Sprintf("v%d.%d", defaults.ComposeMinMajor, defaults.ComposeMinMinor)},
+		{"files.data", defaults.DataDir + "/<app>/<volume>"},
+		{"files.generated", filepath.Join(defaults.StateDir, "<app>", defaults.OverrideFile)},
+		{"logs.tail", itoa(defaults.LogTail) + " (hl logs --tail)"},
+		{"up.wait_timeout", defaults.WaitTimeout.String() + " (--wait-timeout)"},
+		{"up.wait_fail_log_lines", itoa(defaults.FailLogTail)},
+		{"add.preferred_services", strings.Join(defaults.ExposedServices, ", ")},
+		{"open.browser", defaults.OpenerLinux + " (Linux), " + defaults.OpenerMac + " (macOS)"},
 	}
 }
 
