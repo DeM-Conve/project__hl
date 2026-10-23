@@ -46,7 +46,9 @@ service on container port 80.
 | `hl add` pins the detected `service` and `port` in `hl.yml` | A later change to the app's compose file doesn't silently move the route. |
 | `hl update` pulls fast-forward only and skips folders with uncommitted changes | Never merges or overwrites local work in an app checkout. |
 | Docker compose v2.24+ | The override uses `!reset` to drop the exposed service's host ports. |
-| Default image `traefik:v3.6` | v3.6.1+ is needed for Docker Engine 29's API. |
+| Default image pinned to the tested Traefik release (`traefik:v3.6.25`); `hl doctor` warns about an older `proxy.image` | v3.6.1+ is needed for Docker Engine 29's API; a pinned tag means every user runs the version hl was tested with. |
+| Traefik is configured by one static config file (`.hl/proxy/traefik.yml`, or the user's own via `proxy.config`), not command-line flags | Readable, printable (`hl config proxy`), and replaceable as a whole; a user file is checked for what hl needs instead of being merged. |
+| Proxy project and network names stay `hl-proxy` by default; a clash with another homelab is refused with a fix (`proxy.project`, `proxy.network`, `proxy.port`) | Changing the defaults would recreate every existing proxy network; detecting the owner (compose's working-dir and project labels) keeps existing homelabs unchanged. |
 | Linux and macOS, amd64 and arm64; Go 1.21 | Release matrix in `.goreleaser.yaml`; `go.mod` sets the Go version. Windows was never targeted (reason not recorded). |
 | Releases are built locally with GoReleaser; no GitHub Actions | The CI and release workflows were added and then removed on purpose ("Releases are cut locally with goreleaser"). Checks run locally. |
 | Homebrew tap: prepared but off | Waits for a `homebrew-tap` repo; steps are in the comment at the end of `.goreleaser.yaml`. |

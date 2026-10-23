@@ -11,7 +11,8 @@ internal/cli            the cobra commands; project.go builds compose projects, 
 internal/config         hl.yml: types, defaults, validation, derived values, comment-keeping edits,
                         finding the homelab folder
 internal/compose        runs `docker compose`; reads the resolved model (`config --format json`)
-internal/gen            writes the per-app override and the proxy's compose file (pure functions)
+internal/gen            writes the per-app override, the proxy's compose file and its Traefik
+                        static config, and checks a user-supplied one (pure functions)
 internal/version        version, commit, build date (ldflags, else Go build info)
 ```
 
@@ -25,7 +26,8 @@ calls, which is why they are the unit-tested packages. Third-party deps are only
    at or above the working directory that has an `hl.yml`, then the default recorded by `hl init`
    in `<os.UserConfigDir()>/hl/home`.
 2. **Load `hl.yml`** (`config.Load`): unmarshal, fill defaults (`bind 127.0.0.1`, `port 80`,
-   `domain localhost`, `routing path`, `network hl-proxy`, `image traefik:v3.6`), validate. hl.yml is
+   `domain localhost`, `routing path`, `network hl-proxy`, `project hl-proxy`, `image` the tested
+   Traefik - the proxy ones are named in `internal/config/defaults_proxy.go`), validate. hl.yml is
    re-read on every command; there is no daemon and no cached state besides the generated files.
 3. **Build the app's compose project** (`cli.project`): the app folder (`path`, `~` and relative
    paths resolved against the homelab folder), its compose files (`compose:` or the first of
@@ -47,7 +49,7 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
 - App names match `^[a-z0-9][a-z0-9._-]*$` (dots allowed, e.g. `tierlist.fm`).
 - `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>`,
   Traefik router/service/middleware names `<id>`, `<id>-slash`, `<id>-strip`.
-- The proxy is compose project `hl-proxy`; its network defaults to `hl-proxy` (inside each override
+- The proxy is compose project `proxy.project` (default `hl-proxy`); its network defaults to `hl-proxy` (inside each override
   it is always referred to by the key `hl-proxy`, mapped to `proxy.network` as an external network).
 
 ## Generated files
@@ -69,10 +71,41 @@ edit hl.yml, not this file". `hl init` writes a `.gitignore` with `data/` and `.
   `driver` and no `driver_opts` becomes a local bind volume with `device: <homelab>/data/<app>/<volume>`.
   hl creates those folders (mode 0755) before compose runs; containers may later chown them.
 
-**`.hl/proxy/compose.yml`** (`gen.Proxy`): one `traefik` service, `restart: unless-stopped`, Docker
-provider with `exposedbydefault=false` on `proxy.network`, entrypoint `web` on `:80` published at
-`<bind>:<port>`, the Docker socket mounted read-only, the dashboard at ``Host(`traefik.<domain>`)``,
-and the network (with `ipam` subnet when `proxy.subnet` is set). There is no TLS entrypoint.
+**`.hl/proxy/traefik.yml`** (`gen.Traefik`): Traefik's static config, readable and commented, with
+no inline literals (every name, path and value is a constant in `internal/config/defaults_proxy.go`
+or an `hl.yml` setting): entrypoint `web` on `:80` (every app router uses it), entrypoint `traefik`
+on `:8080` for `ping` only (not published), the Docker provider with `exposedByDefault: false` on
+`proxy.network`, the file provider reading `proxy.dynamic` when set (`watch: true`), `api.dashboard`
+when the dashboard is on (`gen.Dashboard`, the single switch for the `api` section and the
+dashboard router labels), `log.level` (`proxy.log_level`, default `ERROR`, Traefik's own default),
+and `accessLog` (format `common`) when `proxy.access_log` is on. With `proxy.config` set, hl writes
+no `traefik.yml` (and removes a stale one); it reads the user's file and `gen.CheckTraefik` reports
+problems (no `entryPoints.web` on port 80, no `providers.docker`, `providers.docker.network` not
+`proxy.network`, `proxy.dynamic` set but no `providers.file` reading it) that stop every proxy
+command, and warnings (`exposedByDefault` not false, no `api.dashboard` while the dashboard is on,
+no `ping`, so no healthcheck) shown by `hl proxy status`, `hl config proxy` and `hl doctor`. Keys
+are matched case-insensitively, like Traefik does. `proxy.access_log` and `proxy.log_level` are
+config errors together with `proxy.config`.
+
+**`.hl/proxy/compose.yml`** (`gen.Proxy`): compose project `proxy.project` (default `hl-proxy`),
+one `traefik` service, `restart: unless-stopped`, no `command:` - Traefik reads its static config
+from `/etc/traefik/traefik.yml`, where the generated file or `proxy.config` is mounted read-only.
+`web` is published at `<bind>:<port>`. The Docker socket is mounted read-only; with
+`proxy.dynamic`, the folder holding that file is mounted read-only at `/etc/traefik/dynamic` (a
+folder, not the file, so Traefik's watch survives editors that replace the file). When the static
+config has `ping`, the service gets a healthcheck (`traefik healthcheck --ping`). A label
+`hl.static-config: <hash of the static config>` makes compose recreate the container on
+`hl proxy up` when only the file changed (Traefik doesn't reload static config). The dashboard
+router labels (``Host(`traefik.<domain>`)``, `api@internal`) are there when the dashboard is on.
+The `networks:` section (name, and `ipam` subnet when `proxy.subnet` is set) is byte-for-byte what
+earlier versions wrote, so upgrading keeps the existing network and its subnet
+(`internal/gen/proxy_migration_test.go` compares the old flag-based setup with the new one). There
+is no TLS entrypoint.
+
+**Upgrading from the flag-based proxy**: a running proxy keeps running until the next `hl proxy up`
+(or `hl down` and `hl up`), which recreates only the container; `hl proxy status` says when the
+running proxy predates the current config (compose's `config-hash` label vs `docker compose config
+--hash traefik`).
 
 ## Service and port detection
 
@@ -97,6 +130,19 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
 
 ## Command notes
 
+- Every command that touches the proxy (`proxy()` -> `proxyProject` in `internal/cli/proxy_cmds.go`)
+  first checks that the proxy's compose project isn't run from another homelab's folder (the
+  `com.docker.compose.project.working_dir` label of its containers) and that `proxy.network`, if it
+  exists, belongs to `proxy.project`; otherwise it stops with the fix (another `proxy.project`,
+  `proxy.network` and `proxy.port`), so a second homelab never stops or reconfigures the first one's
+  proxy. Without Docker the check is skipped.
+- `proxy status`: state and health of the proxy container, image (and the configured one if they
+  differ), listen address, static config file and its source, dynamic file, dashboard URL, access
+  log, the config warnings, a clash, an image older than `config.TestedTraefikVersion`, and whether
+  the running container predates the config. `proxy config` and `config proxy` print the static
+  config file with its path.
+- `doctor` also checks the proxy config (as above), the project/network ownership, and warns (not a
+  failure) when `proxy.image` is older than the tested Traefik or its version can't be told.
 - `up`/`start`, `rebuild`, `update` start the proxy first if no `hl-proxy` container runs
   (`ensureProxy`), because each override joins the proxy network as `external`. `restart` doesn't.
 - `down`/`stop` with no app stops every app, then the proxy. `remove` runs `down` for the app (if

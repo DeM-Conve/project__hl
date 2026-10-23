@@ -98,19 +98,19 @@ in hl may assume the maintainer's setup.
 
 ## 4. The proxy: one Traefik file (P0)
 
-- [ ] **One readable Traefik config file**: `.hl/proxy/traefik.yml` (static config: entrypoints,
+- [x] **One readable Traefik config file**: `.hl/proxy/traefik.yml` (static config: entrypoints,
   docker provider, dashboard, logs) generated from hl.yml, instead of command-line flags hidden in
   the proxy's compose file. `hl config proxy` prints it.
-- [ ] **Bring your own Traefik file**: `proxy.config: traefik.yml` (relative to the homelab)
+- [x] **Bring your own Traefik file**: `proxy.config: traefik.yml` (relative to the homelab)
   replaces the generated static config entirely - hl only checks it has the entrypoint and docker
   provider hl needs and says what's missing. One file, your choice, default generated.
-- [ ] **Extra routes/middlewares**: `proxy.dynamic: dynamic.yml` (Traefik file provider) for
+- [x] **Extra routes/middlewares**: `proxy.dynamic: dynamic.yml` (Traefik file provider) for
   things that aren't hl apps (another machine, a NAS, redirects).
 - [ ] **Dashboard off by default**; `proxy.dashboard: true` turns it on at `traefik.<domain>`,
   refused on a non-loopback bind unless `proxy.dashboard_public: true`. (in progress, core agent)
-- [ ] **Pinned Traefik version** with a tested default; `hl doctor` warns when the configured
+- [x] **Pinned Traefik version** with a tested default; `hl doctor` warns when the configured
   image is older than the tested one.
-- [ ] Access log on/off (`proxy.access_log`), proxy healthcheck, `hl proxy status`.
+- [x] Access log on/off (`proxy.access_log`), proxy healthcheck, `hl proxy status`.
 - [ ] P2: HTTPS (local CA / ACME). v0.1 documents putting hl behind your own TLS proxy.
 
 ## 5. Running apps reliably (P0)
