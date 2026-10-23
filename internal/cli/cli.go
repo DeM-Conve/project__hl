@@ -139,45 +139,6 @@ func without(names, typed []string) []string {
 	return out
 }
 
-func initCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "init [folder]",
-		Short: "Create a homelab folder (default: the current one) and make it the default",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			dir := "."
-			if len(args) == 1 {
-				dir = args[0]
-			}
-			dir, err := filepath.Abs(dir)
-			if err != nil {
-				return err
-			}
-			if err := os.MkdirAll(filepath.Join(dir, "data"), 0o755); err != nil {
-				return err
-			}
-			f := filepath.Join(dir, config.FileName)
-			if _, err := os.Stat(f); err == nil {
-				say("%s already exists, left as it is", f)
-			} else {
-				if err := os.WriteFile(f, []byte(config.Template), 0o644); err != nil {
-					return err
-				}
-				say("wrote %s", f)
-			}
-			gi := filepath.Join(dir, ".gitignore")
-			if _, err := os.Stat(gi); err != nil {
-				_ = os.WriteFile(gi, []byte("# App data (databases, uploads) and files hl generates.\ndata/\n.hl/\n"), 0o644)
-			}
-			if err := config.SetDefaultHome(dir); err != nil {
-				return err
-			}
-			say("default homelab: %s\nnext: hl add <app folder>", dir)
-			return nil
-		},
-	}
-}
-
 func addCmd() *cobra.Command {
 	var a config.App
 	var name string
