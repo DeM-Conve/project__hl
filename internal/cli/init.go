@@ -113,6 +113,9 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		if err != nil {
 			return err
 		}
+		if len(cfg.Projects) > 0 && o.projects != nil {
+			say("%snote:%s --projects is ignored: %s already lists projects folders", yellow, reset, config.FileName)
+		}
 		if len(cfg.Projects) == 0 {
 			projects, err := askProjects(p, out, dir, o.projects)
 			if err != nil {
