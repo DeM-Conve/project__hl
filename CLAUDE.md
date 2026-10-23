@@ -13,6 +13,7 @@ github.com/DeM-Conve/project__hl, MIT, module `github.com/DeM-Conve/project__hl`
 | [README.md](README.md) | You need the user-facing behaviour: install, commands and flags, `hl.yml` fields, routing, env order. It is the reference for those; keep it in sync with the code. |
 | [docs/requirements.md](docs/requirements.md) | Before adding a feature or changing behaviour: hard rules and the decisions behind them. |
 | [docs/architecture.md](docs/architecture.md) | Before changing code: what each package does, how a command runs, what the generated files contain, env layering, per-command details. |
+| [docs/product-plan.md](docs/product-plan.md) | The v1 product task list (priorities, status) - pick work from here and tick it when done. |
 | [docs/status.md](docs/status.md) | Before starting work: current state, pending items, open questions. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Building, checks, commit style, and the release steps (GoReleaser). |
 | [CHANGELOG.md](CHANGELOG.md) | What a user would notice, per version; add to `Unreleased`. |
