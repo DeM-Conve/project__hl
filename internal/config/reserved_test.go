@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 func TestReserveAppName(t *testing.T) {
@@ -15,7 +17,7 @@ func TestReserveAppName(t *testing.T) {
 		}
 	}
 	got := strings.Join(ReservedAppNames(), " ")
-	if !strings.Contains(got, "my-cmd") || !strings.Contains(got, ReservedAppName) {
+	if !strings.Contains(got, "my-cmd") || !strings.Contains(got, defaults.ReservedAppName) {
 		t.Errorf("ReservedAppNames() = %s", got)
 	}
 	ps := Check([]byte("apps:\n  my-cmd: {path: x}\n"))

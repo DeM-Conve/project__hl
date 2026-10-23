@@ -20,7 +20,7 @@ func TestDefaultsAndURLs(t *testing.T) {
 	dir := write(t, `
 proxy: {port: 8080}
 apps:
-  tierlist.fm: {path: ../tierlist}
+  my-app.io: {path: ../my-app}
   blog: {path: /srv/blog, routing: host}
   wiki: {path: wiki, routing: host, host: wiki.example.com}
   api: {path: api, prefix: /v1/api}
@@ -31,7 +31,7 @@ apps:
 		t.Fatal(err)
 	}
 	cases := []struct{ app, url, prefix string }{
-		{"tierlist.fm", "http://localhost:8080/tierlist.fm", "/tierlist.fm"},
+		{"my-app.io", "http://localhost:8080/my-app.io", "/my-app.io"},
 		{"blog", "http://blog.localhost:8080", ""},
 		{"wiki", "http://wiki.example.com:8080", ""},
 		{"api", "http://localhost:8080/v1/api", "/v1/api"},
@@ -46,10 +46,10 @@ apps:
 			t.Errorf("Prefix(%s) = %q, want %q", tc.app, got, tc.prefix)
 		}
 	}
-	if got, want := c.AppDir(c.Apps["tierlist.fm"]), filepath.Join(filepath.Dir(dir), "tierlist"); got != want {
+	if got, want := c.AppDir(c.Apps["my-app.io"]), filepath.Join(filepath.Dir(dir), "my-app"); got != want {
 		t.Errorf("AppDir = %q, want %q", got, want)
 	}
-	if got := ProjectName("tierlist.fm"); got != "hl-tierlist-fm" {
+	if got := ProjectName("my-app.io"); got != "hl-my-app-io" {
 		t.Errorf("ProjectName = %q", got)
 	}
 }
@@ -101,7 +101,7 @@ func TestAddAndRemoveKeepComments(t *testing.T) {
 func TestEnv(t *testing.T) {
 	t.Setenv("HL_TEST_SHELL", "from-shell")
 	dir := write(t, `
-env: {TZ: Asia/Kolkata, SHARED: base}
+env: {TZ: UTC, SHARED: base}
 apps:
   blog:
     path: blog
@@ -124,7 +124,7 @@ apps:
 	}
 	want := map[string]string{
 		"HL_APP": "blog", "HL_PREFIX": "/blog", "HL_URL": "http://localhost/blog",
-		"TZ": "Asia/Kolkata", "SHARED": "own", "BASE_PATH": "/blog", "URL": "http://localhost/blog/",
+		"TZ": "UTC", "SHARED": "own", "BASE_PATH": "/blog", "URL": "http://localhost/blog/",
 		"DATA": filepath.Join(dir, "data", "blog", "db"), "FROM_SHELL": "from-shell",
 	}
 	for k, v := range want {

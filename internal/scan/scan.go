@@ -13,6 +13,7 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // Folder is a project folder with a compose file.
@@ -34,17 +35,17 @@ type Diff struct {
 // Changes reports whether sync has anything to look at beyond the kept apps.
 func (d *Diff) Changes() int { return len(d.New) + len(d.Gone) }
 
-// Depth is the configured scan depth, or DefaultDepth.
+// Depth is the configured scan depth, or defaults.ScanDepth.
 func Depth(cfg *config.Config) int {
 	if cfg.ScanDepth > 0 {
 		return cfg.ScanDepth
 	}
-	return DefaultDepth
+	return defaults.ScanDepth
 }
 
-// Ignored reports whether a folder name matches DefaultIgnore or hl.yml's ignore.
+// Ignored reports whether a folder name matches defaults.DefaultIgnore or hl.yml's ignore.
 func Ignored(cfg *config.Config, name string) bool {
-	for _, list := range [][]string{DefaultIgnore, cfg.Ignore} {
+	for _, list := range [][]string{defaults.DefaultIgnore, cfg.Ignore} {
 		for _, p := range list {
 			if ok, _ := filepath.Match(p, name); ok {
 				return true
@@ -99,7 +100,7 @@ func Compare(cfg *config.Config) (*Diff, error) {
 }
 
 // folders are the subfolders of dir (down to depth levels) with a compose
-// file, skipping ignored names and folders with an IgnoreFile. A folder with
+// file, skipping ignored names and folders with an defaults.IgnoreFile. A folder with
 // a compose file is an app; hl doesn't look inside it.
 func folders(cfg *config.Config, dir, written string, depth int) ([]Folder, error) {
 	entries, err := os.ReadDir(dir)
@@ -116,7 +117,7 @@ func folders(cfg *config.Config, dir, written string, depth int) ([]Folder, erro
 		if Ignored(cfg, name) {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(sub, IgnoreFile)); err == nil {
+		if _, err := os.Stat(filepath.Join(sub, defaults.IgnoreFile)); err == nil {
 			continue
 		}
 		path := filepath.Join(written, name)

@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // ProxyFiles are the config files the proxy container mounts.
@@ -24,13 +25,13 @@ type ProxyFiles struct {
 
 // Dashboard reports whether the Traefik dashboard is on. It is the one switch
 // for both the api section of traefik.yml and the dashboard router's labels.
-func Dashboard(p config.Proxy) bool { return true }
+func Dashboard(p config.Proxy) bool { return p.Dashboard }
 
 // DynamicTarget is where proxy.dynamic is seen inside the container: its
 // folder is mounted read-only, so Traefik's watch survives editors that
 // replace the file.
 func DynamicTarget(hostFile string) string {
-	return path.Join(config.TraefikDynamicDir, filepath.Base(hostFile))
+	return path.Join(defaults.TraefikDynamicDir, filepath.Base(hostFile))
 }
 
 // Hash is a short content hash for StaticConfigLabel.
@@ -48,10 +49,10 @@ func Traefik(p config.Proxy, dynamic string) string {
 	b.WriteString("# To run Traefik with a file of your own instead, set proxy.config in hl.yml.\n\n")
 
 	b.WriteString("entryPoints:\n")
-	fmt.Fprintf(&b, "  %s:            # every app's router uses this entrypoint\n", config.EntryPointWeb)
-	fmt.Fprintf(&b, "    address: %s\n", quote(":"+strconv.Itoa(config.ProxyContainerPort)))
-	fmt.Fprintf(&b, "  %s:        # /ping for the container healthcheck; not published\n", config.EntryPointPing)
-	fmt.Fprintf(&b, "    address: %s\n", quote(":"+strconv.Itoa(config.PingPort)))
+	fmt.Fprintf(&b, "  %s:            # every app's router uses this entrypoint\n", defaults.EntryPointWeb)
+	fmt.Fprintf(&b, "    address: %s\n", quote(":"+strconv.Itoa(defaults.ProxyContainerPort)))
+	fmt.Fprintf(&b, "  %s:        # /ping for the container healthcheck; not published\n", defaults.EntryPointPing)
+	fmt.Fprintf(&b, "    address: %s\n", quote(":"+strconv.Itoa(defaults.PingPort)))
 
 	b.WriteString("\nproviders:\n  docker:             # apps, by the labels hl gives them\n")
 	b.WriteString("    exposedByDefault: false\n")
@@ -62,18 +63,18 @@ func Traefik(p config.Proxy, dynamic string) string {
 	}
 
 	if Dashboard(p) {
-		fmt.Fprintf(&b, "\napi:                  # the dashboard, at http://%s%s\n  dashboard: true\n", config.DashboardHostPrefix, p.Domain)
+		fmt.Fprintf(&b, "\napi:                  # the dashboard, at http://%s%s\n  dashboard: true\n", defaults.DashboardHostPrefix, p.Domain)
 	}
 
-	fmt.Fprintf(&b, "\nping:\n  entryPoint: %s\n", quote(config.EntryPointPing))
+	fmt.Fprintf(&b, "\nping:\n  entryPoint: %s\n", quote(defaults.EntryPointPing))
 
 	level := p.LogLevel
 	if level == "" {
-		level = config.DefaultProxyLogLevel
+		level = defaults.DefaultProxyLogLevel
 	}
 	fmt.Fprintf(&b, "\nlog:\n  level: %s\n", quote(strings.ToUpper(level)))
 	if p.AccessLog {
-		fmt.Fprintf(&b, "\naccessLog:            # proxy.access_log; see hl proxy logs\n  format: %s\n", quote(config.AccessLogFormat))
+		fmt.Fprintf(&b, "\naccessLog:            # proxy.access_log; see hl proxy logs\n  format: %s\n", quote(defaults.AccessLogFormat))
 	}
 	return b.String()
 }
@@ -86,8 +87,8 @@ func CheckTraefik(data []byte, p config.Proxy, dynamic string) (ping bool, probl
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return false, []string{"not valid YAML: " + err.Error()}, nil
 	}
-	port := strconv.Itoa(config.ProxyContainerPort)
-	web := config.EntryPointWeb
+	port := strconv.Itoa(defaults.ProxyContainerPort)
+	web := defaults.EntryPointWeb
 
 	addr, ok := lookup(doc, "entryPoints", web, "address")
 	switch {
@@ -116,14 +117,14 @@ func CheckTraefik(data []byte, p config.Proxy, dynamic string) (ping bool, probl
 		want := DynamicTarget(dynamic)
 		f, _ := lookup(doc, "providers", "file", "filename")
 		d, _ := lookup(doc, "providers", "file", "directory")
-		if fmt.Sprint(f) != want && strings.TrimSuffix(fmt.Sprint(d), "/") != config.TraefikDynamicDir {
+		if fmt.Sprint(f) != want && strings.TrimSuffix(fmt.Sprint(d), "/") != defaults.TraefikDynamicDir {
 			problems = append(problems, fmt.Sprintf("proxy.dynamic is set but providers.file doesn't read it - add:  providers: {file: {filename: %s, watch: true}}", want))
 		}
 	}
 
 	if Dashboard(p) {
 		if v, ok := lookup(doc, "api", "dashboard"); !ok || fmt.Sprint(v) != "true" {
-			warnings = append(warnings, fmt.Sprintf("the dashboard at %s%s needs  api: {dashboard: true}", config.DashboardHostPrefix, p.Domain))
+			warnings = append(warnings, fmt.Sprintf("the dashboard at %s%s needs  api: {dashboard: true}", defaults.DashboardHostPrefix, p.Domain))
 		}
 	}
 

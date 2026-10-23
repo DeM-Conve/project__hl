@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // sync and init skip every name config reserves, not only the proxy's.
 func TestReservedFollowsConfigList(t *testing.T) {
-	if !reserved(config.ReservedAppName) {
-		t.Errorf("%s should be reserved", config.ReservedAppName)
+	if !reserved(defaults.ReservedAppName) {
+		t.Errorf("%s should be reserved", defaults.ReservedAppName)
 	}
 	if reserved("my-tool") {
 		t.Fatal("my-tool reserved before anyone reserved it")

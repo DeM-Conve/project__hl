@@ -5,11 +5,13 @@ import (
 	"testing"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 func proxySettings() config.Proxy {
 	return config.Proxy{Bind: "127.0.0.1", Port: 80, Domain: "localhost", Routing: "path",
-		Network: config.DefaultProxyNetwork, Image: config.DefaultProxyImage, Project: config.DefaultProxyProject}
+		Network: defaults.DefaultProxyNetwork, Image: defaults.DefaultProxyImage, Project: defaults.DefaultProxyProject,
+		Dashboard: true}
 }
 
 func TestTraefikGenerated(t *testing.T) {

@@ -12,6 +12,8 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 const schemaFile = "../../schema/hl.schema.json"
@@ -159,11 +161,11 @@ func TestSchemaMatchesTypes(t *testing.T) {
 			t.Errorf("%s: schema has %v, Go type has %v", tc.name, got, want)
 		}
 	}
-	if root.ID != SchemaURL {
-		t.Errorf("$id = %s, want SchemaURL %s", root.ID, SchemaURL)
+	if root.ID != defaults.SchemaURL {
+		t.Errorf("$id = %s, want defaults.SchemaURL %s", root.ID, defaults.SchemaURL)
 	}
-	if v := root.Properties["version"].Enum; len(v) != 1 || v[0] != float64(Version) {
-		t.Errorf("version enum = %v, want [%d]", v, Version)
+	if v := root.Properties["version"].Enum; len(v) != 1 || v[0] != float64(defaults.ConfigVersion) {
+		t.Errorf("version enum = %v, want [%d]", v, defaults.ConfigVersion)
 	}
 	if p := root.Properties["apps"].Names.Pattern; p != nameRE.String() {
 		t.Errorf("app name pattern %s, Go uses %s", p, nameRE)
@@ -175,10 +177,10 @@ func TestSchemaMatchesTypes(t *testing.T) {
 		t.Errorf("proxy.routing enum %s", got)
 	}
 	var levels []string
-	for _, l := range ProxyLogLevels {
+	for _, l := range defaults.ProxyLogLevels {
 		levels = append(levels, l)
 	}
-	for _, l := range ProxyLogLevels {
+	for _, l := range defaults.ProxyLogLevels {
 		levels = append(levels, strings.ToLower(l))
 	}
 	if got := jsonString(root.Properties["proxy"].Properties["log_level"].Enum); got != jsonString(levels) {

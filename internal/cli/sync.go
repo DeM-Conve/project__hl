@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 	"github.com/DeM-Conve/project__hl/internal/scan"
 )
 
@@ -24,7 +26,7 @@ func syncCmd() *cobra.Command {
   + add     a new subfolder with a compose file (service and port detected like hl add)
   - remove  an app whose folder is gone; its data in data/<app> stays
   ~ update  an app whose pinned service or port is no longer in its compose file
-Folders matching ignore: in hl.yml, hidden ones, and ones with a ` + scan.IgnoreFile + ` file are
+Folders matching ignore: in hl.yml, hidden ones, and ones with a ` + defaults.IgnoreFile + ` file are
 skipped. Apps outside the projects folders are left alone.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -85,7 +87,7 @@ func modelFunc(cfg *config.Config) scan.ModelFunc {
 		if err != nil {
 			return nil, err
 		}
-		return p.Model()
+		return p.Model(context.Background())
 	}
 }
 
@@ -126,10 +128,10 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 			added = append(added, a.Name)
 			fmt.Fprintf(out, "added %s\n", a.Name)
 		case scan.Remove:
-			if name := config.ProjectName(a.Name); running(name) {
+			name := cfg.ProjectName(a.Name)
+			if inv, err := containers(context.Background()); err == nil && inv.owner(cfg, name) == "" && len(inv.of(name)) > 0 {
 				// The folder is gone, so stop it by project name alone.
-				p := &compose.Project{Name: name, Dir: cfg.Dir}
-				if err := p.Run("down"); err != nil {
+				if err := downByName(context.Background(), name); err != nil {
 					fmt.Fprintf(out, "%swarning:%s couldn't stop %s: %v\n", yellow, reset, a.Name, err)
 				}
 			}

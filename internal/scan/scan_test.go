@@ -10,6 +10,7 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // lab is a homelab and a projects folder in a temp home whose path has spaces.
@@ -80,7 +81,7 @@ apps:
 	l.app("my code/.hidden")
 	l.app("my code/node_modules")
 	l.app("my code/opted-out")
-	if err := os.WriteFile(filepath.Join(l.projects, "opted-out", IgnoreFile), nil, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(l.projects, "opted-out", defaults.IgnoreFile), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	l.mkdir("my code/library")      // no compose file

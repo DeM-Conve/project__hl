@@ -2,17 +2,19 @@ package config
 
 import (
 	"fmt"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 	"sort"
 	"sync"
 )
 
-// Names an app can't have, each with the reason. ReservedAppName is always one; the CLI adds
+// Names an app can't have, each with the reason. defaults.ReservedAppName is always one; the CLI adds
 // the names of its `hl config` subcommands (so `hl config <app>` is never shadowed) by calling
 // ReserveAppName at start-up, so this stays the one list everything checks against.
 var (
 	reservedMu    sync.RWMutex
 	reservedNames = map[string]string{
-		ReservedAppName: fmt.Sprintf("its compose project would be %s, the proxy's", ProjectName(ReservedAppName)),
+		defaults.ReservedAppName: fmt.Sprintf("its compose project would be %s, the proxy's", ProjectName(defaults.ReservedAppName)),
 	}
 )
 

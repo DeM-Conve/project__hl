@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,6 +13,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // Problem is one thing wrong in hl.yml, with where it is and how to fix it.
@@ -63,7 +67,7 @@ func CheckFile(dir string) error {
 	if err != nil {
 		return err
 	}
-	return problemsErr(path, Check(b))
+	return problemsErr(path, check(b, dir))
 }
 
 func problemsErr(path string, ps []Problem) error {
@@ -76,7 +80,10 @@ func problemsErr(path string, ps []Problem) error {
 // Check finds every problem in an hl.yml's content: syntax, unknown keys (with a suggestion),
 // keys set twice, wrong value types, and the values hl can't work with. Known keys come from
 // the Config type, so a field added there is accepted here without further changes.
-func Check(b []byte) []Problem {
+func Check(b []byte) []Problem { return check(b, "") }
+
+// check is Check for the hl.yml in the homelab folder dir ("" when unknown).
+func check(b []byte, dir string) []Problem {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(b, &doc); err != nil {
 		return []Problem{syntaxProblem(err)}
@@ -96,8 +103,20 @@ func Check(b []byte) []Problem {
 		if err := root.Decode(&c); err != nil {
 			ps = append(ps, Problem{Message: err.Error()})
 		} else {
+			c.Dir = dir
 			c.defaults()
-			if err := c.Validate(); err != nil {
+			var pe *ProblemsError
+			if err := c.Validate(); errors.As(err, &pe) {
+				// Validate knows the key; the file knows its line.
+				lines := map[string]*yaml.Node{}
+				keyNodes(root, "", lines)
+				for _, p := range pe.Problems {
+					if n := lines[p.Key]; n != nil {
+						p.Line, p.Column = n.Line, n.Column
+					}
+					ps = append(ps, p)
+				}
+			} else if err != nil {
 				ps = append(ps, Problem{Message: err.Error()})
 			}
 		}
@@ -111,7 +130,42 @@ func Check(b []byte) []Problem {
 	return ps
 }
 
-var yamlLineRE = regexp.MustCompile(`^yaml: line (\d+): (.*)$`)
+// keyNodes maps every key path in a mapping tree (proxy.port, apps.my-app) to its key node.
+func keyNodes(n *yaml.Node, path string, out map[string]*yaml.Node) {
+	for n.Kind == yaml.AliasNode && n.Alias != nil {
+		n = n.Alias
+	}
+	if n.Kind != yaml.MappingNode {
+		return
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		kp := join(path, n.Content[i].Value)
+		if _, seen := out[kp]; !seen {
+			out[kp] = n.Content[i]
+		}
+		keyNodes(n.Content[i+1], kp, out)
+	}
+}
+
+var (
+	yamlLineRE = regexp.MustCompile(`^yaml: line (\d+): (.*)$`)
+	nameRE     = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
+	labNameRE  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	prefixRE   = regexp.MustCompile(`^(/[A-Za-z0-9._~-]+)+$`)
+	hostRE     = regexp.MustCompile(`^(?i)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
+	serviceRE  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+	networkRE  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+	envKeyRE   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+)
+
+// ValidService reports whether s can be a compose service name (so it can't
+// be mistaken for a flag).
+func ValidService(s string) error {
+	if !serviceRE.MatchString(s) {
+		return fmt.Errorf("%q is not a compose service name", s)
+	}
+	return nil
+}
 
 func syntaxProblem(err error) Problem {
 	msg := err.Error()
@@ -129,11 +183,11 @@ type rule func(v string) string
 var rules = map[string]rule{
 	"version": func(v string) string {
 		n, _ := strconv.Atoi(v)
-		if n > Version {
-			return fmt.Sprintf("%d is newer than this hl understands (%d) - update hl", n, Version)
+		if n > defaults.ConfigVersion {
+			return fmt.Sprintf("%d is newer than this hl understands (%d) - update hl", n, defaults.ConfigVersion)
 		}
 		if n < 0 {
-			return fmt.Sprintf("%d is not a version - use %d", n, Version)
+			return fmt.Sprintf("%d is not a version - use %d", n, defaults.ConfigVersion)
 		}
 		return ""
 	},
@@ -146,12 +200,60 @@ var rules = map[string]rule{
 		return ""
 	},
 	"proxy.log_level": func(v string) string {
-		for _, l := range ProxyLogLevels {
+		for _, l := range defaults.ProxyLogLevels {
 			if strings.EqualFold(v, l) {
 				return ""
 			}
 		}
-		return oneOf(ProxyLogLevels...)(strings.ToUpper(v))
+		return oneOf(defaults.ProxyLogLevels...)(strings.ToUpper(v))
+	},
+	"name": func(v string) string {
+		if v != "" && !labNameRE.MatchString(v) {
+			return fmt.Sprintf("%q - use lowercase letters, digits and '-'", v)
+		}
+		return ""
+	},
+	"proxy.bind": func(v string) string {
+		if net.ParseIP(v) == nil {
+			return fmt.Sprintf("%q is not an IP address - use 127.0.0.1 (this machine) or 0.0.0.0 (your network)", v)
+		}
+		return ""
+	},
+	"proxy.domain": func(v string) string {
+		if !hostRE.MatchString(v) {
+			return fmt.Sprintf("%q is not a host name like localhost or home.example.com", v)
+		}
+		return ""
+	},
+	"proxy.network": func(v string) string {
+		if !networkRE.MatchString(v) {
+			return fmt.Sprintf("%q is not a Docker network name (letters, digits, '_', '.', '-')", v)
+		}
+		return ""
+	},
+	"proxy.subnet": func(v string) string {
+		if _, _, err := net.ParseCIDR(v); err != nil {
+			return fmt.Sprintf("%q is not a subnet like 172.30.0.0/16", v)
+		}
+		return ""
+	},
+	"proxy.image": func(v string) string {
+		if v == "" || strings.ContainsAny(v, " \t") {
+			return fmt.Sprintf("%q is not an image name like %s", v, defaults.DefaultProxyImage)
+		}
+		return ""
+	},
+	"apps.*.host": func(v string) string {
+		if v != "" && !hostRE.MatchString(v) {
+			return fmt.Sprintf("%q is not a host name like my-app.example.com", v)
+		}
+		return ""
+	},
+	"apps.*.service": func(v string) string {
+		if v != "" && !serviceRE.MatchString(v) {
+			return fmt.Sprintf("%q is not a compose service name", v)
+		}
+		return ""
 	},
 	"apps.*.routing": oneOf(RoutingPath, RoutingHost, RoutingNone),
 	"apps.*.port":    portRule,

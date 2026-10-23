@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 func TestProxyDefaultsAndFiles(t *testing.T) {
@@ -14,13 +16,13 @@ func TestProxyDefaultsAndFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := c.Proxy
-	if p.Image != DefaultProxyImage || p.Project != DefaultProxyProject || p.Network != DefaultProxyNetwork {
+	if p.Image != defaults.DefaultProxyImage || p.Project != defaults.DefaultProxyProject || p.Network != defaults.DefaultProxyNetwork {
 		t.Errorf("defaults: %+v", p)
 	}
-	if p.Image != "traefik:v"+TestedTraefikVersion {
+	if p.Image != "traefik:v"+defaults.TestedTraefikVersion {
 		t.Errorf("the default image is the tested version: %s", p.Image)
 	}
-	if got := c.ProxyStaticFile(); got != filepath.Join(dir, ".hl", ProxyStateDir, TraefikStaticFile) {
+	if got := c.ProxyStaticFile(); got != filepath.Join(dir, ".hl", defaults.ProxyStateDir, defaults.TraefikStaticFile) {
 		t.Errorf("generated static file: %s", got)
 	}
 	if c.ProxyDynamicFile() != "" {
@@ -73,7 +75,7 @@ func TestDynamicMustBeInASubfolder(t *testing.T) {
 		".hl/proxy/d.yml":    "which hl manages",
 	} {
 		_, err := Load(write(t, "proxy: {dynamic: "+dyn+"}\n"))
-		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), ExampleDynamicFile) {
+		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), defaults.ExampleDynamicFile) {
 			t.Errorf("%s: error %v, want %q and the fix", dyn, err, want)
 		}
 	}

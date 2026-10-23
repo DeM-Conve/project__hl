@@ -11,6 +11,7 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 	"github.com/DeM-Conve/project__hl/internal/gen"
 )
 
@@ -19,9 +20,9 @@ const proxyArg = "proxy"
 
 // Labels compose puts on the containers and networks it creates.
 const (
-	composeProjectLabel    = "com.docker.compose.project"
-	composeWorkingDirLabel = "com.docker.compose.project.working_dir"
-	composeConfigHashLabel = "com.docker.compose.config-hash"
+	composeProjectLabel    = defaults.ComposeProjectLabel
+	composeWorkingDirLabel = defaults.ComposeWorkingDirLabel
+	composeConfigHashLabel = defaults.ComposeConfigHashLabel
 )
 
 // proxyProject writes the proxy's files and returns its compose project. It
@@ -34,8 +35,8 @@ func proxyProject(cfg *config.Config) (*compose.Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	f := filepath.Join(cfg.ProxyDir(), config.ProxyComposeFile)
-	if err := os.WriteFile(f, []byte(gen.Proxy(cfg.Proxy, files)), 0o644); err != nil {
+	f := filepath.Join(cfg.ProxyDir(), defaults.ProxyComposeFile)
+	if err := writeGenerated(f, gen.Proxy(cfg.Proxy, files)); err != nil {
 		return nil, err
 	}
 	return &compose.Project{Name: cfg.Proxy.Project, Dir: cfg.ProxyDir(), Files: []string{f}}, nil
@@ -46,7 +47,7 @@ func proxyProject(cfg *config.Config) (*compose.Project, error) {
 // things in the user's file that don't stop the proxy from working.
 func proxyFiles(cfg *config.Config) (gen.ProxyFiles, []string, error) {
 	var files gen.ProxyFiles
-	if err := os.MkdirAll(cfg.ProxyDir(), 0o755); err != nil {
+	if err := os.MkdirAll(cfg.ProxyDir(), defaults.DataDirMode); err != nil {
 		return files, nil, err
 	}
 	if d := cfg.ProxyDynamicFile(); d != "" {
@@ -56,11 +57,11 @@ func proxyFiles(cfg *config.Config) (gen.ProxyFiles, []string, error) {
 		}
 		files.Dynamic = d
 	}
-	generated := filepath.Join(cfg.ProxyDir(), config.TraefikStaticFile)
+	generated := filepath.Join(cfg.ProxyDir(), defaults.TraefikStaticFile)
 	files.Static = cfg.ProxyStaticFile()
 	if cfg.Proxy.Config == "" {
 		text := gen.Traefik(cfg.Proxy, files.Dynamic)
-		if err := os.WriteFile(generated, []byte(text), 0o644); err != nil {
+		if err := writeGenerated(generated, text); err != nil {
 			return files, nil, err
 		}
 		files.Hash, files.Ping = gen.Hash([]byte(text)), true
@@ -121,8 +122,6 @@ func samePath(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
-func warn(format string, a ...any) { say("%s!%s "+format, append([]any{yellow, reset}, a...)...) }
-
 // printProxyConfig prints the Traefik static config the proxy runs with.
 func printProxyConfig() error {
 	cfg, err := load()
@@ -137,9 +136,9 @@ func printProxyConfig() error {
 		}
 		return err
 	}
-	fmt.Printf("# %s\n%s", files.Static, b)
+	fmt.Fprintf(stdout, "# %s\n%s", files.Static, b)
 	for _, w := range warnings {
-		fmt.Fprintf(os.Stderr, "%swarning:%s %s\n", yellow, reset, w)
+		warn("%s", w)
 	}
 	return ferr
 }
@@ -202,7 +201,7 @@ func proxyStatusCmd() *cobra.Command {
 			}
 			dash := "off"
 			if gen.Dashboard(p) {
-				dash = "http://" + config.DashboardHostPrefix + p.Domain + host
+				dash = "http://" + defaults.DashboardHostPrefix + p.Domain + host
 			}
 			row := func(k, v string) { say("%s%-10s%s %s", bold, k, reset, v) }
 			row("proxy", state+"  "+dim+"(project "+p.Project+", network "+p.Network+")"+reset)
@@ -237,7 +236,7 @@ func proxyStatusCmd() *cobra.Command {
 			if ferr != nil {
 				say("%s✗%s %v", red, reset, ferr)
 			}
-			if older, known := gen.ImageOlder(p.Image, config.TestedTraefikVersion); older || !known {
+			if older, known := gen.ImageOlder(p.Image, defaults.TestedTraefikVersion); older || !known {
 				warn("%s", imageAdvice(p.Image, known))
 			}
 			if hash != "" && clash == nil && ferr == nil {
@@ -259,7 +258,7 @@ func proxyConfigHash(cfg *config.Config) string {
 	if err != nil {
 		return ""
 	}
-	out, err := p.Command("config", "--hash", config.ProxyService).Output()
+	out, err := p.Command("config", "--hash", defaults.ProxyService).Output()
 	if err != nil {
 		return ""
 	}
@@ -271,7 +270,7 @@ func proxyConfigHash(cfg *config.Config) string {
 }
 
 func imageAdvice(image string, known bool) string {
-	tested := config.DefaultProxyImage
+	tested := defaults.DefaultProxyImage
 	if !known {
 		return fmt.Sprintf("can't tell which Traefik version proxy.image %q is; hl is tested with %s", image, tested)
 	}
@@ -288,7 +287,7 @@ func doctorProxy(cfg *config.Config, check func(ok bool, what, fix string)) {
 	}
 	err = proxyClash(cfg)
 	check(err == nil, "proxy project "+cfg.Proxy.Project+" and network "+cfg.Proxy.Network+" are this homelab's", fmt.Sprint(err))
-	if older, known := gen.ImageOlder(cfg.Proxy.Image, config.TestedTraefikVersion); older || !known {
+	if older, known := gen.ImageOlder(cfg.Proxy.Image, defaults.TestedTraefikVersion); older || !known {
 		warn("%s", imageAdvice(cfg.Proxy.Image, known))
 	}
 }

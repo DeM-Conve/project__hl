@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -10,11 +9,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 	"github.com/DeM-Conve/project__hl/internal/scan"
 )
 
@@ -53,7 +52,7 @@ that are new in the projects folders instead.`,
 	f := c.Flags()
 	f.StringSliceVar(&o.projects, "projects", nil, "folders with your projects; each subfolder with a compose file is an app")
 	f.StringVar(&o.routing, "routing", "", "path or host (default: "+config.ProxyDefaults().Routing+")")
-	f.StringVar(&o.bind, "bind", "", "address the proxy listens on: "+config.ProxyDefaults().Bind+" = this machine only, "+scan.BindNetwork+" = your network")
+	f.StringVar(&o.bind, "bind", "", "address the proxy listens on: "+config.ProxyDefaults().Bind+" = this machine only, "+defaults.BindNetwork+" = your network")
 	f.IntVar(&o.port, "port", 0, fmt.Sprintf("host port of the proxy (default: %d)", config.ProxyDefaults().Port))
 	f.StringSliceVar(&o.apps, "apps", nil, "apps to add from the projects folders, by name, or "+pickNone+" (default: all found)")
 	f.BoolVarP(&o.yes, "yes", "y", false, "ask nothing: use flags and defaults")
@@ -63,14 +62,7 @@ that are new in the projects folders instead.`,
 // portInUse reports whether bind:port is taken; tests replace it. A port
 // hl isn't allowed to open (e.g. 80 as a normal user) counts as free: Docker
 // opens it, not hl.
-var portInUse = func(bind string, port int) bool {
-	l, err := net.Listen("tcp", net.JoinHostPort(bind, strconv.Itoa(port)))
-	if err == nil {
-		l.Close()
-		return false
-	}
-	return errors.Is(err, syscall.EADDRINUSE)
-}
+var portInUse = addrInUse
 
 func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 	interactive := !o.yes && stdinTerminal(in)
@@ -129,31 +121,31 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 			}
 		}
 	} else {
-		defaults := config.ProxyDefaults()
+		pd := config.ProxyDefaults()
 		projects, err := askProjects(p, out, dir, o.projects)
 		if err != nil {
 			return err
 		}
 		s := config.InitSettings{Projects: projects, Routing: o.routing, Bind: o.bind, Port: o.port}
 		if s.Routing == "" {
-			s.Routing = defaults.Routing
+			s.Routing = pd.Routing
 			if interactive {
 				opts := []string{config.RoutingPath, config.RoutingHost}
 				labels := []string{
-					config.RoutingPath + ": apps at http://" + defaults.Domain + "/<app>/ (the app must support a base path)",
-					config.RoutingHost + ": apps at http://<app>." + defaults.Domain + " (works with any app)",
+					config.RoutingPath + ": apps at http://" + pd.Domain + "/<app>/ (the app must support a base path)",
+					config.RoutingHost + ": apps at http://<app>." + pd.Domain + " (works with any app)",
 				}
-				s.Routing = opts[p.choose("How should apps be reached?", labels, index(opts, defaults.Routing))]
+				s.Routing = opts[p.choose("How should apps be reached?", labels, index(opts, pd.Routing))]
 			}
 		}
 		if s.Routing != config.RoutingPath && s.Routing != config.RoutingHost {
 			return fmt.Errorf("--routing: %q is not %s or %s", s.Routing, config.RoutingPath, config.RoutingHost)
 		}
 		if s.Bind == "" {
-			s.Bind = defaults.Bind
+			s.Bind = pd.Bind
 			if interactive {
-				opts := []string{defaults.Bind, scan.BindNetwork}
-				labels := []string{"this machine only (" + defaults.Bind + ")", "other devices on your network too (" + scan.BindNetwork + ")"}
+				opts := []string{pd.Bind, defaults.BindNetwork}
+				labels := []string{"this machine only (" + pd.Bind + ")", "other devices on your network too (" + defaults.BindNetwork + ")"}
 				s.Bind = opts[p.choose("Who can open the apps?", labels, 0)]
 			}
 		}
@@ -162,13 +154,13 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		}
 		portFlag := s.Port != 0
 		if s.Port == 0 {
-			s.Port = defaults.Port
+			s.Port = pd.Port
 		}
 		if portInUse(s.Bind, s.Port) {
 			if interactive {
 				say("%sport %d is in use%s on %s", yellow, s.Port, reset, s.Bind)
 				for {
-					n, err := strconv.Atoi(p.ask("Port for the proxy", strconv.Itoa(scan.AltPort)))
+					n, err := strconv.Atoi(p.ask("Port for the proxy", strconv.Itoa(defaults.AltPort)))
 					if err == nil && n > 0 && n < 65536 {
 						s.Port = n
 						break
@@ -178,7 +170,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 			} else if portFlag {
 				say("%swarning:%s port %d is in use on %s - free it before hl up", yellow, reset, s.Port, s.Bind)
 			} else {
-				say("%swarning:%s port %d is in use on %s - free it, or run init again with --port %d", yellow, reset, s.Port, s.Bind, scan.AltPort)
+				say("%swarning:%s port %d is in use on %s - free it, or run init again with --port %d", yellow, reset, s.Port, s.Bind, defaults.AltPort)
 			}
 		}
 		if s.Port <= 0 || s.Port > 65535 {
@@ -268,7 +260,7 @@ func candidateProjects() []string {
 		return nil
 	}
 	var out []string
-	for _, c := range scan.CandidateProjects {
+	for _, c := range defaults.CandidateProjects {
 		if st, err := os.Stat(filepath.Join(home, c)); err == nil && st.IsDir() {
 			out = append(out, "~/"+c)
 		}
@@ -361,7 +353,7 @@ func initApps(p *prompter, out io.Writer, cfg *config.Config, want []string, doc
 	}
 	if left := len(adds) - len(chosen); left > 0 {
 		fmt.Fprintf(out, "left out %s - add later with hl sync, or skip for good with ignore: in %s or a %s file\n",
-			plural(left, "app", "apps"), config.FileName, scan.IgnoreFile)
+			plural(left, "app", "apps"), config.FileName, defaults.IgnoreFile)
 	}
 	return names, nil
 }

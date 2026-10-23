@@ -8,6 +8,9 @@ import (
 	"strconv"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
+	"github.com/DeM-Conve/project__hl/internal/fsutil"
 )
 
 // edited applies edit to hl.yml's node tree (the top-level mapping) and returns the new file
@@ -62,11 +65,8 @@ func Replace(dir string, b []byte) error {
 
 // writeKeepMode replaces path's content, keeping its permissions.
 func writeKeepMode(path string, b []byte) error {
-	mode := os.FileMode(0o644)
-	if st, err := os.Stat(path); err == nil {
-		mode = st.Mode().Perm()
-	}
-	return os.WriteFile(path, b, mode)
+	// Atomic, keeping an existing file's permissions (and a symlink).
+	return fsutil.WriteFile(path, b, defaults.FileMode)
 }
 
 // lookup returns the value node of key in mapping m, or nil.
@@ -111,26 +111,26 @@ func Upgrade(dir string) (from int, err error) {
 	}
 	from = FileVersion(b)
 	switch {
-	case from == Version:
+	case from == defaults.ConfigVersion:
 		return from, nil
-	case from > Version:
+	case from > defaults.ConfigVersion:
 		return from, tooNew(from)
 	case from < 0:
-		return from, fmt.Errorf("%s: version: must be a whole number (this hl writes version %d)", path, Version)
+		return from, fmt.Errorf("%s: version: must be a whole number (this hl writes version %d)", path, defaults.ConfigVersion)
 	}
 	return from, editFile(dir, func(root *yaml.Node) error {
 		if v := lookup(root, "version"); v != nil {
 			// `version:` with no value.
-			*v = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(Version), LineComment: v.LineComment}
+			*v = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(defaults.ConfigVersion), LineComment: v.LineComment}
 			return nil
 		}
 		key := &yaml.Node{Kind: yaml.ScalarNode, Value: "version"}
-		val := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(Version)}
+		val := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(defaults.ConfigVersion)}
 		root.Content = append([]*yaml.Node{key, val}, root.Content...)
 		return nil
 	})
 }
 
 func tooNew(v int) error {
-	return fmt.Errorf("%s is version %d, but this hl reads up to version %d - update hl", FileName, v, Version)
+	return fmt.Errorf("%s is version %d, but this hl reads up to version %d - update hl", FileName, v, defaults.ConfigVersion)
 }

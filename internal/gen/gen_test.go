@@ -22,19 +22,19 @@ var model = &compose.Model{
 }
 
 func TestOverridePath(t *testing.T) {
-	out, dirs, err := Override(App{Name: "tierlist.fm", Routing: config.RoutingPath, Prefix: "/tierlist.fm",
-		Host: "localhost", Service: "frontend", Port: 80, Network: "hl-proxy", DataDir: "/lab/data/tierlist.fm"}, model)
+	out, dirs, err := Override(App{Name: "my-app.io", Routing: config.RoutingPath, Prefix: "/my-app.io",
+		Host: "localhost", Service: "frontend", Port: 80, Network: "hl-proxy", DataDir: "/lab/data/my-app.io"}, model)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
 		"ports: !reset []",
 		"      default: {}\n      internal: {}\n      hl-proxy: {}\n",
-		"traefik.http.routers.tierlist-fm.rule: 'Path(`/tierlist.fm`) || PathPrefix(`/tierlist.fm/`)'",
-		`redirectregex.regex: '^(https?://[^/]+/tierlist\.fm)$$'`,
+		"traefik.http.routers.my-app-io.rule: 'Path(`/my-app.io`) || PathPrefix(`/my-app.io/`)'",
+		`redirectregex.regex: '^(https?://[^/]+/my-app\.io)$$'`,
 		"redirectregex.replacement: '$${1}/'",
-		"stripprefix.prefixes: '/tierlist.fm'",
-		"device: '/lab/data/tierlist.fm/pgdata'",
+		"stripprefix.prefixes: '/my-app.io'",
+		"device: '/lab/data/my-app.io/pgdata'",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("override is missing %q:\n%s", want, out)
@@ -43,7 +43,7 @@ func TestOverridePath(t *testing.T) {
 	if strings.Contains(out, "shared:") || strings.Contains(out, "nfs:") {
 		t.Errorf("external and custom-driver volumes must be left alone:\n%s", out)
 	}
-	if len(dirs) != 1 || dirs[0] != "/lab/data/tierlist.fm/pgdata" {
+	if len(dirs) != 1 || dirs[0] != "/lab/data/my-app.io/pgdata" {
 		t.Errorf("dirs = %v", dirs)
 	}
 }
@@ -70,7 +70,7 @@ func TestOverrideHostAndNone(t *testing.T) {
 }
 
 func TestProxy(t *testing.T) {
-	out := Proxy(config.Proxy{Bind: "0.0.0.0", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Subnet: "10.123.0.0/16", Image: "traefik:v3.6", Project: "hl-proxy"},
+	out := Proxy(config.Proxy{Bind: "0.0.0.0", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Subnet: "10.123.0.0/16", Image: "traefik:v3.6", Project: "hl-proxy", Dashboard: true},
 		ProxyFiles{Static: "/lab/.hl/proxy/traefik.yml", Hash: "abc", Ping: true})
 	for _, want := range []string{"'0.0.0.0:8080:80'", "'/lab/.hl/proxy/traefik.yml:/etc/traefik/traefik.yml:ro'", "Host(`traefik.lab.example`)", "subnet: '10.123.0.0/16'", "healthcheck:", "hl.static-config: 'abc'"} {
 		if !strings.Contains(out, want) {
@@ -79,5 +79,21 @@ func TestProxy(t *testing.T) {
 	}
 	if strings.Contains(out, "command:") {
 		t.Errorf("Traefik's settings belong in the static config file, not flags:\n%s", out)
+	}
+	p := config.Proxy{Bind: "::1", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Image: "traefik:v3.6", Project: "hl-proxy"}
+	if out := Proxy(p, ProxyFiles{Static: "/lab/traefik.yml"}); !strings.Contains(out, "'[::1]:8080:80'") {
+		t.Errorf("IPv6 bind needs brackets:\n%s", out)
+	}
+}
+
+func TestDashboardOffByDefault(t *testing.T) {
+	p := config.Proxy{Bind: "127.0.0.1", Port: 80, Domain: "localhost", Network: "hl-proxy", Image: "traefik:v3.6", Project: "hl-proxy"}
+	f := ProxyFiles{Static: "/lab/traefik.yml"}
+	if out := Proxy(p, f) + Traefik(p, ""); strings.Contains(out, "api@internal") || strings.Contains(out, "dashboard: true") {
+		t.Errorf("dashboard should be off:\n%s", out)
+	}
+	p.Dashboard = true
+	if out := Proxy(p, f) + Traefik(p, ""); !strings.Contains(out, "api@internal") || !strings.Contains(out, "dashboard: true") {
+		t.Errorf("dashboard should be on:\n%s", out)
 	}
 }

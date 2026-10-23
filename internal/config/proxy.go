@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 var projectRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
@@ -17,13 +19,13 @@ func (c *Config) validateProxy() error {
 	}
 	if p.LogLevel != "" {
 		ok := false
-		for _, l := range ProxyLogLevels {
+		for _, l := range defaults.ProxyLogLevels {
 			if strings.EqualFold(p.LogLevel, l) {
 				ok = true
 			}
 		}
 		if !ok {
-			return fmt.Errorf("proxy.log_level: %q is not one of %s", p.LogLevel, strings.Join(ProxyLogLevels, ", "))
+			return fmt.Errorf("proxy.log_level: %q is not one of %s", p.LogLevel, strings.Join(defaults.ProxyLogLevels, ", "))
 		}
 	}
 	if p.Dynamic != "" {
@@ -58,7 +60,7 @@ func (c *Config) ProxyStaticFile() string {
 	if c.Proxy.Config != "" {
 		return c.HomePath(c.Proxy.Config)
 	}
-	return filepath.Join(c.ProxyDir(), TraefikStaticFile)
+	return filepath.Join(c.ProxyDir(), defaults.TraefikStaticFile)
 }
 
 // ProxyDynamicFile is proxy.dynamic as an absolute path, "" when unset.
@@ -75,7 +77,7 @@ func (c *Config) ProxyDynamicFile() string {
 func (c *Config) checkDynamicPath() error {
 	f := c.ProxyDynamicFile()
 	dir := filepath.Dir(f)
-	fix := fmt.Sprintf("hl mounts the file's folder into the proxy, so keep it in a folder of its own, e.g. proxy.dynamic: %s", ExampleDynamicFile)
+	fix := fmt.Sprintf("hl mounts the file's folder into the proxy, so keep it in a folder of its own, e.g. proxy.dynamic: %s", defaults.ExampleDynamicFile)
 	rel, err := filepath.Rel(c.Dir, dir)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("proxy.dynamic: %s is outside the homelab folder %s - %s", f, c.Dir, fix)
@@ -83,7 +85,7 @@ func (c *Config) checkDynamicPath() error {
 	if rel == "." {
 		return fmt.Errorf("proxy.dynamic: %s is in the homelab folder itself - %s", f, fix)
 	}
-	for _, d := range []string{filepath.Dir(c.DataDir(ReservedAppName)), filepath.Dir(c.ProxyDir())} {
+	for _, d := range []string{filepath.Dir(c.DataDir(defaults.ReservedAppName)), filepath.Dir(c.ProxyDir())} {
 		if r, err := filepath.Rel(d, dir); err == nil && (r == "." || !strings.HasPrefix(r, "..")) {
 			return fmt.Errorf("proxy.dynamic: %s is under %s, which hl manages - %s", f, d, fix)
 		}

@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
-	"github.com/DeM-Conve/project__hl/internal/scan"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // upgradeConfig brings hl.yml to the current format before hl edits it, and says so: an older
@@ -23,9 +23,9 @@ func upgradeConfig(dir string) error {
 	if err != nil {
 		return err
 	}
-	if from != config.Version {
+	if from != defaults.ConfigVersion {
 		fmt.Fprintf(os.Stderr, "%snote:%s upgraded %s to version %d (added `version: %d` at the top; nothing else changed)\n",
-			yellow, reset, config.FileName, config.Version, config.Version)
+			yellow, reset, config.FileName, defaults.ConfigVersion, defaults.ConfigVersion)
 	}
 	return nil
 }
@@ -58,7 +58,7 @@ func configCheckCmd() *cobra.Command {
 			say("%s✓%s %s is fine", green, reset, path)
 			if config.FileVersion(b) == 0 {
 				say("%snote:%s it has no `version:` line (the format before versions) - hl adds `version: %d` the next time it changes the file",
-					yellow, reset, config.Version)
+					yellow, reset, defaults.ConfigVersion)
 			}
 			return nil
 		},
@@ -159,7 +159,7 @@ func editCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
 		Short: "Open hl.yml in your editor; it is saved only once it checks out",
-		Long: `Open hl.yml in $VISUAL or $EDITOR (default: ` + config.DefaultEditor + `). You edit a copy (` + config.EditDraft + `);
+		Long: `Open hl.yml in $VISUAL or $EDITOR (default: ` + defaults.DefaultEditor + `). You edit a copy (` + defaults.EditDraft + `);
 when the editor closes hl checks it and replaces hl.yml only if it has no problems.
 Otherwise it lists them and offers to open the editor again, so hl.yml is never left broken.`,
 		Args: cobra.NoArgs,
@@ -173,7 +173,7 @@ Otherwise it lists them and offers to open the editor again, so hl.yml is never 
 			if err != nil {
 				return err
 			}
-			draft := filepath.Join(home, config.EditDraft)
+			draft := filepath.Join(home, defaults.EditDraft)
 			if err := os.MkdirAll(filepath.Dir(draft), 0o755); err != nil {
 				return err
 			}
@@ -234,7 +234,7 @@ func editorCommand() (cmd, source string) {
 			return e, "env ($" + v + ")"
 		}
 	}
-	return config.DefaultEditor, "default"
+	return defaults.DefaultEditor, "default"
 }
 
 // homeSource says where the homelab folder home came from, in config.Home's order.
@@ -259,24 +259,24 @@ func homeSource(home string) string {
 func builtinDefaults() [][2]string {
 	itoa := strconv.Itoa
 	return [][2]string{
-		{"traefik.tested_version", config.TestedTraefikVersion},
-		{"traefik.entrypoint", config.EntryPointWeb},
-		{"traefik.container_port", itoa(config.ProxyContainerPort)},
-		{"traefik.ping", config.EntryPointPing + ":" + itoa(config.PingPort)},
+		{"traefik.tested_version", defaults.TestedTraefikVersion},
+		{"traefik.entrypoint", defaults.EntryPointWeb},
+		{"traefik.container_port", itoa(defaults.ProxyContainerPort)},
+		{"traefik.ping", defaults.EntryPointPing + ":" + itoa(defaults.PingPort)},
 		{"traefik.healthcheck", fmt.Sprintf("every %s, timeout %s, %d retries, start %s",
-			config.ProxyHealthInterval, config.ProxyHealthTimeout, config.ProxyHealthRetries, config.ProxyHealthStartPeriod)},
-		{"traefik.access_log_format", config.AccessLogFormat},
-		{"traefik.log_level", config.DefaultProxyLogLevel},
-		{"traefik.dashboard_host", config.DashboardHostPrefix + "<domain>"},
-		{"proxy.files", filepath.Join(".hl", config.ProxyStateDir, config.ProxyComposeFile) + ", " + config.TraefikStaticFile},
-		{"proxy.restart", config.ProxyRestart},
+			defaults.ProxyHealthInterval, defaults.ProxyHealthTimeout, defaults.ProxyHealthRetries, defaults.ProxyHealthStartPeriod)},
+		{"traefik.access_log_format", defaults.AccessLogFormat},
+		{"traefik.log_level", defaults.DefaultProxyLogLevel},
+		{"traefik.dashboard_host", defaults.DashboardHostPrefix + "<domain>"},
+		{"proxy.files", filepath.Join(".hl", defaults.ProxyStateDir, defaults.ProxyComposeFile) + ", " + defaults.TraefikStaticFile},
+		{"proxy.restart", defaults.ProxyRestart},
 		{"app_name.reserved", strings.Join(config.ReservedAppNames(), ", ")},
-		{"sync.ignore_file", scan.IgnoreFile},
-		{"init.projects", strings.Join(scan.CandidateProjects, ", ") + " (under your home, if they exist)"},
-		{"init.alt_port", itoa(scan.AltPort)},
-		{"init.network_bind", scan.BindNetwork},
-		{"edit.draft", config.EditDraft},
-		{"schema", config.SchemaURL},
+		{"sync.ignore_file", defaults.IgnoreFile},
+		{"init.projects", strings.Join(defaults.CandidateProjects, ", ") + " (under your home, if they exist)"},
+		{"init.alt_port", itoa(defaults.AltPort)},
+		{"init.network_bind", defaults.BindNetwork},
+		{"edit.draft", defaults.EditDraft},
+		{"schema", defaults.SchemaURL},
 	}
 }
 
@@ -306,19 +306,19 @@ func configDefaultsCmd() *cobra.Command {
 			for i, st := range settings {
 				switch st.Key {
 				case "scan_depth":
-					settings[i].Default = strconv.Itoa(scan.DefaultDepth)
+					settings[i].Default = strconv.Itoa(defaults.ScanDepth)
 					if st.Source == "default" {
 						settings[i].Value = settings[i].Default
 					}
 				case "ignore":
-					settings[i].Default = "-  (always: " + strings.Join(scan.DefaultIgnore, ", ") + ")"
+					settings[i].Default = "-  (always: " + strings.Join(defaults.DefaultIgnore, ", ") + ")"
 				}
 			}
 			editor, editorFrom := editorCommand()
 			settings = append(settings,
 				config.Setting{Key: "home", Default: "-", Value: home, Source: homeSource(home)},
-				config.Setting{Key: "version", Default: strconv.Itoa(config.Version), Value: ver, Source: verFrom},
-				config.Setting{Key: "editor", Default: config.DefaultEditor, Value: editor, Source: editorFrom},
+				config.Setting{Key: "version", Default: strconv.Itoa(defaults.ConfigVersion), Value: ver, Source: verFrom},
+				config.Setting{Key: "editor", Default: defaults.DefaultEditor, Value: editor, Source: editorFrom},
 			)
 			for _, b := range builtinDefaults() {
 				settings = append(settings, config.Setting{Key: b[0], Default: b[1], Value: b[1], Source: "built in"})

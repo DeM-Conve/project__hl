@@ -13,6 +13,11 @@
         1
       ]
     },
+    "name": {
+      "description": "Only to run a second homelab on the same Docker: its compose projects become hl-<name>-<app>, and the proxy's default project and network hl-<name>-proxy.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
     "proxy": {
       "description": "The Traefik proxy every app is reached through.",
       "type": [
@@ -114,6 +119,16 @@
             "fatal",
             "panic"
           ]
+        },
+        "dashboard": {
+          "description": "Traefik's dashboard at http://traefik.<domain>, without a password. Off by default; on a bind other than loopback it also needs dashboard_public.",
+          "type": "boolean",
+          "default": false
+        },
+        "dashboard_public": {
+          "description": "Confirms the dashboard may be reachable from your network (proxy.bind not loopback), without a password.",
+          "type": "boolean",
+          "default": false
         }
       }
     },

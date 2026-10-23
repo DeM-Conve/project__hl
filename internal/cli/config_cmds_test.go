@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
-	"github.com/DeM-Conve/project__hl/internal/scan"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // fakeDocker puts a `docker` on PATH that answers `compose ... config --format json` with
@@ -225,7 +225,7 @@ func TestEditNoChanges(t *testing.T) {
 	if out, err := run(t, "", "edit"); err != nil || !strings.Contains(out, "no changes") {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if _, err := os.Stat(filepath.Join(home, config.EditDraft)); err == nil {
+	if _, err := os.Stat(filepath.Join(home, defaults.EditDraft)); err == nil {
 		t.Error("draft left behind")
 	}
 }
@@ -275,7 +275,7 @@ func TestEditGivesUpWithoutBreakingHlYml(t *testing.T) {
 			if hlYML(t, home) != good || editorRuns(t, runs) != "1" {
 				t.Errorf("hl.yml changed or editor reopened")
 			}
-			if b, _ := os.ReadFile(filepath.Join(home, config.EditDraft)); string(b) != bad {
+			if b, _ := os.ReadFile(filepath.Join(home, defaults.EditDraft)); string(b) != bad {
 				t.Errorf("draft = %q, want the edit kept", b)
 			}
 		})
@@ -380,13 +380,13 @@ func TestConfigDefaults(t *testing.T) {
 		"proxy.routing":    "path path default",
 		"home":             "- " + home + " env ($HL_HOME)",
 		"version":          "1 - none (the format before versions)",
-		"editor":           config.DefaultEditor + " my-editor env ($EDITOR)",
-		"schema":           config.SchemaURL + " " + config.SchemaURL + " built in",
-		"scan_depth":       strconv.Itoa(scan.DefaultDepth) + " " + strconv.Itoa(scan.DefaultDepth) + " default",
-		"proxy.image":      config.DefaultProxyImage + " " + config.DefaultProxyImage + " default",
-		"proxy.project":    config.DefaultProxyProject + " " + config.DefaultProxyProject + " default",
-		"sync.ignore_file": scan.IgnoreFile + " " + scan.IgnoreFile + " built in",
-		"edit.draft":       config.EditDraft + " " + config.EditDraft + " built in",
+		"editor":           defaults.DefaultEditor + " my-editor env ($EDITOR)",
+		"schema":           defaults.SchemaURL + " " + defaults.SchemaURL + " built in",
+		"scan_depth":       strconv.Itoa(defaults.ScanDepth) + " " + strconv.Itoa(defaults.ScanDepth) + " default",
+		"proxy.image":      defaults.DefaultProxyImage + " " + defaults.DefaultProxyImage + " default",
+		"proxy.project":    defaults.DefaultProxyProject + " " + defaults.DefaultProxyProject + " default",
+		"sync.ignore_file": defaults.IgnoreFile + " " + defaults.IgnoreFile + " built in",
+		"edit.draft":       defaults.EditDraft + " " + defaults.EditDraft + " built in",
 	} {
 		if got := strings.Join(rows[key], " "); got != want {
 			t.Errorf("%s: %q, want %q", key, got, want)

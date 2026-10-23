@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // legacyProxy is the proxy compose file hl generated before the static config
@@ -78,9 +79,11 @@ func parse(t *testing.T, s string) map[string]any {
 func TestGeneratedProxyEquivalentToLegacy(t *testing.T) {
 	for _, p := range []config.Proxy{
 		proxySettings(),
-		{Bind: "0.0.0.0", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Subnet: "10.123.0.0/16", Image: "traefik:v3.6", Project: config.DefaultProxyProject},
-		{Bind: "127.0.0.1", Port: 80, Domain: "localhost", Network: "my-net", Image: "traefik:v3.6", Project: config.DefaultProxyProject},
+		{Bind: "0.0.0.0", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Subnet: "10.123.0.0/16", Image: "traefik:v3.6", Project: defaults.DefaultProxyProject},
+		{Bind: "127.0.0.1", Port: 80, Domain: "localhost", Network: "my-net", Image: "traefik:v3.6", Project: defaults.DefaultProxyProject},
 	} {
+		// The legacy proxy always had the dashboard; it is now proxy.dashboard.
+		p.Dashboard = true
 		static := Traefik(p, "")
 		newC := Proxy(p, ProxyFiles{Static: "/lab/.hl/proxy/traefik.yml", Hash: Hash([]byte(static)), Ping: true})
 		oldC := legacyProxy(p)
@@ -106,8 +109,8 @@ func TestGeneratedProxyEquivalentToLegacy(t *testing.T) {
 				t.Errorf("label %s: %v -> %v", k, v, nl[k])
 			}
 		}
-		if len(nl) != len(ol)+1 || nl[config.StaticConfigLabel] == nil {
-			t.Errorf("labels: only %s may be added: %v", config.StaticConfigLabel, nl)
+		if len(nl) != len(ol)+1 || nl[defaults.StaticConfigLabel] == nil {
+			t.Errorf("labels: only %s may be added: %v", defaults.StaticConfigLabel, nl)
 		}
 		vols := ns["volumes"].([]any)
 		if !reflect.DeepEqual(vols[0], os["volumes"].([]any)[0]) || len(vols) != 2 {
