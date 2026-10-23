@@ -86,7 +86,7 @@ func labels(id string, a App) [][2]string {
 	l := [][2]string{
 		{"traefik.enable", "true"},
 		{"traefik.docker.network", a.Network},
-		{"traefik.http.routers." + id + ".entrypoints", "web"},
+		{"traefik.http.routers." + id + ".entrypoints", config.EntryPointWeb},
 		{"traefik.http.services." + id + ".loadbalancer.server.port", fmt.Sprint(a.Port)},
 	}
 	switch a.Routing {
@@ -109,28 +109,34 @@ func labels(id string, a App) [][2]string {
 }
 
 // Proxy is the compose file for the Traefik container all apps sit behind.
-func Proxy(p config.Proxy) string {
+// Traefik's settings are in the static config file it mounts (see Traefik);
+// this file only runs the container.
+func Proxy(p config.Proxy, f ProxyFiles) string {
 	var b strings.Builder
 	b.WriteString(header)
-	b.WriteString("name: hl-proxy\n\nservices:\n  traefik:\n")
+	fmt.Fprintf(&b, "name: %s\n\nservices:\n  %s:\n", p.Project, config.ProxyService)
 	fmt.Fprintf(&b, "    image: %s\n", quote(p.Image))
-	b.WriteString("    restart: unless-stopped\n    command:\n")
-	for _, c := range []string{
-		"--providers.docker=true",
-		"--providers.docker.exposedbydefault=false",
-		"--providers.docker.network=" + p.Network,
-		"--entrypoints.web.address=:80",
-		"--api.dashboard=true",
-	} {
-		fmt.Fprintf(&b, "      - %s\n", quote(c))
+	fmt.Fprintf(&b, "    restart: %s\n", config.ProxyRestart)
+	fmt.Fprintf(&b, "    ports:\n      - %s\n", quote(fmt.Sprintf("%s:%d:%d", p.Bind, p.Port, config.ProxyContainerPort)))
+	b.WriteString("    volumes:\n")
+	fmt.Fprintf(&b, "      - %s:%s:ro\n", config.DockerSocket, config.DockerSocket)
+	fmt.Fprintf(&b, "      - %s\n", quote(f.Static+":"+config.TraefikStaticPath+":ro"))
+	if f.Dynamic != "" {
+		fmt.Fprintf(&b, "      - %s\n", quote(filepath.Dir(f.Dynamic)+":"+config.TraefikDynamicDir+":ro"))
 	}
-	fmt.Fprintf(&b, "    ports:\n      - %s\n", quote(fmt.Sprintf("%s:%d:80", p.Bind, p.Port)))
-	b.WriteString("    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n")
-	b.WriteString("    networks: [proxy]\n    labels:\n")
-	b.WriteString("      traefik.enable: 'true'\n")
-	fmt.Fprintf(&b, "      traefik.http.routers.hl-dashboard.rule: %s\n", quote("Host(`traefik."+p.Domain+"`)"))
-	b.WriteString("      traefik.http.routers.hl-dashboard.service: api@internal\n")
-	fmt.Fprintf(&b, "\nnetworks:\n  proxy:\n    name: %s\n", quote(p.Network))
+	if f.Ping {
+		b.WriteString("    healthcheck:\n      test: ['CMD', 'traefik', 'healthcheck', '--ping']\n")
+		fmt.Fprintf(&b, "      interval: %s\n      timeout: %s\n      retries: %d\n      start_period: %s\n",
+			config.ProxyHealthInterval, config.ProxyHealthTimeout, config.ProxyHealthRetries, config.ProxyHealthStartPeriod)
+	}
+	fmt.Fprintf(&b, "    networks: [%s]\n    labels:\n", config.ProxyNetworkKey)
+	fmt.Fprintf(&b, "      %s: %s\n", config.StaticConfigLabel, quote(f.Hash))
+	if Dashboard(p) {
+		b.WriteString("      traefik.enable: 'true'\n")
+		fmt.Fprintf(&b, "      traefik.http.routers.%s.rule: %s\n", config.DashboardRouter, quote("Host(`"+config.DashboardHostPrefix+p.Domain+"`)"))
+		fmt.Fprintf(&b, "      traefik.http.routers.%s.service: api@internal\n", config.DashboardRouter)
+	}
+	fmt.Fprintf(&b, "\nnetworks:\n  %s:\n    name: %s\n", config.ProxyNetworkKey, quote(p.Network))
 	if p.Subnet != "" {
 		fmt.Fprintf(&b, "    ipam:\n      config:\n        - subnet: %s\n", quote(p.Subnet))
 	}
