@@ -50,6 +50,16 @@ type Proxy struct {
 	// Optional fixed subnet for that network, so apps can trust the proxy by address.
 	Subnet string `yaml:"subnet,omitempty"`
 	Image  string `yaml:"image,omitempty"`
+	// Compose project the proxy runs as; set it to run a second homelab's proxy beside the first.
+	Project string `yaml:"project,omitempty"`
+	// Your own Traefik static config file instead of the generated one (relative to the homelab).
+	Config string `yaml:"config,omitempty"`
+	// A Traefik dynamic config file (file provider) for routes that aren't hl apps.
+	Dynamic string `yaml:"dynamic,omitempty"`
+	// Traefik's access log, on the proxy's output (hl proxy logs).
+	AccessLog bool `yaml:"access_log,omitempty"`
+	// Traefik's log level (default ERROR).
+	LogLevel string `yaml:"log_level,omitempty"`
 }
 
 type App struct {
@@ -124,11 +134,13 @@ func (c *Config) defaults() {
 		p.Routing = RoutingPath
 	}
 	if p.Network == "" {
-		p.Network = "hl-proxy"
+		p.Network = DefaultProxyNetwork
 	}
 	if p.Image == "" {
-		// v3.6.1+ is needed for Docker Engine 29's API.
-		p.Image = "traefik:v3.6"
+		p.Image = DefaultProxyImage
+	}
+	if p.Project == "" {
+		p.Project = DefaultProxyProject
 	}
 	if c.Apps == nil {
 		c.Apps = map[string]*App{}
@@ -139,6 +151,9 @@ func (c *Config) defaults() {
 func (c *Config) Validate() error {
 	if r := c.Proxy.Routing; r != RoutingPath && r != RoutingHost {
 		return fmt.Errorf("proxy.routing: %q is not path or host", r)
+	}
+	if err := c.validateProxy(); err != nil {
+		return err
 	}
 	for name, a := range c.Apps {
 		if err := ValidName(name); err != nil {
@@ -241,7 +256,7 @@ func (c *Config) DataDir(name string) string { return filepath.Join(c.Dir, "data
 func (c *Config) StateDir(name string) string { return filepath.Join(c.Dir, ".hl", name) }
 
 // ProxyDir holds the proxy's generated compose file.
-func (c *Config) ProxyDir() string { return filepath.Join(c.Dir, ".hl", "proxy") }
+func (c *Config) ProxyDir() string { return filepath.Join(c.Dir, ".hl", ProxyStateDir) }
 
 // hlVars are the values an app's settings can refer to, in a fixed order.
 var hlVars = []string{"HL_APP", "HL_URL", "HL_PREFIX", "HL_HOST", "HL_DATA"}
