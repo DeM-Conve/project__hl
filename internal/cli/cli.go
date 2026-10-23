@@ -577,7 +577,7 @@ func shellCmd() *cobra.Command {
 }
 
 func configCmd() *cobra.Command {
-	return &cobra.Command{
+	c := &cobra.Command{
 		Use:               "config <app>|proxy",
 		Short:             "Show an app's compose config as hl runs it (its own files + hl's override), or the proxy's Traefik config",
 		Args:              cobra.ExactArgs(1),
@@ -593,6 +593,8 @@ func configCmd() *cobra.Command {
 			return p.Run("config")
 		},
 	}
+	c.AddCommand(configCheckCmd())
+	return c
 }
 
 func pathCmd() *cobra.Command {

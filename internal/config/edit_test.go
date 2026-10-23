@@ -23,6 +23,9 @@ func TestTemplateIsCurrent(t *testing.T) {
 	if !strings.HasPrefix(Template, SchemaComment+"\n") {
 		t.Errorf("Template should start with the schema comment:\n%s", Template)
 	}
+	if ps := Check([]byte(Template)); len(ps) > 0 {
+		t.Errorf("Template has problems: %v", ps)
+	}
 }
 
 func TestUpgradeAddsVersionKeepingComments(t *testing.T) {

@@ -115,3 +115,30 @@ func TestAddUpgradesOldFileWithAMessage(t *testing.T) {
 		t.Errorf("remove: %v\n%s", err, out)
 	}
 }
+
+func TestConfigCheck(t *testing.T) {
+	home, _ := homelab(t, "version: 1\nproxy:\n  bnd: 0.0.0.0\napps:\n  my-app: {path: ~/code/my-app, port: 0}\n")
+	out, err := run(t, "", "config", "check")
+	if err == nil || !strings.Contains(err.Error(), "2 problems") {
+		t.Fatalf("err = %v\n%s", err, out)
+	}
+	for _, want := range []string{
+		filepath.Join(home, "hl.yml") + `:3:3: proxy.bnd: unknown key - did you mean "bind"?`,
+		":5:39: apps.my-app.port: 0 is not a port",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+
+	homelab(t, "apps:\n  my-app: {path: ~/code/my-app}\n")
+	out, err = run(t, "", "config", "check")
+	if err != nil || !strings.Contains(out, "is fine") || !strings.Contains(out, "no `version:` line") {
+		t.Errorf("err = %v\n%s", err, out)
+	}
+	// Still works when hl.yml doesn't even parse.
+	homelab(t, "apps: [\n")
+	if out, err := run(t, "", "config", "check"); err == nil || !strings.Contains(out, "hl.yml:1:1: not valid YAML") {
+		t.Errorf("err = %v\n%s", err, out)
+	}
+}
