@@ -102,6 +102,9 @@ func ValidName(name string) error {
 	if !nameRE.MatchString(name) {
 		return fmt.Errorf("app name %q: use lowercase letters, digits, '.', '_' and '-'", name)
 	}
+	if ID(name) == ReservedAppName {
+		return fmt.Errorf("app name %q is reserved: its compose project would be %s, the proxy's - choose another name", name, ProjectName(name))
+	}
 	return nil
 }
 
@@ -169,7 +172,10 @@ func (c *Config) Validate() error {
 	}
 	for name, a := range c.Apps {
 		if err := ValidName(name); err != nil {
-			return err
+			return fmt.Errorf("apps.%s: %w (rename it in %s)", name, err, FileName)
+		}
+		if ProjectName(name) == c.Proxy.Project {
+			return fmt.Errorf("apps.%s: its compose project %s is proxy.project - rename the app or set another proxy.project", name, ProjectName(name))
 		}
 		if a == nil || a.Path == "" {
 			return fmt.Errorf("apps.%s: path is required", name)

@@ -26,6 +26,11 @@ func (c *Config) validateProxy() error {
 			return fmt.Errorf("proxy.log_level: %q is not one of %s", p.LogLevel, strings.Join(ProxyLogLevels, ", "))
 		}
 	}
+	if p.Dynamic != "" {
+		if err := c.checkDynamicPath(); err != nil {
+			return err
+		}
+	}
 	if p.Config != "" {
 		// These only shape the file hl generates; with your own file, set them there.
 		if p.AccessLog {
@@ -62,4 +67,26 @@ func (c *Config) ProxyDynamicFile() string {
 		return ""
 	}
 	return c.HomePath(c.Proxy.Dynamic)
+}
+
+// checkDynamicPath requires proxy.dynamic in a subfolder of the homelab other
+// than data/ and the generated folder: hl mounts the file's whole folder into
+// the proxy, which must not be the homelab root or app data.
+func (c *Config) checkDynamicPath() error {
+	f := c.ProxyDynamicFile()
+	dir := filepath.Dir(f)
+	fix := fmt.Sprintf("hl mounts the file's folder into the proxy, so keep it in a folder of its own, e.g. proxy.dynamic: %s", ExampleDynamicFile)
+	rel, err := filepath.Rel(c.Dir, dir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("proxy.dynamic: %s is outside the homelab folder %s - %s", f, c.Dir, fix)
+	}
+	if rel == "." {
+		return fmt.Errorf("proxy.dynamic: %s is in the homelab folder itself - %s", f, fix)
+	}
+	for _, d := range []string{filepath.Dir(c.DataDir(ReservedAppName)), filepath.Dir(c.ProxyDir())} {
+		if r, err := filepath.Rel(d, dir); err == nil && (r == "." || !strings.HasPrefix(r, "..")) {
+			return fmt.Errorf("proxy.dynamic: %s is under %s, which hl manages - %s", f, d, fix)
+		}
+	}
+	return nil
 }

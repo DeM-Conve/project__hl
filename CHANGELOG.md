@@ -40,6 +40,17 @@ Everything below becomes 0.1.0, the first release.
 - Release archives for Linux and macOS (amd64, arm64) with `checksums.txt` and an SPDX SBOM per
   archive; `install.sh` verifies the checksum, takes `--version` and `--dir`, and installs to
   `~/.local/bin` (or `/usr/local/bin` as root).
+- The proxy runs with one readable Traefik static config file, `.hl/proxy/traefik.yml`, generated
+  from `hl.yml`; `hl config proxy` (or `hl proxy config`) prints it. `proxy.config` uses your own
+  file instead, and hl says what it is missing for hl's apps.
+- `proxy.dynamic` for a Traefik dynamic config file (extra routes and middlewares), kept in a
+  subfolder of the homelab.
+- `proxy.access_log`, `proxy.log_level` and `proxy.project`; a healthcheck for the proxy;
+  `hl proxy status`.
+- The Traefik image is pinned to the tested version (`traefik:v3.6.25`); `hl doctor` warns when
+  `proxy.image` is older.
+- hl refuses to use a proxy or Docker network that another homelab runs, and says how to run both
+  side by side. The app name `proxy` is reserved, since its compose project would be the proxy's.
 - Example apps in `examples/` and guides in `docs/guides/`: base paths, moving an existing compose
   app into hl, reaching apps from your network, backups, putting hl behind HTTPS.
 
