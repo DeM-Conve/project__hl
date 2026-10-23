@@ -47,6 +47,9 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
 ## Names
 
 - App names match `^[a-z0-9][a-z0-9._-]*$` (dots allowed, e.g. `tierlist.fm`).
+- `proxy` is reserved (`config.ReservedAppName`): `ValidName` rejects a name whose ID is `proxy`, since
+  its project would be the proxy's default `hl-proxy`; `Validate` also rejects an app whose `hl-<id>` equals
+  `proxy.project`.
 - `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>`,
   Traefik router/service/middleware names `<id>`, `<id>-slash`, `<id>-strip`.
 - The proxy is compose project `proxy.project` (default `hl-proxy`); its network defaults to `hl-proxy` (inside each override
@@ -92,7 +95,9 @@ one `traefik` service, `restart: unless-stopped`, no `command:` - Traefik reads 
 from `/etc/traefik/traefik.yml`, where the generated file or `proxy.config` is mounted read-only.
 `web` is published at `<bind>:<port>`. The Docker socket is mounted read-only; with
 `proxy.dynamic`, the folder holding that file is mounted read-only at `/etc/traefik/dynamic` (a
-folder, not the file, so Traefik's watch survives editors that replace the file). When the static
+folder, not the file, so Traefik's watch survives editors that replace the file). Because the whole folder is
+mounted, `Validate` requires `proxy.dynamic` in a subfolder of the homelab that is not the homelab
+folder itself, `data/` or `.hl/`. When the static
 config has `ping`, the service gets a healthcheck (`traefik healthcheck --ping`). A label
 `hl.static-config: <hash of the static config>` makes compose recreate the container on
 `hl proxy up` when only the file changed (Traefik doesn't reload static config). The dashboard

@@ -230,7 +230,12 @@ proxy:
   domain: localhost        # path: http://<domain>/<app>/  host: http://<app>.<domain>
   # network: hl-proxy      # Docker network the proxy shares with the apps
   # subnet: 172.31.0.0/16  # fixed subnet, so apps can trust the proxy by address
-  # image: traefik:v3.6
+  # image: traefik:v3.6.25  # default: the Traefik version hl is tested with
+  # project: hl-proxy      # the proxy's compose project; with network and port, lets a second homelab run beside this one
+  # access_log: false      # Traefik's access log, shown by hl proxy logs
+  # log_level: ERROR       # Traefik's log level
+  # config: traefik.yml    # your own Traefik static config instead of the generated one
+  # dynamic: proxy/dynamic.yml  # Traefik dynamic config (file provider) for routes that aren't hl apps
   # dashboard: false       # Traefik dashboard at http://traefik.<domain>
   # dashboard_public: false  # also allow it when bind isn't loopback
 
@@ -260,12 +265,20 @@ apps:
 | `domain` | `localhost` | Host name in app URLs: `<domain>/<app>/` for path routing, `<app>.<domain>` for host routing. |
 | `network` | `hl-proxy` | Docker network the proxy and each app's routed service share. |
 | `subnet` | none (Docker picks) | Fixed subnet for that network, e.g. `172.31.0.0/16`, so an app can trust `X-Forwarded-For` from the proxy's address range. |
-| `image` | `traefik:v3.6` | Traefik image. v3.6.1+ is needed with Docker Engine 29. |
+| `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. |
+| `project` | `hl-proxy` | The proxy's compose project. Two homelabs on one machine need different `project`, `network` and `port`; hl refuses to touch a proxy or network another homelab runs and says so. |
+| `access_log` | `false` | Traefik's access log, in `hl proxy logs`. Not allowed with `config` (set `accessLog` in your file). |
+| `log_level` | `ERROR` | Traefik's log level: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL` or `PANIC`. Not allowed with `config`. |
+| `config` | none (generated) | Your own Traefik static config file, relative to the homelab folder, used instead of the generated `.hl/proxy/traefik.yml`. hl checks it has the `web` entrypoint on `:80` and `providers.docker` with `network:` set to `proxy.network`, and says what is missing. |
+| `dynamic` | none | A Traefik dynamic config file (file provider) for routes that aren't hl apps: another machine, a NAS, redirects. It must be in a subfolder of the homelab (not the homelab folder itself, `data/` or `.hl/`), e.g. `proxy/dynamic.yml`: hl mounts that folder read-only into the proxy, and Traefik picks up edits without a restart. |
 | `dashboard` | `false` | Serve the Traefik dashboard at `http://traefik.<domain>` (no authentication). |
 | `dashboard_public` | `false` | Required, in addition to `dashboard`, when `bind` isn't a loopback address; without it hl refuses to start the proxy with the dashboard on. |
 
-<!-- slot (feat/proxy-file): proxy.config (your own Traefik static file), proxy.dynamic (file
-provider for extra routes), proxy.access_log, and the generated .hl/proxy/traefik.yml. -->
+**The proxy's Traefik config.** hl runs Traefik with one static config file,
+`.hl/proxy/traefik.yml`, generated from these settings (entrypoints, the Docker provider, the
+dashboard, logs, `ping` for the proxy's healthcheck); `hl config proxy` prints it. With `config`
+set, your file is used instead. After changing proxy settings, `hl proxy up` applies them;
+`hl proxy status` says when the running proxy is behind.
 
 ### `env`
 
@@ -278,7 +291,8 @@ A map of variables passed to every app, e.g. `TZ: UTC`. An app's own `env` wins 
 ### `apps.<name>`
 
 App names use lowercase letters, digits, `.`, `_` and `-`, starting with a letter or digit. By
-default `hl add` uses the folder's name.
+default `hl add` uses the folder's name. `proxy` is reserved: its compose project would be the
+proxy's, `hl-proxy` (likewise, no app's `hl-<app>` may equal `proxy.project`).
 
 | Key | Default | What it does |
 | --- | --- | --- |
@@ -313,9 +327,11 @@ today and not yet settings:
 | Value | Used for |
 | --- | --- |
 | `hl-` | compose project name prefix: `hl-<app>`, `hl-proxy` |
-| `.hl/` | generated files in the homelab: `.hl/<app>/override.yml`, `.hl/proxy/compose.yml` |
+| `.hl/` | generated files in the homelab: `.hl/<app>/override.yml`, `.hl/proxy/compose.yml`, `.hl/proxy/traefik.yml` |
 | `data/` | app data in the homelab: `data/<app>/<volume>` |
 | `web` | the Traefik entrypoint name (container port 80) |
+| `traefik` on `:8080` | Traefik's entrypoint for `/ping` (the proxy's healthcheck, every 10s); not published |
+| `/etc/traefik/traefik.yml`, `/etc/traefik/dynamic/` | where the static config and the folder of `proxy.dynamic` are mounted in the proxy |
 | `200` | lines shown by `hl logs` and `hl proxy logs` |
 | `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` | service names `hl add` prefers when several publish ports |
 | `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
@@ -347,14 +363,17 @@ every app when none is named. Errors print `error: ...` and exit with status 1.
 | `hl open <app>` | Print the app's URL and open it in the browser (only prints when there's no display, e.g. over ssh). |
 | `hl shell <app> [service]` | A shell (`bash`, else `sh`) in a running container; default: the routed service. |
 | `hl config <app>` | The app's full compose config as hl runs it: its own files plus hl's override. |
+| `hl config proxy` | The proxy's Traefik static config (same as `hl proxy config`). |
 | `hl path [app]` | The app's folder, or the homelab folder: `cd "$(hl path my-app)"`. |
 | `hl proxy up\|down\|logs` | The proxy on its own. |
-| `hl doctor` | Check Docker, compose v2.24+, `hl.yml`, and that every app's compose config resolves. |
+| `hl proxy status` | The proxy's state and health, image, listen address, config files, dashboard and access log; warns when the running proxy is behind `hl.yml` or its image is older than the tested Traefik. |
+| `hl proxy config` | The Traefik static config the proxy runs with. |
+| `hl doctor` | Check Docker, compose v2.24+, `hl.yml`, the proxy's Traefik config and that its project and network are this homelab's, and that every app's compose config resolves. Warns when `proxy.image` is older than the tested Traefik. |
 | `hl version` (`--version`) | Version, commit and build date. |
 | `hl completion bash\|zsh\|fish` | Shell completion script. |
 
 <!-- slots: `hl sync` (feat/init-sync); `hl set`/`hl unset`/`hl edit`/`hl config check`
-(feat/config-ux); `hl proxy status` (feat/proxy-file); `hl up --wait`, health in `hl status`,
+(feat/config-ux); `hl up --wait`, health in `hl status`,
 `hl logs` with no app (feat/production-core). -->
 
 ## Data and backups
