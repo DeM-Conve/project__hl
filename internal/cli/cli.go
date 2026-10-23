@@ -394,7 +394,11 @@ func statusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return printStatus(cfg)
+			if err := printStatus(cfg); err != nil {
+				return err
+			}
+			syncHint(cmd.OutOrStdout(), cfg)
+			return nil
 		},
 	}
 }
