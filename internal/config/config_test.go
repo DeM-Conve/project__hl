@@ -133,3 +133,115 @@ apps:
 		}
 	}
 }
+
+func TestValidateValuesAndClashes(t *testing.T) {
+	for _, c := range []struct{ body, want string }{
+		{"proxy: {bind: localhost}", "proxy.bind"},
+		{"proxy: {domain: 'not a host'}", "proxy.domain"},
+		{"proxy: {subnet: 10.0.0.0}", "proxy.subnet"},
+		{"proxy: {network: '-x'}", "proxy.network"},
+		{"name: Lab_2", "name"},
+		{"proxy: {bind: 0.0.0.0, dashboard: true}", "proxy.dashboard: the Traefik dashboard has no password"},
+		{"apps: {a: {path: x, host: 'bad host'}}", "apps.a.host"},
+		{"apps: {a: {path: x, service: '-it'}}", "apps.a.service"},
+		{"apps: {a: {path: x, env: {'1BAD': v}}}", "apps.a.env.1BAD"},
+		{"apps: {a.b: {path: x}, a-b: {path: y}}", "runs as the same Docker project"},
+		{"apps: {a: {path: x, prefix: /p}, b: {path: y, prefix: /p}}", "same URL prefix /p"},
+		{"apps: {a: {path: x, routing: host, host: h.example}, b: {path: y, routing: host, host: h.example}}", "same host h.example"},
+		{"proxy: {dashboard: true}\napps: {traefik: {path: x, routing: host}}", "the Traefik dashboard"},
+	} {
+		_, err := Load(write(t, c.body))
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%q: got %v, want %q", c.body, err, c.want)
+		}
+	}
+	for _, body := range []string{
+		"proxy: {bind: 0.0.0.0, dashboard: true, dashboard_public: true}",
+		"proxy: {bind: '::1', dashboard: true}",
+		"name: lab-2\nproxy: {subnet: 172.30.0.0/16}",
+	} {
+		if _, err := Load(write(t, body)); err != nil {
+			t.Errorf("%q: %v", body, err)
+		}
+	}
+	// Validate's problems carry the line of their key.
+	_, err := Load(write(t, "proxy:\n  bind: 0.0.0.0\n  dashboard: true\n"))
+	if err == nil || !strings.Contains(err.Error(), "hl.yml:3:3: proxy.dashboard") {
+		t.Errorf("line of a Validate problem: %v", err)
+	}
+	if _, err := Load(t.TempDir()); err == nil || !strings.Contains(err.Error(), "hl init") {
+		t.Errorf("no hl.yml: %v", err)
+	}
+}
+
+// A homelab's name changes every Docker name it uses; without one, the names
+// existing homelabs already have stay as they are.
+func TestNameChangesEveryDockerName(t *testing.T) {
+	c, err := Load(write(t, "apps: {my-app.io: {path: x}}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ProjectName("my-app.io") != "hl-my-app-io" || c.ProxyProject() != "hl-proxy" || c.Proxy.Network != "hl-proxy" {
+		t.Errorf("default names: %s %s %s", c.ProjectName("my-app.io"), c.ProxyProject(), c.Proxy.Network)
+	}
+	c, err = Load(write(t, "name: lab2\napps: {my-app.io: {path: x}}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ProjectName("my-app.io") != "hl-lab2-my-app-io" || c.ProxyProject() != "hl-lab2-proxy" || c.Proxy.Network != "hl-lab2-proxy" {
+		t.Errorf("named: %s %s %s", c.ProjectName("my-app.io"), c.ProxyProject(), c.Proxy.Network)
+	}
+	// Set explicitly, proxy.project and proxy.network win over the name.
+	c, _ = Load(write(t, "name: lab2\nproxy: {project: p, network: n}"))
+	if c.ProxyProject() != "p" || c.Proxy.Network != "n" {
+		t.Errorf("explicit: %s %s", c.ProxyProject(), c.Proxy.Network)
+	}
+}
+
+func TestNameFor(t *testing.T) {
+	for in, want := range map[string]string{"My App": "my-app", "blog": "blog", "_x  y!": "x-y", "a.b_c": "a.b_c", "  ": ""} {
+		if got := NameFor(in); got != want {
+			t.Errorf("NameFor(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestDashboardURL(t *testing.T) {
+	c, _ := Load(write(t, "proxy: {port: 8080, dashboard: true, domain: lab.example}"))
+	if got := c.DashboardURL(); got != "http://traefik.lab.example:8080/" {
+		t.Errorf("DashboardURL = %q", got)
+	}
+	c, _ = Load(write(t, "proxy: {}"))
+	if c.DashboardURL() != "" {
+		t.Error("the dashboard is off by default")
+	}
+}
+
+func TestHomeAndDefaultHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config dir"))
+	t.Setenv("HL_HOME", "")
+	wd, _ := os.Getwd()
+	if err := os.Chdir(home); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	if _, err := Home(""); err == nil {
+		t.Error("no homelab anywhere should be an error")
+	}
+	lab := filepath.Join(home, "my lab")
+	if err := SetDefaultHome(lab); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := Home(""); got != lab {
+		t.Errorf("default = %q", got)
+	}
+	t.Setenv("HL_HOME", "~/other")
+	if got, _ := Home(""); got != filepath.Join(home, "other") {
+		t.Errorf("HL_HOME = %q", got)
+	}
+	if got, _ := Home("~"); got != home {
+		t.Errorf("--home ~ = %q", got)
+	}
+}
