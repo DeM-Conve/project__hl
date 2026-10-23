@@ -657,3 +657,26 @@ func waitFor(t *testing.T, f *fake, note string) {
 	}
 	t.Fatalf("no %q in %v", note, f.calls())
 }
+
+// A proxy setting changes every place hl uses it: URLs, the proxy's files,
+// each app's override, and the commands it runs.
+func TestSettingsReachEveryPlace(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "name: lab-b\nproxy: {port: 8443, domain: lab.example, network: lab-net, bind: 127.0.0.2}\napps:\n  a: {path: '"+a+"'}\n")
+	r := f.must("up")
+	contains(t, "status", r.out, "127.0.0.2:8443", "http://lab.example:8443/a/")
+	contains(t, "override", f.read(filepath.Join(lab, ".hl", "a", "override.yml")), "name: 'lab-net'", "traefik.docker.network: 'lab-net'")
+	contains(t, "proxy compose", f.read(filepath.Join(lab, ".hl", "proxy", "compose.yml")), "'127.0.0.2:8443:80'", "name: 'lab-net'", "name: hl-lab-b-proxy")
+	contains(t, "traefik.yml", f.read(filepath.Join(lab, ".hl", "proxy", "traefik.yml")), "network: 'lab-net'")
+	if u := f.find("--project-name hl-lab-b-a ", "up --detach"); len(u) != 1 || u[0].Env["HL_URL"] != "http://lab.example:8443/a" {
+		t.Errorf("app run: %v", u)
+	}
+	for _, c := range f.calls() {
+		if strings.Contains(c.String(), "hl-proxy") || strings.Contains(c.String(), "--project-name hl-a ") {
+			t.Errorf("a default name was used: %s", c)
+		}
+	}
+	r = f.must("config", "defaults")
+	contains(t, "config defaults", r.out, "logs.tail", "up.wait_timeout", "docker.project_prefix")
+}
