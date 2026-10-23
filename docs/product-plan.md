@@ -27,6 +27,16 @@ in hl may assume the maintainer's setup.
   examples, docs: no user names, home paths (`/home/<name>/...`), project-folder names or
   layouts, app names from one homelab, timezones, domains, emails. Examples use neutral names
   (`my-app`, `blog`, `~/code`, `~/homelab`, `Europe/Berlin`/`UTC`).
+- [ ] **No hard-coding at all, not only personal values.** Every value hl uses is either the
+  user's setting or a named default defined in exactly one place (one `defaults` file in Go,
+  listed in the README's hl.yml reference) - never a literal scattered in code or generated
+  files. That covers: proxy port, bind address, routing mode, domain, Traefik image and version,
+  entrypoint names, Docker network name and subnet, compose project prefix (`hl-`), generated
+  folder and file names (`.hl/`, `data/`, `override.yml`, `traefik.yml`), label prefixes,
+  timeouts and retry counts, healthcheck intervals, log tail length, backup folder and name
+  pattern, ignore patterns, editor fallback, update-check URL and interval. Each default can be
+  overridden in hl.yml (or a flag/env var where it makes sense), and `hl config defaults` prints
+  them all. Tests assert that changing a setting changes every place it's used.
 - [ ] **Every path comes from the user or the OS**: the homelab folder from `hl init`/`--home`/
   `$HL_HOME`/nearest `hl.yml`; the projects folders from `projects:`; hl's own state from the OS
   config dir (`os.UserConfigDir`); `~` expanded for the current user only. Paths in hl.yml may be
