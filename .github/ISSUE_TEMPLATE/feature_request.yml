@@ -2,6 +2,12 @@ name: Feature request
 description: Something hl should do
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        hl aims to stay small: a CLI for running your own compose apps behind one proxy on one machine.
+        Check the [product plan](https://github.com/DeM-Conve/project__hl/blob/main/docs/product-plan.md)
+        (including "Not doing") and existing issues first.
   - type: textarea
     id: problem
     attributes:
@@ -13,4 +19,15 @@ body:
     id: idea
     attributes:
       label: What you'd like
-      description: The command, flag or hl.yml setting you have in mind, if any.
+      description: The command, flag or hl.yml setting you have in mind, if any, and how it would behave.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Workarounds you use today, or other tools that do this.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to send a pull request for this

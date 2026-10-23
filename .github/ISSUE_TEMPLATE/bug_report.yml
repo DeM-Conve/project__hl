@@ -2,23 +2,33 @@ name: Bug report
 description: Something hl does wrong
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems go through
+        [private reporting](https://github.com/DeM-Conve/project__hl/security/advisories/new), not here.
+        Please remove anything private (secrets, host names, paths you'd rather not share) from what you paste.
   - type: textarea
     id: what
     attributes:
       label: What happened
-      description: What you ran, what you expected, and what happened instead.
+      description: What you ran, what you expected, and what happened instead (with the full error).
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
       label: How to reproduce
-      description: The commands, and the relevant part of hl.yml and the app's compose file.
+      description: The commands, and the relevant part of hl.yml and of the app's compose file.
       render: sh
+    validations:
+      required: true
   - type: textarea
     id: version
     attributes:
-      label: hl --version
+      label: hl version
+      description: The output of `hl version`.
+      placeholder: hl v0.1.0 (commit abc1234, built 2026-01-01T00:00:00Z)
       render: text
     validations:
       required: true
@@ -33,5 +43,24 @@ body:
   - type: input
     id: os
     attributes:
-      label: OS
-      placeholder: Ubuntu 24.04, macOS 15 (Docker Desktop 4.x), ...
+      label: OS and Docker
+      description: OS and version, and `docker version --format '{{.Server.Version}}'`.
+      placeholder: Ubuntu 24.04, Docker 28.x / macOS 15, Docker Desktop 4.x
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install hl?
+      options:
+        - install.sh
+        - go install
+        - release archive by hand
+        - Homebrew
+        - built from source
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Logs (`hl logs <app>`, `hl proxy logs`), `hl config <app>` output, screenshots.
+      render: text
