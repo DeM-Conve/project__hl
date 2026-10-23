@@ -70,10 +70,14 @@ func TestOverrideHostAndNone(t *testing.T) {
 }
 
 func TestProxy(t *testing.T) {
-	out := Proxy(config.Proxy{Bind: "0.0.0.0", Port: 8080, Domain: "lab.home", Network: "hl-proxy", Subnet: "172.31.0.0/16", Image: "traefik:v3.6"})
-	for _, want := range []string{"'0.0.0.0:8080:80'", "'--providers.docker.network=hl-proxy'", "Host(`traefik.lab.home`)", "subnet: '172.31.0.0/16'"} {
+	out := Proxy(config.Proxy{Bind: "0.0.0.0", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Subnet: "10.123.0.0/16", Image: "traefik:v3.6", Project: "hl-proxy"},
+		ProxyFiles{Static: "/lab/.hl/proxy/traefik.yml", Hash: "abc", Ping: true})
+	for _, want := range []string{"'0.0.0.0:8080:80'", "'/lab/.hl/proxy/traefik.yml:/etc/traefik/traefik.yml:ro'", "Host(`traefik.lab.example`)", "subnet: '10.123.0.0/16'", "healthcheck:", "hl.static-config: 'abc'"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("proxy is missing %q:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "command:") {
+		t.Errorf("Traefik's settings belong in the static config file, not flags:\n%s", out)
 	}
 }

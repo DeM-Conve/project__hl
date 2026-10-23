@@ -105,17 +105,9 @@ func prepared(cfg *config.Config, name string) (*compose.Project, error) {
 	return p, nil
 }
 
-// proxy is the Traefik project, its compose file regenerated from hl.yml.
+// proxy is the Traefik project, its files regenerated from hl.yml (proxyFiles).
 func proxy(cfg *config.Config) (*compose.Project, error) {
-	dir := cfg.ProxyDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, err
-	}
-	f := filepath.Join(dir, "compose.yml")
-	if err := os.WriteFile(f, []byte(gen.Proxy(cfg.Proxy)), 0o644); err != nil {
-		return nil, err
-	}
-	return &compose.Project{Name: "hl-proxy", Dir: dir, Files: []string{f}}, nil
+	return proxyProject(cfg)
 }
 
 // running reports whether any container of the compose project is up.

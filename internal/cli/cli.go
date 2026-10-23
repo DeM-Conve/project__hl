@@ -439,7 +439,7 @@ func statusCmd() *cobra.Command {
 
 func printStatus(cfg *config.Config) error {
 	state := red + "stopped" + reset
-	if running("hl-proxy") {
+	if running(cfg.Proxy.Project) {
 		state = green + "running" + reset
 	}
 	say("%sproxy%s %s  %s%s:%d%s  %shome %s%s\n", bold, reset, state, dim, cfg.Proxy.Bind, cfg.Proxy.Port, reset, dim, cfg.Dir, reset)
@@ -606,11 +606,14 @@ func shellCmd() *cobra.Command {
 
 func configCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:               "config <app>",
-		Short:             "Show an app's compose config as hl runs it (its own files + hl's override)",
+		Use:               "config <app>|proxy",
+		Short:             "Show an app's compose config as hl runs it (its own files + hl's override), or the proxy's Traefik config",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeApp,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] == proxyArg {
+				return printProxyConfig()
+			}
 			p, err := appProject(args[0])
 			if err != nil {
 				return err
@@ -667,6 +670,7 @@ func proxyCmd() *cobra.Command {
 		sub("up", "Start the proxy", "up", "--detach"),
 		sub("down", "Stop the proxy", "down"),
 		sub("logs", "Show the proxy's logs", "logs", "--tail", "200"),
+		proxyStatusCmd(), proxyConfigCmd(),
 	)
 	return c
 }
@@ -697,6 +701,7 @@ func doctorCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%d problem(s)", bad)
 			}
+			doctorProxy(cfg, check)
 			for _, n := range cfg.Names() {
 				_, err := prepared(cfg, n)
 				check(err == nil, "app "+n, fmt.Sprint(err))
