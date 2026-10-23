@@ -58,7 +58,7 @@ func record(dir string, c call) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, _ = f.Write(append(b, '\n'))
 }
 
@@ -119,7 +119,7 @@ func fakeMain(name string, args []string) int {
 		for i, a := range args {
 			if a == "--project-directory" && i+1 < len(args) {
 				if b, err := os.ReadFile(filepath.Join(args[i+1], "model.json")); err == nil {
-					os.Stdout.Write(b)
+					_, _ = os.Stdout.Write(b)
 					return 0
 				}
 			}
@@ -175,6 +175,8 @@ func newFake(t *testing.T) *fake {
 	t.Setenv("DISPLAY", "")
 	t.Setenv("WAYLAND_DISPLAY", "")
 	t.Setenv(fakeDirEnv, f.dir)
+	// A race-detector build sleeps a second at exit; the fake runs dozens of times.
+	t.Setenv("GORACE", "atexit_sleep_ms=0")
 	oldGoos, oldPort, oldNets, oldTerm := goos, portInUse, hostSubnets, stdinTerminal
 	t.Cleanup(func() {
 		goos, portInUse, hostSubnets, stdinTerminal = oldGoos, oldPort, oldNets, oldTerm
