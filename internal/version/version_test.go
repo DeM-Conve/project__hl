@@ -2,6 +2,7 @@ package version
 
 import (
 	"runtime/debug"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +24,9 @@ func TestResolve(t *testing.T) {
 		{"git checkout", Info{"dev", "unknown", "unknown"},
 			&debug.BuildInfo{Main: debug.Module{Version: "(devel)"}, Settings: vcs},
 			Info{"dev", "0123456789ab", "2026-01-02T03:04:05Z"}},
+		{"local changes", Info{"dev", "unknown", "unknown"},
+			&debug.BuildInfo{Main: debug.Module{Version: "(devel)"}, Settings: append(vcs, debug.BuildSetting{Key: "vcs.modified", Value: "true"})},
+			Info{"dev", "0123456789ab-dirty", "2026-01-02T03:04:05Z"}},
 		{"ldflags win", Info{"v1.2.3", "abc1234", "2026-05-06T00:00:00Z"},
 			&debug.BuildInfo{Main: debug.Module{Version: "v0.1.0"}, Settings: vcs},
 			Info{"v1.2.3", "abc1234", "2026-05-06T00:00:00Z"}},
@@ -46,6 +50,13 @@ func TestStringOmitsUnknown(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 	if got := (Info{"dev", "abc", "unknown"}).String(); got != "hl dev (commit abc)" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestFull(t *testing.T) {
+	got := Info{"v1.2.3", "unknown", "unknown"}.Full()
+	if !strings.HasPrefix(got, "hl v1.2.3 go1.") || !strings.Contains(got, "/") {
 		t.Errorf("got %q", got)
 	}
 }

@@ -12,6 +12,7 @@ package version
 
 import (
 	"fmt"
+	"runtime"
 	"runtime/debug"
 	"strings"
 )
@@ -34,6 +35,15 @@ func Get() Info {
 	return resolve(Info{Version, Commit, Date}, bi)
 }
 
+// Platform is the Go version and OS/architecture hl was built with, for bug
+// reports: "go1.21.0 linux/amd64".
+func Platform() string {
+	return runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH
+}
+
+// Full is String plus the platform: what `hl version` prints.
+func (i Info) Full() string { return i.String() + " " + Platform() }
+
 func resolve(i Info, bi *debug.BuildInfo) Info {
 	if bi == nil {
 		return i
@@ -50,6 +60,12 @@ func resolve(i Info, bi *debug.BuildInfo) Info {
 			}
 		case s.Key == "vcs.time" && i.Date == "unknown":
 			i.Date = s.Value
+		}
+	}
+	// A build from a checkout with local changes says so.
+	for _, s := range bi.Settings {
+		if s.Key == "vcs.modified" && s.Value == "true" && i.Commit != "unknown" && !strings.HasSuffix(i.Commit, "-dirty") {
+			i.Commit += "-dirty"
 		}
 	}
 	return i
