@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os/exec"
 	"slices"
 	"sort"
@@ -321,11 +322,52 @@ func upProxy(ctx context.Context, cfg *config.Config, args ...string) error {
 	if !running {
 		return startProxy(ctx, cfg, p, args...)
 	}
+	// Compose replaces a running proxy whose files changed; if the new address is taken, the
+	// old proxy is gone and the new one can't start. So check a new address first.
+	if moved(ctx, cfg, p.Name) {
+		if err := checkPort(ctx, cfg); err != nil {
+			return fmt.Errorf("%w - the running proxy is left as it is", err)
+		}
+	}
 	step(proxyArg)
 	if err := p.Run(ctx, append([]string{"up", "--detach"}, args...)...); err != nil {
 		return fmt.Errorf("starting the proxy: %w", err)
 	}
 	return nil
+}
+
+// moved reports whether the running proxy publishes another port than cfg's (or another
+// address, where the old one doesn't hold the new one too), so that the new address must be
+// checked before compose replaces it. False when Docker can't tell.
+func moved(ctx context.Context, cfg *config.Config, project string) bool {
+	out, err := docker(ctx, "ps", "--filter", "label="+composeProjectLabel+"="+project, "--format", "{{.Ports}}")
+	if err != nil {
+		return false
+	}
+	suffix := fmt.Sprintf("->%d/tcp", defaults.ProxyContainerPort)
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		for _, pub := range strings.Split(line, ",") {
+			hostPort, ok := strings.CutSuffix(strings.TrimSpace(pub), suffix)
+			if !ok {
+				continue
+			}
+			host, port, err := net.SplitHostPort(hostPort)
+			if err != nil {
+				continue
+			}
+			if port != strconv.Itoa(cfg.Proxy.Port) {
+				return true
+			}
+			// Same port: a wildcard address on either side is the proxy's own.
+			return host != cfg.Proxy.Bind && !unspecified(host) && !unspecified(cfg.Proxy.Bind)
+		}
+	}
+	return false
+}
+
+func unspecified(host string) bool {
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	return ip != nil && ip.IsUnspecified()
 }
 
 // restartProxy restarts the proxy's container, or starts it when it isn't running.
@@ -344,16 +386,20 @@ func restartProxy(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
-// statusAfter prints the status table after a command that started apps.
+// statusAfter prints the status table after a command that started apps. An error is printed
+// first, so it isn't lost above the table.
 func statusAfter(ctx context.Context, cfg *config.Config, err error) error {
 	if errors.Is(err, interrupt.ErrInterrupted) {
 		return err
+	}
+	if err != nil {
+		printErr(err)
 	}
 	fmt.Fprintln(stdout)
 	if serr := printStatus(ctx, cfg); err == nil {
 		return serr
 	}
-	return err
+	return &exitStatus{code: exitFail}
 }
 
 func downCmd() *cobra.Command {

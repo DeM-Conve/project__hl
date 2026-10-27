@@ -784,6 +784,33 @@ func TestProxyIsAPseudoApp(t *testing.T) {
 		}
 	}
 
+	// Moving the running proxy to a busy port is refused before compose replaces it.
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Ports}}"}, Stdout: "127.0.0.1:8080->80/tcp\n"})
+	f.lab("lab", "proxy: {port: 8000}\napps: {}\n")
+	portInUse = func(bind string, port int) bool { return port == 8000 }
+	f.reset()
+	r = f.hl("up", "proxy")
+	if r.code != 1 || len(f.find("compose", "up")) != 0 {
+		t.Fatalf("a busy new port: want a refusal and no compose up: %s\n%v", r, f.calls())
+	}
+	contains(t, "busy new port", r.errOut, "port 8000 on 127.0.0.1 is already in use", "the running proxy is left as it is", "hint: stop it, or move the proxy")
+	// The same port on another address the old one doesn't cover: checked too; on a wildcard: not.
+	f.lab("lab", "proxy: {port: 8080, bind: 10.0.0.5}\napps: {}\n")
+	portInUse = func(bind string, port int) bool { return bind == "10.0.0.5" }
+	if r = f.hl("up", "proxy"); r.code != 1 {
+		t.Fatalf("a busy new address: %s", r)
+	}
+	f.lab("lab", "proxy: {port: 8080, bind: 0.0.0.0}\napps: {}\n")
+	portInUse = func(string, int) bool { return true }
+	f.reset()
+	f.must("up", "proxy")
+	if len(f.find("--project-name hl-proxy", "up --detach")) != 1 {
+		t.Errorf("same port, wildcard bind: compose up expected: %v", f.calls())
+	}
+	portInUse = func(string, int) bool { return false }
+	f.lab("lab", "proxy: {port: 8080}\napps: {}\n")
+
 	r = f.must("show", "proxy")
 	contains(t, "show proxy", r.out, "listen", "http://127.0.0.1:8080", "port", "8080", "hl.yml", "image", "default", "traefik config")
 	for _, args := range [][]string{{"proxy"}, {"proxy", "up"}, {"shell", "proxy"}, {"open", "proxy"}} {

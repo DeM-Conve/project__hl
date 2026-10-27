@@ -187,6 +187,10 @@ release differs from earlier builds of `main`.
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl
   said `hl up` applies it. hl now records each service's build settings after `hl up`
   (`.hl/<app>/builds.json`) and rebuilds the services whose settings changed since.
+- `hl up proxy` after `hl set proxy port=` (or `bind=`) to an address something else uses took
+  the proxy down: compose removed the running one and the new one couldn't bind. hl now checks
+  the new address first and refuses, leaving the running proxy as it is, with a free port in the
+  hint. `hl up` and `hl rebuild` print an error before the status table, not after it.
 
 - `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
   line, shown only with path routing when no base-path variable was mapped.
