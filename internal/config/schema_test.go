@@ -178,9 +178,6 @@ func TestSchemaMatchesTypes(t *testing.T) {
 	if got := jsonString(root.Properties["proxy"].Properties["routing"].Enum); got != jsonString([]string{RoutingPath, RoutingHost}) {
 		t.Errorf("proxy.routing enum %s", got)
 	}
-	if p := root.Properties["proxy"].Properties["project"].Pattern; p != projectRE.String() {
-		t.Errorf("proxy.project pattern %s, Go uses %s", p, projectRE)
-	}
 	if got := jsonString(app.Properties["routing"].Enum); got != jsonString([]string{RoutingPath, RoutingHost, RoutingNone}) {
 		t.Errorf("app routing enum %s", got)
 	}
@@ -200,6 +197,9 @@ func TestSchemaDefaultsAreHlDefaults(t *testing.T) {
 	props := loadSchemaNode(t).Properties["proxy"].Properties
 	for i := 0; i < pt.NumField(); i++ {
 		name, _, _ := strings.Cut(pt.Field(i).Tag.Get("yaml"), ",")
+		if name == "-" {
+			continue // not a setting
+		}
 		def := pv.Field(i).Interface()
 		got := props[name].Default
 		if reflect.ValueOf(def).IsZero() {

@@ -78,15 +78,34 @@ behind its settings.
 | `port` | `80` | Host port of the proxy. Added to app URLs when not 80. |
 | `routing` | `path` | Default routing for apps that don't set one: `path` or `host`. |
 | `domain` | `localhost` | Host name in app URLs: `<domain>/<app>/` for path routing, `<app>.<domain>` for host routing. |
-| `network` | `hl-proxy` (`hl-<name>-proxy` with [`name`](#several-homelabs-on-one-docker-name)) | Docker network the proxy and each app's routed service share. |
-| `subnet` | none (Docker picks) | Fixed subnet for that network, e.g. `172.31.0.0/16`, so an app can trust `X-Forwarded-For` from the proxy's address range. Before creating the network hl checks it doesn't overlap another Docker network or one of this machine's, and suggests a free one if it does. |
+| `subnet` | none (Docker picks) | Fixed subnet for the proxy network, e.g. `172.31.0.0/16`. See below. |
 | `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. |
-| `project` | `hl-proxy` (`hl-<name>-proxy` with `name`) | The proxy's compose project. hl refuses to touch a proxy or network another homelab runs and says so. |
 | `debug` | `false` | Traefik's INFO log and its access log (one line per request), in `hl logs proxy`. Off, Traefik logs errors only. Turn it on to see why a URL gives 404 or which app a request reached. |
 
 hl runs Traefik with one static config file, `.hl/proxy/traefik.yml`, generated from these
 settings (entrypoints, the Docker provider, logs, `ping` for the proxy's healthcheck); `hl show
 proxy` names it. hl doesn't run the Traefik dashboard.
+
+The proxy and each app's routed service share one Docker network, and the proxy runs as its own
+compose project; both are `hl-proxy`, or `hl-<name>-proxy` with a
+[`name`](#several-homelabs-on-one-docker-name). They are not settings: a second homelab gets its
+own by `hl set name=<x>`. `hl show proxy` prints them.
+
+**`subnet`: an app that trusts the proxy by address.** Behind the proxy, every request reaches an
+app from the proxy container's address, and the visitor's address is in the `X-Forwarded-For`
+header. Apps that rate-limit, log or ban by client IP read that header only from proxies they
+trust, usually given as an address range (a "trusted proxies" setting). Docker picks the network's
+range itself and may pick another one when the network is recreated, so pin it and give the app
+the same range:
+
+```sh
+hl set proxy subnet=172.31.0.0/16
+hl set my-app 'env.MY_APP_TRUSTED_PROXIES=172.31.0.0/16'   # the variable your app's compose file reads
+hl down && hl up                                           # the network is recreated with it
+```
+
+Before creating the network hl checks that the subnet doesn't overlap another Docker network or
+one of this machine's, and suggests a free one if it does.
 
 ## Homelab settings
 
@@ -181,7 +200,7 @@ later; `hl unset <app> env` drops them all.
 
 Compose project and network names are global to a Docker daemon. Without `name`, apps run as
 `hl-<app>` and the proxy as `hl-proxy` on the network `hl-proxy`. With `name=lab2`, apps run as
-`hl-lab2-<app>`, and the proxy's project and network default to `hl-lab2-proxy`. Give the second
+`hl-lab2-<app>`, and the proxy's project and network are `hl-lab2-proxy`. Give the second
 homelab its own proxy `port` too (two proxies can't both listen on port 80). `hl init` does both
 for a new homelab when it finds another homelab's proxy on this Docker.
 

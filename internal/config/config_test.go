@@ -209,7 +209,6 @@ func TestValidateValuesAndClashes(t *testing.T) {
 		{"proxy: {bind: localhost}", "proxy.bind"},
 		{"proxy: {domain: 'not a host'}", "proxy.domain"},
 		{"proxy: {subnet: 10.0.0.0}", "proxy.subnet"},
-		{"proxy: {network: '-x'}", "proxy.network"},
 		{"name: Lab_2", "name"},
 		{"apps: {a: {path: x, host: 'bad host'}}", "apps.a.host"},
 		{"apps: {a: {path: x, service: '-it'}}", "apps.a.service"},
@@ -258,11 +257,6 @@ func TestNameChangesEveryDockerName(t *testing.T) {
 	}
 	if c.ProjectName("my-app.io") != "hl-lab2-my-app-io" || c.ProxyProject() != "hl-lab2-proxy" || c.Proxy.Network != "hl-lab2-proxy" {
 		t.Errorf("named: %s %s %s", c.ProjectName("my-app.io"), c.ProxyProject(), c.Proxy.Network)
-	}
-	// Set explicitly, proxy.project and proxy.network win over the name.
-	c, _ = Load(write(t, "name: lab2\nproxy: {project: p, network: n}"))
-	if c.ProxyProject() != "p" || c.Proxy.Network != "n" {
-		t.Errorf("explicit: %s %s", c.ProxyProject(), c.Proxy.Network)
 	}
 }
 

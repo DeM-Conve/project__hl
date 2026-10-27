@@ -154,7 +154,6 @@ var (
 	prefixRE   = regexp.MustCompile(`^(/[A-Za-z0-9._~-]+)+$`)
 	hostRE     = regexp.MustCompile(`^(?i)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
 	serviceRE  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
-	networkRE  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 	envKeyRE   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 )
 
@@ -193,12 +192,6 @@ var rules = map[string]rule{
 	},
 	"proxy.routing": oneOf(RoutingPath, RoutingHost),
 	"proxy.port":    portRule,
-	"proxy.project": func(v string) string {
-		if !projectRE.MatchString(v) {
-			return fmt.Sprintf("%q - use lowercase letters, digits, '_' and '-'", v)
-		}
-		return ""
-	},
 	"name": func(v string) string {
 		if v != "" && !labNameRE.MatchString(v) {
 			return fmt.Sprintf("%q - use lowercase letters, digits and '-'", v)
@@ -214,12 +207,6 @@ var rules = map[string]rule{
 	"proxy.domain": func(v string) string {
 		if !hostRE.MatchString(v) {
 			return fmt.Sprintf("%q is not a host name like localhost or home.example.com", v)
-		}
-		return ""
-	},
-	"proxy.network": func(v string) string {
-		if !networkRE.MatchString(v) {
-			return fmt.Sprintf("%q is not a Docker network name (letters, digits, '_', '.', '-')", v)
 		}
 		return ""
 	},

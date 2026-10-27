@@ -34,7 +34,7 @@ and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/j
    in `<os.UserConfigDir()>/hl/home`.
 2. **Load `hl.yml`** (`config.Load`): check it strictly (`config.check`, below: every problem with
    file:line:column), unmarshal, fill defaults (`bind 127.0.0.1`, `port 80`, `domain localhost`,
-   `routing path`, `network`/`project` `hl-proxy` or `hl-<name>-proxy`, `image` the tested Traefik -
+   `routing path`, `image` the tested Traefik; the proxy's `Network`/`Project`, not settings, are `hl-proxy` or `hl-<name>-proxy` -
    all named in `internal/defaults`). A missing hl.yml is a `config.NotFoundError` naming `hl init`.
    hl.yml is re-read on every command; there is no daemon and no cached state besides the
    generated files.
@@ -76,12 +76,12 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
   proxy's default `hl-proxy`, and commands take `proxy` to mean the proxy. `ValidName` (so
   `Load` and `hl add`) and `scan` (init/sync skip such folders) use it; a cli test checks the
   schema's `apps.propertyNames.not.enum` lists the same names. `Validate` also rejects an app whose
-  `hl-<id>` equals `proxy.project`.
+  `hl-<id>` equals the proxy's project.
 - `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>` (two apps
   with the same ID are a config error),
   Traefik router/service/middleware names `<id>`, `<id>-slash`, `<id>-strip`.
-- The proxy is compose project `proxy.project` (default `hl-proxy`); its network defaults to `hl-proxy` (inside each override
-  it is always referred to by the key `hl-proxy`, mapped to `proxy.network` as an external network).
+- The proxy is compose project `hl-proxy` and its network `hl-proxy` (`hl-<name>-proxy` with a `name`; no setting changes them, so `proxy.network`/`proxy.project` are removed keys since 2026-10-27). Inside each override
+  the network is always referred to by the key `hl-proxy`, mapped to the real name as an external network.
 
 ## Generated files
 
@@ -107,14 +107,14 @@ this file". `hl init` writes a `.gitignore` with `data/` and `.hl/`.
 no inline literals (every name, path and value is a constant in `internal/defaults` or an `hl.yml`
 setting): entrypoint `web` on `:80` (every app router uses it), entrypoint `traefik`
 on `:8080` for `ping` only (not published), the Docker provider with `exposedByDefault: false` on
-`proxy.network`, `ping`, `log.level` `ERROR` (Traefik's own default; `INFO` with `proxy.debug`)
+the proxy network, `ping`, `log.level` `ERROR` (Traefik's own default; `INFO` with `proxy.debug`)
 and, with `proxy.debug`, `accessLog` (format `common`). There is no `api` section (no dashboard),
 no file provider and no way to use a file of one's own: `proxy.config`, `proxy.dynamic`,
 `proxy.dashboard`, `proxy.dashboard_public`, `proxy.access_log` and `proxy.log_level` were removed
 on 2026-10-27; `config.removedKeys` makes `Check` report each as removed, with the
 `hl unset proxy <key>` that drops it (`config.Edit` accepts unsetting them).
 
-**`.hl/proxy/compose.yml`** (`gen.Proxy`): compose project `proxy.project` (default `hl-proxy`),
+**`.hl/proxy/compose.yml`** (`gen.Proxy`): compose project `hl-proxy` (`hl-<name>-proxy`),
 one `traefik` service, `restart: unless-stopped`, no `command:` - Traefik reads its static config
 from `/etc/traefik/traefik.yml`, where the generated file is mounted read-only.
 `web` is published at `<bind>:<port>` (an IPv6 bind in brackets). The Docker socket is mounted
@@ -182,9 +182,9 @@ warns. Kept apps are never re-mapped.
 
 - Every command that touches the proxy (`proxy()` -> `proxyProject` in `internal/cli/proxy_cmds.go`)
   first checks that the proxy's compose project isn't run from another homelab's folder (the
-  `com.docker.compose.project.working_dir` label of its containers) and that `proxy.network`, if it
-  exists, belongs to `proxy.project`; otherwise it stops with the fix (another `proxy.project`,
-  `proxy.network` and `proxy.port`), so a second homelab never stops or reconfigures the first one's
+  `com.docker.compose.project.working_dir` label of its containers) and that the proxy network, if it
+  exists, belongs to the proxy project; otherwise it stops with the fix (`hl set name=<name>`, which
+  gives this homelab its own project and network, and `hl set proxy port=`), so a second homelab never stops or reconfigures the first one's
   proxy. Without Docker the check is skipped.
 - **The proxy as a pseudo-app**: `proxy` is the reserved app name, so `up`, `down`, `restart`,
   `rebuild`, `logs` and `show` take it among their arguments (`splitProxy`); the proxy runs first,
@@ -315,9 +315,9 @@ normalises indentation to two spaces).
 `Config` type by reflection (yaml tags give the known keys, so a new field needs no checker
 change), reporting syntax errors, unknown keys with a Levenshtein "did you mean", keys set twice,
 type mismatches, required keys, and per-key rules (`rules`, keyed by path with app names as `*`:
-routing values, ports, prefix, app names, `proxy.project`, version; removed keys). If the walk
+routing values, ports, prefix, app names, version; removed keys). If the walk
 finds nothing it decodes and runs `Validate`, which collects every value problem and clash (bind
-is an IP, domain/host names, network, subnet, image, env names,
+is an IP, domain/host names, subnet, image, env names,
 two apps with the same Docker project, URL prefix or host) as `Problem`s keyed by path; `check`
 gives them the line of their key. `Load` calls it, so every command reports unknown keys and bad
 values with their lines.

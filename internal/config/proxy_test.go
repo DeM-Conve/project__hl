@@ -24,19 +24,13 @@ func TestProxyDefaultsAndFiles(t *testing.T) {
 	if got := c.ProxyStaticFile(); got != filepath.Join(dir, ".hl", defaults.ProxyStateDir, defaults.TraefikStaticFile) {
 		t.Errorf("generated static file: %s", got)
 	}
-
-	c, err = Load(write(t, "proxy:\n  project: lab2-proxy\napps: {}\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c.Proxy.Project != "lab2-proxy" {
-		t.Errorf("project: %s", c.Proxy.Project)
-	}
 }
 
 func TestValidateProxy(t *testing.T) {
 	for body, want := range map[string]string{
-		"proxy: {project: My_Proxy}\n":      "proxy.project",
+		// The homelab's name sets the proxy's project and network.
+		"proxy: {project: lab2-proxy}\n":    "proxy.project: removed from hl - the homelab's name",
+		"proxy: {network: lab2}\n":          "`hl unset proxy network`, then `hl set name=",
 		"proxy: {access_log: true}\n":       "proxy.access_log: removed from hl",
 		"proxy: {dynamic: proxy/d.yml}\n":   "proxy.dynamic: removed from hl",
 		"proxy: {dashboard_public: true}\n": "`hl unset proxy dashboard_public`",
@@ -65,10 +59,5 @@ func TestReservedAppName(t *testing.T) {
 	_, err := Load(write(t, "apps:\n  proxy:\n    path: x\n"))
 	if err == nil || !strings.Contains(err.Error(), "apps.proxy") || !strings.Contains(err.Error(), "reserved") {
 		t.Errorf("an app named proxy in hl.yml: %v", err)
-	}
-	// With another proxy.project, an app whose project would be it clashes instead.
-	_, err = Load(write(t, "proxy: {project: hl-blog}\napps:\n  blog:\n    path: x\n"))
-	if err == nil || !strings.Contains(err.Error(), "proxy.project") {
-		t.Errorf("app project = proxy.project: %v", err)
 	}
 }

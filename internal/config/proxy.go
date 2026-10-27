@@ -1,26 +1,19 @@
 package config
 
 import (
-	"fmt"
 	"path/filepath"
-	"regexp"
 
 	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
-var projectRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
-
-// validateProxy checks the proxy settings that shape the Traefik config.
-func (c *Config) validateProxy() error {
-	if !projectRE.MatchString(c.Proxy.Project) {
-		return fmt.Errorf("proxy.project: %q - use lowercase letters, digits, '_' and '-'", c.Proxy.Project)
-	}
-	return nil
-}
-
-// removedKeys are hl.yml keys earlier builds took, by path, with what to do instead. Check
-// reports each with this message rather than as an unknown key, and `hl unset` removes them.
+// removedKeys are hl.yml keys earlier builds took, by path ("*" for an app's name), with what
+// to do instead. Check reports each with this message rather than as an unknown key, and
+// `hl unset` removes them.
 var removedKeys = map[string]string{
+	"proxy.network": "the homelab's name gives the proxy network its own name (" + defaults.Prefix + "<name>-" + defaults.NetworkSuffix +
+		"): `hl unset proxy network`, then `hl set name=<x>` if another homelab uses " + defaults.DefaultProxyNetwork,
+	"proxy.project": "the homelab's name gives the proxy project its own name (" + defaults.Prefix + "<name>-" + defaults.ProxyProjectSuffix +
+		"): `hl unset proxy project`, then `hl set name=<x>` if another homelab uses " + defaults.DefaultProxyProject,
 	"proxy.config":           "hl always generates the Traefik config (.hl/proxy/traefik.yml); remove it: `hl unset proxy config`",
 	"proxy.dynamic":          "hl no longer loads a Traefik dynamic config file; remove it: `hl unset proxy dynamic`",
 	"proxy.dashboard":        "the Traefik dashboard (it had no password) is gone; remove it: `hl unset proxy dashboard`",

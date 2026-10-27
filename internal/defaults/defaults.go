@@ -53,11 +53,11 @@ const (
 	TestedTraefikVersion = "3.6.25"
 	// DefaultProxyImage - hl.yml: proxy.image.
 	DefaultProxyImage = "traefik:v" + TestedTraefikVersion
-	// DefaultProxyProject is the proxy's compose project - hl.yml: proxy.project.
-	// A homelab with a `name` defaults to hl-<name>-proxy instead.
+	// DefaultProxyProject is the proxy's compose project (not a setting).
+	// A homelab with a `name` uses hl-<name>-proxy instead.
 	DefaultProxyProject = "hl-proxy"
-	// DefaultProxyNetwork is the network the proxy shares with apps - hl.yml: proxy.network.
-	// A homelab with a `name` defaults to hl-<name>-proxy instead.
+	// DefaultProxyNetwork is the network the proxy shares with apps (not a setting).
+	// A homelab with a `name` uses hl-<name>-proxy instead.
 	DefaultProxyNetwork = "hl-proxy"
 	// ProxyLogLevel is Traefik's log level (its own default); DebugProxyLogLevel is the one
 	// proxy.debug turns on, together with the access log.

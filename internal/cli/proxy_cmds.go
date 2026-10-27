@@ -64,7 +64,7 @@ func proxyClash(cfg *config.Config) error {
 			name, dir, ok := strings.Cut(line, "|")
 			if ok && dir != "" && !samePath(dir, cfg.ProxyDir()) {
 				return fmt.Errorf("the proxy project %q is run by another homelab (%s) - to run this one beside it, "+
-					"give it its own: `hl set proxy project=<name>-proxy network=<name>-proxy port=<free port>` (if that homelab is gone: docker rm -f %s)",
+					"give it a name: `hl set name=<name>` and `hl set proxy port=<free port>` (if that homelab is gone: docker rm -f %s)",
 					p.Project, filepath.Dir(filepath.Dir(dir)), name)
 			}
 		}
@@ -78,9 +78,9 @@ func proxyClash(cfg *config.Config) error {
 	case p.Project:
 		return nil
 	case "":
-		return fmt.Errorf("the Docker network %q exists but wasn't created by hl's proxy - remove it (docker network rm %s) or use another: `hl set proxy network=<name>`", p.Network, p.Network)
+		return fmt.Errorf("the Docker network %q exists but wasn't created by hl's proxy - remove it (docker network rm %s) or give this homelab a name, which gives it its own network: `hl set name=<name>`", p.Network, p.Network)
 	default:
-		return fmt.Errorf("the Docker network %q belongs to compose project %q (another homelab?) - use another: `hl set proxy network=<name>`", p.Network, owner)
+		return fmt.Errorf("the Docker network %q belongs to compose project %q (another homelab?) - give this homelab a name, which gives it its own network: `hl set name=<name>`", p.Network, owner)
 	}
 }
 
@@ -144,6 +144,12 @@ func showProxy(cfg *config.Config) error {
 		}
 		fmt.Fprintf(w, "  %s\t%s\t%s\n", key, v, from(st.Source))
 	}
+	named := "default"
+	if cfg.Name != "" {
+		named = "from name"
+	}
+	fmt.Fprintf(w, "  project\t%s\t%s\n", p.Project, from(named))
+	fmt.Fprintf(w, "  network\t%s\t%s\n", p.Network, from(named))
 	fmt.Fprintf(w, "  traefik config\t%s\t%s\n", files.Static, from("generated from "+config.FileName))
 	_ = w.Flush()
 

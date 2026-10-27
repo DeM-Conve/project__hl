@@ -77,7 +77,7 @@ func TestCheckSyntaxAndShape(t *testing.T) {
 		"proxy: {log_level: debug}":   "removed from hl - `hl set proxy debug=true`",
 		"proxy: {dashboard: true}":    "removed from hl - the Traefik dashboard",
 		"proxy: {config: t.yml}":      "`hl unset proxy config`",
-		"proxy: {project: My_Proxy}":  "lowercase",
+		"proxy: {project: My_Proxy}":  "removed from hl",
 		"proxy: {debug: on}":          "not true or false",
 	} {
 		ps := Check([]byte(body))

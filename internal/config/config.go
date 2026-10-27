@@ -65,13 +65,14 @@ type Proxy struct {
 	Domain string `yaml:"domain,omitempty"`
 	// Default routing for apps that don't set their own: path or host.
 	Routing string `yaml:"routing,omitempty"`
-	// Docker network the proxy and the exposed app services share.
-	Network string `yaml:"network,omitempty"`
-	// Optional fixed subnet for that network, so apps can trust the proxy by address.
+	// Optional fixed subnet for the proxy network, so apps can trust the proxy by address.
 	Subnet string `yaml:"subnet,omitempty"`
 	Image  string `yaml:"image,omitempty"`
-	// Compose project the proxy runs as; set it to run a second homelab's proxy beside the first.
-	Project string `yaml:"project,omitempty"`
+	// Network (shared by the proxy and the exposed app services) and Project (the proxy's
+	// compose project) are not settings: both are hl-proxy, or hl-<name>-proxy with the
+	// homelab's name. Load fills them in.
+	Network string `yaml:"-"`
+	Project string `yaml:"-"`
 	// Debug turns on Traefik's INFO log and its access log, on the proxy's output (hl logs proxy).
 	Debug bool `yaml:"debug,omitempty"`
 }
@@ -153,8 +154,7 @@ func ProjectName(name string) string { return defaults.Prefix + ID(name) }
 // hl-<name>-<app> in a named homelab.
 func (c *Config) ProjectName(app string) string { return c.projectPrefix() + ID(app) }
 
-// ProxyProject is the proxy's compose project: proxy.project, by default
-// hl-proxy or hl-<name>-proxy.
+// ProxyProject is the proxy's compose project: hl-proxy, or hl-<name>-proxy in a named homelab.
 func (c *Config) ProxyProject() string { return c.Proxy.Project }
 
 func (c *Config) projectPrefix() string {
@@ -200,20 +200,13 @@ func (c *Config) defaults() {
 	if p.Routing == "" {
 		p.Routing = defaults.Routing
 	}
-	if p.Network == "" {
-		p.Network = defaults.DefaultProxyNetwork
-		if c.Name != "" {
-			p.Network = defaults.Prefix + c.Name + "-" + defaults.NetworkSuffix
-		}
+	p.Network, p.Project = defaults.DefaultProxyNetwork, defaults.DefaultProxyProject
+	if c.Name != "" {
+		p.Network = defaults.Prefix + c.Name + "-" + defaults.NetworkSuffix
+		p.Project = defaults.Prefix + c.Name + "-" + defaults.ProxyProjectSuffix
 	}
 	if p.Image == "" {
 		p.Image = defaults.DefaultProxyImage
-	}
-	if p.Project == "" {
-		p.Project = defaults.DefaultProxyProject
-		if c.Name != "" {
-			p.Project = defaults.Prefix + c.Name + "-" + defaults.ProxyProjectSuffix
-		}
 	}
 	if c.Apps == nil {
 		c.Apps = map[string]*App{}
@@ -576,9 +569,6 @@ func (c *Config) Validate() error {
 	if r := p.Routing; r != RoutingPath && r != RoutingHost {
 		ps.add("proxy.routing", "%q is not path or host", r)
 	}
-	if !networkRE.MatchString(p.Network) {
-		ps.add("proxy.network", "%q is not a Docker network name (letters, digits, '_', '.', '-')", p.Network)
-	}
 	if p.Subnet != "" {
 		if _, _, err := net.ParseCIDR(p.Subnet); err != nil {
 			ps.add("proxy.subnet", "%q is not a subnet like 172.30.0.0/16", p.Subnet)
@@ -587,12 +577,10 @@ func (c *Config) Validate() error {
 	if p.Image == "" || strings.ContainsAny(p.Image, " \t") {
 		ps.add("proxy.image", "%q is not an image name like %s", p.Image, defaults.DefaultProxyImage)
 	}
-	// validateProxy's and validateProjects' messages start with the key: "proxy.project: ...".
-	for _, check := range []func() error{c.validateProxy, c.validateProjects} {
-		if err := check(); err != nil {
-			key, msg, _ := strings.Cut(err.Error(), ": ")
-			ps.add(key, "%s", msg)
-		}
+	// validateProjects' messages start with the key: "projects: ...".
+	if err := c.validateProjects(); err != nil {
+		key, msg, _ := strings.Cut(err.Error(), ": ")
+		ps.add(key, "%s", msg)
 	}
 	for k := range c.Env {
 		if !envKeyRE.MatchString(k) {
@@ -611,7 +599,7 @@ func (c *Config) Validate() error {
 			continue
 		}
 		if c.ProjectName(name) == c.Proxy.Project {
-			ps.add(key, "its compose project %s is proxy.project - rename the app or set another proxy.project", c.ProjectName(name))
+			ps.add(key, "its compose project %s is the proxy's - rename the app", c.ProjectName(name))
 		}
 		if other, ok := ids[ID(name)]; ok {
 			ps.add(key, "runs as the same Docker project as %q (%s) - rename one", other, c.ProjectName(name))

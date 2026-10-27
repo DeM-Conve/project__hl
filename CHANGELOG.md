@@ -89,7 +89,7 @@ release differs from earlier builds of `main`.
   file keeps its mode, a symlink stays a symlink).
 - The proxy runs with one readable Traefik static config file, `.hl/proxy/traefik.yml`, generated
   from `hl.yml`; `hl show proxy` names it.
-- `proxy.debug` (Traefik's INFO log and access log, in `hl logs proxy`) and `proxy.project`; a
+- `proxy.debug` (Traefik's INFO log and access log, in `hl logs proxy`); a
   healthcheck for the proxy.
 - The proxy works like an app: `hl up proxy`, `hl down proxy`, `hl restart proxy`,
   `hl rebuild proxy` (recreates it), `hl logs proxy [-f]`, and `hl show proxy` for its state,
@@ -147,6 +147,10 @@ release differs from earlier builds of `main`.
   the proxy itself (path routing on `127.0.0.1`, port 80 or a free one); change it afterwards with
   `hl set proxy bind=0.0.0.0 port=8080 routing=host`. To leave out an app init added,
   `hl remove <app>` (its folder is then ignored by `hl sync`).
+- **Breaking:** the proxy keys `network` and `project` are gone: the proxy's compose project and
+  network are `hl-proxy`, or `hl-<name>-proxy` for a homelab with a `name` (`hl set name=<x>`
+  gives a second homelab its own). An `hl.yml` that still has one is refused with a message
+  naming `hl unset proxy network` / `hl unset proxy project`; `hl show proxy` prints both names.
 - **Breaking:** `hl init --no-env` and `hl sync --no-env` are gone, as on `hl add`: undo a
   mapped variable with `hl unset <app> env.NAME`, or all of them with `hl unset <app> env`.
 - **Breaking:** the proxy keys `config`, `dynamic`, `dashboard`, `dashboard_public`, `access_log`

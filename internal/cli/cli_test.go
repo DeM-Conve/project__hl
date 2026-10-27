@@ -74,7 +74,7 @@ func TestFreshUserJourney(t *testing.T) {
 	lacks(t, "lab2's override", f.read(filepath.Join(lab2, ".hl", "blog", "override.yml")), filepath.Join(lab, "data"))
 
 	// Without a name, the first homelab's running project is refused, not taken over.
-	f.lab("third lab", "proxy: {port: 8082, project: hl-third-proxy, network: hl-third}\napps:\n  blog: {path: '"+blog+"'}\n")
+	f.lab("third lab", "proxy: {port: 8082}\napps:\n  blog: {path: '"+blog+"'}\n")
 	f.containers(ctr("hl-blog", "web", "running", "Up 1 minute", override))
 	f.reset()
 	r = f.hl("up", "blog")
@@ -852,6 +852,12 @@ func TestErrors(t *testing.T) {
 	f.lab("removed", "proxy: {dashboard: true}\napps: {}\n")
 	r = f.hl("status")
 	contains(t, "removed key", r.errOut, "proxy.dashboard: removed from hl", "`hl unset proxy dashboard`")
+	// proxy.network and proxy.project come from the homelab's name now; hl unset removes them.
+	f.lab("removed2", "proxy: {network: mine, project: mine-proxy}\napps: {}\n")
+	r = f.hl("status")
+	contains(t, "removed name keys", r.errOut, "proxy.network: removed from hl", "proxy.project: removed from hl", "hl set name=")
+	f.must("unset", "proxy", "network", "project")
+	f.must("status")
 	f.lab("hints", "proxy: {bind: 127.0.0.1}\napps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', prefix: /x}\n  b: {path: '"+a+"', prefix: /x}\n")
 	r = f.hl("status")
 	contains(t, "validation hints", r.errOut, "`hl set b prefix=/<path>`")
@@ -977,12 +983,12 @@ func waitFor(t *testing.T, f *fake, note string) {
 func TestSettingsReachEveryPlace(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
-	lab := f.lab("lab", "name: lab-b\nproxy: {port: 8443, domain: lab.example, network: lab-net, bind: 127.0.0.2}\napps:\n  a: {path: '"+a+"'}\n")
+	lab := f.lab("lab", "name: lab-b\nproxy: {port: 8443, domain: lab.example, bind: 127.0.0.2}\napps:\n  a: {path: '"+a+"'}\n")
 	r := f.must("up")
 	contains(t, "status", r.out, "127.0.0.2:8443", "http://lab.example:8443/a/")
-	contains(t, "override", f.read(filepath.Join(lab, ".hl", "a", "override.yml")), "name: 'lab-net'", "traefik.docker.network: 'lab-net'")
-	contains(t, "proxy compose", f.read(filepath.Join(lab, ".hl", "proxy", "compose.yml")), "'127.0.0.2:8443:80'", "name: 'lab-net'", "name: hl-lab-b-proxy")
-	contains(t, "traefik.yml", f.read(filepath.Join(lab, ".hl", "proxy", "traefik.yml")), "network: 'lab-net'")
+	contains(t, "override", f.read(filepath.Join(lab, ".hl", "a", "override.yml")), "name: 'hl-lab-b-proxy'", "traefik.docker.network: 'hl-lab-b-proxy'")
+	contains(t, "proxy compose", f.read(filepath.Join(lab, ".hl", "proxy", "compose.yml")), "'127.0.0.2:8443:80'", "name: 'hl-lab-b-proxy'", "name: hl-lab-b-proxy")
+	contains(t, "traefik.yml", f.read(filepath.Join(lab, ".hl", "proxy", "traefik.yml")), "network: 'hl-lab-b-proxy'")
 	if u := f.find("--project-name hl-lab-b-a ", "up --detach"); len(u) != 1 || u[0].Env["HL_URL"] != "http://lab.example:8443/a" {
 		t.Errorf("app run: %v", u)
 	}
@@ -1036,4 +1042,21 @@ func TestRemoveIgnoresAndAddUnignores(t *testing.T) {
 	if cfg, _ := config.Load(lab); len(cfg.Ignore) != 0 {
 		t.Errorf("ignore after add = %v", cfg.Ignore)
 	}
+}
+
+// A clash with another homelab's proxy project or network names the fix: a name for this
+// homelab (proxy.project and proxy.network are no settings any more).
+func TestProxyClashHints(t *testing.T) {
+	f := newFake(t)
+	f.lab("lab", "apps: {}\n")
+	f.on(rule{Match: []string{"ps -a --filter label=com.docker.compose.project=hl-proxy"}, Stdout: "hl-proxy-traefik-1|/elsewhere/.hl/proxy\n"})
+	r := f.hl("show", "proxy")
+	contains(t, "proxy clash", r.out, "run by another homelab (/elsewhere)", "`hl set name=<name>`")
+	lacks(t, "proxy clash", r.out, "set proxy project", "set proxy network")
+
+	g := newFake(t)
+	g.lab("lab", "apps: {}\n")
+	g.on(rule{Match: []string{"network inspect --format"}, Stdout: "\n"})
+	r = g.hl("show", "proxy")
+	contains(t, "network clash", r.out, "wasn't created by hl's proxy", "`hl set name=<name>`")
 }

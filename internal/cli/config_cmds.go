@@ -280,9 +280,9 @@ func applyCommand(scope string, changes []config.Change) string {
 		apps := false
 		for _, c := range changes {
 			switch c.Key {
-			case "network", "subnet", "project":
+			case "subnet":
 				// Every app joins the proxy's network: both move together.
-				return "hl down, then hl up (the proxy and every app move to the new network or project)"
+				return "hl down, then hl up (the proxy network is recreated with the new subnet, and every app joins it again)"
 			case "domain", "routing":
 				apps = true
 			}

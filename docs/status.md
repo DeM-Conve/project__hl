@@ -24,7 +24,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   `hl projects`/`hl ignore`/`hl strip-prefix` are `hl set key+=`/`-=`, and `hl set` also takes
   `scan_depth` and `name`; `hl add` takes `key=value` settings like `hl set` instead of flags;
   `hl remove` ignores an app's folder so `hl sync` doesn't re-add it; the proxy keys are down to
-  `bind port routing domain subnet image network project debug`; `hl logs` of a stopped app says so; no command aliases
+  `bind port routing domain subnet image debug` (`network` and `project` follow `name`); `hl logs` of a stopped app says so; no command aliases
   (`start`, `stop`, `ls`) or `--version`/`version --short`; `hl init` takes only `--projects`,
   `--strip-prefix` and `--yes` (the proxy is `hl set proxy ...` afterwards); no `--no-env` on
   init or sync (`hl unset <app> env`).
