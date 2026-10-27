@@ -94,7 +94,7 @@ func eachApp(ctx context.Context, cfg *config.Config, names []string, needProxy 
 	}
 	f := &failures{total: len(names)}
 	for _, n := range names {
-		if err := runApp(ctx, cfg, inv, n, w, args...); err != nil {
+		if err := runApp(ctx, cfg, inv, n, true, w, args...); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
 			}
@@ -104,7 +104,9 @@ func eachApp(ctx context.Context, cfg *config.Config, names []string, needProxy 
 	return f.err()
 }
 
-func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string, w *waitFlags, args ...string) error {
+// runApp runs a compose command for one app; header prints its "==> app" line (false when the
+// caller printed one already).
+func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string, header bool, w *waitFlags, args ...string) error {
 	if err := inv.mine(cfg, cfg.ProjectName(name), name); err != nil {
 		return err
 	}
@@ -113,7 +115,9 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 		return err
 	}
 	p := pa.Project
-	step(name)
+	if header {
+		step(name)
+	}
 	up := len(args) > 0 && args[0] == "up"
 	if up && !slices.Contains(args, "--build") {
 		// An image keeps the build args it was built with; rebuild the ones whose changed.
@@ -636,7 +640,8 @@ func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *
 			}
 		}
 		// A folder hl may not pull is still rebuilt from the code it has.
-		if err := runApp(ctx, cfg, inv, n, w, "up", "--detach", "--build"); err != nil {
+		// Under the header above, with the pull's output.
+		if err := runApp(ctx, cfg, inv, n, false, w, "up", "--detach", "--build"); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
 			}

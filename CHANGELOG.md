@@ -228,6 +228,9 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl rebuild --pull` printed each app's `==> <app>` header twice (once with its folder before
+  the pull, once before the rebuild); it is printed once, with the folder.
+
 - `hl set`, `hl unset` and every other command that changes `hl.yml` (add, remove, sync, init)
   keep its blank lines; they used to remove all of them, so one setting rewrote the whole file's
   layout.

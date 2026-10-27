@@ -751,6 +751,12 @@ func TestRebuildPull(t *testing.T) {
 	if n := strings.Count(r.out, "not a git repository"); n != 1 {
 		t.Errorf("the reason is said %d times:\n%s", n, r.out)
 	}
+	// One "==> app (folder)" header per app, with the pull and the rebuild under it.
+	for _, n := range []string{"clean", "dirty", "plain", "diverged"} {
+		if c := strings.Count(r.out, "==> "+n); c != 1 {
+			t.Errorf("==> %s printed %d times:\n%s", n, c, r.out)
+		}
+	}
 	contains(t, "rebuild --pull", r.errOut, "diverged: git pull --ff-only failed", "hl rebuild diverged --pull", "1 of 4 apps failed: diverged")
 	if p := f.find("-C "+dirty, "pull"); len(p) != 0 {
 		t.Errorf("pulled over uncommitted work: %v", p)
