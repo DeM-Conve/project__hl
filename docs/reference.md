@@ -59,7 +59,7 @@ those names.
 | `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `port=<port>`). `hl add` writes it. |
 | `routing` | `proxy.routing` | `path`, `host` or `none` (not behind the proxy). |
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
-| `host` | `<name>.<domain>` | Host routing: the host name. |
+| `host` | `<name>.<domain>` | Host routing: the host name. Use it to give one app its own host name (say `photos.example.com`) instead of `<name>.<domain>`. |
 | `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). `compose+=compose.dev.yml` on an app that names none starts from the file compose picks, so it adds an override instead of replacing it. |
 | `env.NAME` | none | Variables for the app's compose file (`env.MY_APP_BASE_PATH='${HL_PREFIX}'`). Values can use the [variables hl provides](#variables-hl-provides) and your shell's variables. They are compose interpolation variables: they reach a container only through the app's compose file (`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`). |
 
@@ -83,7 +83,7 @@ behind its settings.
 | `routing` | `path` | Default routing for apps that don't set one: `path` or `host`. |
 | `domain` | `localhost` | Host name in app URLs: `<domain>/<app>/` for path routing, `<app>.<domain>` for host routing. |
 | `subnet` | none (Docker picks) | Fixed subnet for the proxy network, e.g. `172.31.0.0/16`. See below. |
-| `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. |
+| `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. Use it as the escape hatch when a Docker update needs a newer Traefik than this hl pins yet. |
 | `debug` | `false` | Traefik's INFO log and its access log (one line per request), in `hl logs proxy`. Off, Traefik logs errors only. Turn it on to see why a URL gives 404 or which app a request reached. |
 
 hl runs Traefik with one static config file, `.hl/proxy/traefik.yml`, generated from these
