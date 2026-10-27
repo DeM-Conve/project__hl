@@ -488,8 +488,8 @@ func editApps(dir string, edit func(apps *yaml.Node) error) error {
 // adds projects, strip_prefix and the proxy settings that differ from the defaults; every other
 // setting is in docs/reference.md, not here.
 const Template = defaults.SchemaComment + `
-# hl homelab. hl commands change it (hl add, hl set, hl unset, ...); every setting is in
-# the README. hl reads it on every command.
+# hl homelab. hl commands change it (hl add, hl set, hl unset, ...); hl show shows them,
+# docs/reference.md lists every setting. hl reads it on every command.
 
 version: 1
 

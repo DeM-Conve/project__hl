@@ -93,7 +93,7 @@ func check(b []byte, dir string) []Problem {
 	}
 	root := doc.Content[0]
 	if root.Kind != yaml.MappingNode {
-		return []Problem{{Line: root.Line, Column: root.Column, Message: "expected settings (key: value) at the top - start from the README's example"}}
+		return []Problem{{Line: root.Line, Column: root.Column, Message: "expected settings (key: value) at the top - start from the example in docs/reference.md, or run hl init"}}
 	}
 	var ps []Problem
 	walk(root, reflect.TypeOf(Config{}), "", "", &ps)

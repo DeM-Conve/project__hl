@@ -43,7 +43,7 @@ and proxy files) and `internal/compose` (runs `docker compose`, reads the model)
 `internal/version`. Details in docs/architecture.md.
 
 - Every default or fixed name goes into `internal/defaults` (and, if users may want to know it,
-  the README's "Built-in values" table); no literals elsewhere.
+  the "Built-in values" table in docs/reference.md); no literals elsewhere.
 - Errors say what failed and what to do: wrap with `withHint(err, "...")`; usage errors exit 2.
 - Never run a command through a shell; pass arguments to `exec.Command` as they are.
 
