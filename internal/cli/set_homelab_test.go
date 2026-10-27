@@ -102,6 +102,51 @@ func TestSetNameOnlyWhileNothingRuns(t *testing.T) {
 	lacks(t, "hl.yml", f.read(filepath.Join(lab, config.FileName)), "name:")
 }
 
+// Mistakes in hl set/unset: unknown keys and apps are usage errors (exit 2) naming the scope
+// that has the key; a missing folder or service is refused before hl.yml is written.
+func TestSetUnsetMistakes(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "version: 1\nproxy:\n  port: 8080\napps:\n  a: {path: '"+a+"'}\n")
+	before := f.read(filepath.Join(lab, config.FileName))
+	for _, c := range []struct {
+		args []string
+		code int
+		want []string
+	}{
+		{[]string{"unset", "nosuchkey"}, 2, []string{`no app or homelab setting called "nosuchkey"`}},
+		{[]string{"set", "nosuch"}, 2, []string{`no app or homelab setting called "nosuch"`}},
+		{[]string{"set", "routing=host"}, 2, []string{"routing is a proxy setting", "hint: hl set proxy routing=host"}},
+		{[]string{"set", "prefix=/x"}, 2, []string{"prefix is an app setting", "hint: hl set <app> prefix=/x"}},
+		{[]string{"unset", "env", "port"}, 2, []string{"port is a proxy setting", "hint: hl unset proxy port"}},
+		{[]string{"set", "a", "prot=80"}, 2, []string{`unknown setting "prot" - did you mean "port"?`}},
+		{[]string{"set", "b", "port=80"}, 2, []string{`no app "b"`}},
+		{[]string{"unset", "a", "prot"}, 2, []string{`unknown setting "prot"`}},
+		{[]string{"set", "a", "port="}, 2, []string{"no value"}},
+		{[]string{"set", "a", "path=/no/such/folder"}, 1, []string{"app folder /no/such/folder not found"}},
+		{[]string{"set", "a", "compose=nope.yml"}, 1, []string{"nope.yml not found"}},
+		{[]string{"set", "a", "service=nosuch"}, 1, []string{`no service "nosuch"`, "hint: services: db, web"}},
+	} {
+		r := f.hl(c.args...)
+		if r.code != c.code {
+			t.Errorf("%v: want exit %d: %s", c.args, c.code, r)
+		}
+		contains(t, strings.Join(c.args, " "), r.errOut, c.want...)
+	}
+	if f.read(filepath.Join(lab, config.FileName)) != before {
+		t.Error("a refused change was written")
+	}
+	f.must("set", "a", "service=db", "port=5432")
+
+	// Without a readable compose config the service is left to hl up.
+	f.on(rule{Match: []string{"config --format json"}, Exit: 1, Stderr: "no docker"})
+	f.must("set", "a", "service=other")
+
+	// The last proxy setting gone: no empty proxy: left.
+	f.must("unset", "proxy", "port")
+	lacks(t, "hl.yml", f.read(filepath.Join(lab, config.FileName)), "proxy")
+}
+
 // hl set <app> name=<new> renames an app: settings, comments, data and generated files move.
 func TestRenameApp(t *testing.T) {
 	f := newFake(t)

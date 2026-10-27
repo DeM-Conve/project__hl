@@ -250,7 +250,7 @@ apps:
   server autocomplete keys and flag mistakes.
 - **`hl edit`** is the fallback for editing by hand: it opens a copy (`.hl/edit/hl.yml`) in
   `$VISUAL`, then `$EDITOR`, else `vi`, checks it when the editor closes and saves it only if it
-  has no problems, else lists them and offers to reopen the editor. It works on a broken `hl.yml`.
+  has no problems, else lists them and offers to reopen the editor. It works on a broken `hl.yml`, and needs a terminal.
 - **Written whole.** `hl.yml`, the default-homelab note and every generated file are written to a
   temporary file and renamed into place, so a crash or Ctrl-C never leaves half a file. An
   existing file keeps its permissions, and a symlinked `hl.yml` stays a symlink.

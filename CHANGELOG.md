@@ -197,6 +197,15 @@ release differs from earlier builds of `main`.
   hint. `hl up` and `hl rebuild` print an error before the status table, not after it.
 - `hl set <app> compose+=<file>` (and `hl add <folder> compose+=<file>`) on an app that names no
   compose file replaced the file compose picks with the new one; the list now starts from it.
+- `hl set` and `hl unset` mistakes: an unknown key or app, or a malformed `key=value`, exits 2
+  (usage) instead of 1; a key given without an app that belongs to the proxy or an app names that
+  command (`hl set routing=host` -> `hl set proxy routing=host`), and `hl unset nosuchkey` says
+  there is no app or homelab setting by that name. `hl set <app> path=` to a folder without the
+  compose files, `compose=` to a missing file, and `service=` to a service the compose files
+  don't have (when they can be read) are refused, listing the services. Unsetting the last proxy
+  setting leaves no empty `proxy: {}` behind.
+- `hl edit` without a terminal (a script, a pipe) launched `vi` anyway; it now refuses, like
+  `hl init` and `hl sync`, and points to `hl set`/`hl unset`.
 - `hl set proxy port=...` said to apply it with `hl up proxy` only, but the port is in every
   app's `HL_URL`; it now says `hl up proxy, then hl up`, like `domain` and `routing`.
 

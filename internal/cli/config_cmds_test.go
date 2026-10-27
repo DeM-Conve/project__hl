@@ -341,8 +341,21 @@ func editorRuns(t *testing.T, runs string) string {
 const good = "version: 1\n# kept\napps:\n  my-app: {path: ~/code/my-app}  # mine\n"
 const bad = "version: 1\napps:\n  my-app: {path: ~/code/my-app, prot: 80}\n"
 
+func TestEditNeedsATerminal(t *testing.T) {
+	home, _ := homelab(t, good)
+	runs := fakeEditor(t, bad)
+	out, err := run(t, "", "edit")
+	if err == nil || !strings.Contains(err.Error(), "needs a terminal") || hintFor(err) == "" {
+		t.Fatalf("err = %v\n%s", err, out)
+	}
+	if editorRuns(t, runs) != "" || hlYML(t, home) != good {
+		t.Error("the editor ran without a terminal")
+	}
+}
+
 func TestEditNoChanges(t *testing.T) {
 	home, _ := homelab(t, good)
+	onTerminal(t)
 	fakeEditor(t)
 	if out, err := run(t, "", "edit"); err != nil || !strings.Contains(out, "no changes") {
 		t.Fatalf("%v\n%s", err, out)
@@ -354,6 +367,7 @@ func TestEditNoChanges(t *testing.T) {
 
 func TestEditSavesValidFile(t *testing.T) {
 	home, _ := homelab(t, "apps: {}\n")
+	onTerminal(t)
 	fakeEditor(t, good)
 	if out, err := run(t, "", "edit"); err != nil || !strings.Contains(out, "saved") {
 		t.Fatalf("%v\n%s", err, out)
@@ -382,13 +396,10 @@ func TestEditReopensOnError(t *testing.T) {
 func TestEditGivesUpWithoutBreakingHlYml(t *testing.T) {
 	for _, tc := range []struct {
 		name, answer string
-		terminal     bool
-	}{{"no terminal", "", false}, {"answered no", "n\n", true}} {
+	}{{"answered no", "n\n"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			home, _ := homelab(t, good)
-			if tc.terminal {
-				onTerminal(t)
-			}
+			onTerminal(t)
 			runs := fakeEditor(t, bad)
 			out, err := run(t, tc.answer, "edit")
 			if err == nil || !strings.Contains(err.Error(), "hl.yml not changed") {
@@ -406,6 +417,7 @@ func TestEditGivesUpWithoutBreakingHlYml(t *testing.T) {
 
 func TestEditWorksOnBrokenFile(t *testing.T) {
 	home, _ := homelab(t, "apps: [\n")
+	onTerminal(t)
 	fakeEditor(t, good)
 	if out, err := run(t, "", "edit"); err != nil {
 		t.Fatalf("%v\n%s", err, out)

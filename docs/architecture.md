@@ -324,8 +324,14 @@ normalises indentation to two spaces).
   the key in the node tree (checked like any edit, so a clash of prefix, host or project is
   refused), and `data/<old>` and `.hl/<old>` are renamed (a failed data move puts hl.yml
   back). `ignore` holds folder names, which a rename doesn't change. A missing `proxy:` or
-  shared `env:` is added above `apps:`. A replaced value keeps the old one's comments. The new
-  content is run through `config.Check` and written only if it has no problems. The CLI tells
+  shared `env:` is added above `apps:`, and a `proxy:` left empty by an unset is removed. A
+  replaced value keeps the old one's comments. The new
+  content is run through `config.Check` and written only if it has no problems. An unknown key
+  or app is a `config.UnknownError`, which the CLI turns into a usage error (exit 2); so is a key
+  given without an app that isn't a homelab one (`notHomelabKey` names the scope that has it).
+  A change of an app's `path`, `compose` or `service` is tried first (`checkAppChanges`: the
+  `project` of the changed app must resolve, and the service be in its model when that can be
+  read). The CLI tells
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,
   so it is the shared scope; for `unset`, `env`/`env.NAME` is the shared scope unless an app has
   that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
@@ -336,7 +342,7 @@ normalises indentation to two spaces).
 - `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
   `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
   checks out. It finds the homelab with `config.Home`, not `Load`, so it works on a file that
-  doesn't load.
+  doesn't load. Without a terminal (`stdinTerminal`) it refuses before starting an editor.
 
 **Checking** (`config.Check`, `internal/config/validate.go`): walks the node tree against the
 `Config` type by reflection (yaml tags give the known keys, so a new field needs no checker

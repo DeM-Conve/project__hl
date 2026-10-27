@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -79,11 +80,21 @@ written if the result is valid; hl says which command applies the change.
 				// App names have no "=": no app given, the shared settings.
 				scope, kvs = config.HomelabScope, args
 			} else if len(kvs) == 0 {
+				if home, err := homeDir(); err == nil && scope != config.ProxyScope && !config.HasApp(home, scope) {
+					return notHomelabKey("set", scope, scope+"=<value>")
+				}
 				return &usageError{err: fmt.Errorf("nothing to set for %q - give key=value, e.g. hl set %s port=8080", scope, scope), cmd: cmd.CommandPath()}
 			}
 			changes, err := parseSettings(scope, kvs)
 			if err != nil {
-				return err
+				return &usageError{err: err, cmd: cmd.CommandPath()}
+			}
+			if scope == config.HomelabScope {
+				for i, c := range changes {
+					if !config.IsHomelabKey(c.Key) {
+						return notHomelabKey("set", c.Key, kvs[i])
+					}
+				}
 			}
 			return editScope(cmd.Context(), scope, changes)
 		},
@@ -112,7 +123,15 @@ env.NAME removes one env setting, env removes them all.
 			// env and env.NAME without an app are the shared env - unless an app has that name.
 			if config.IsHomelabKey(scope) && !config.HasApp(home, scope) {
 				scope, keys = config.HomelabScope, args
+				for _, k := range keys {
+					if !config.IsHomelabKey(k) {
+						return notHomelabKey("unset", k, k)
+					}
+				}
 			} else if len(keys) == 0 {
+				if scope != config.ProxyScope && !config.HasApp(home, scope) {
+					return notHomelabKey("unset", scope, scope)
+				}
 				return &usageError{err: fmt.Errorf("nothing to unset for %q - name the keys, e.g. hl unset %s port", scope, scope), cmd: cmd.CommandPath()}
 			}
 			var changes []config.Change
@@ -122,6 +141,30 @@ env.NAME removes one env setting, env removes them all.
 			return editScope(cmd.Context(), scope, changes)
 		},
 	}
+}
+
+// notHomelabKey is the usage error for a key given without an app that isn't a homelab
+// setting: it names the scope that has it (hl set routing=host -> hl set proxy routing=host).
+// verb is "set" or "unset"; arg is the argument as given.
+func notHomelabKey(verb, key, arg string) error {
+	field, _, _ := strings.Cut(key, ".")
+	cmd := "hl " + verb
+	has := func(keys []string) bool {
+		for _, k := range keys {
+			if strings.TrimSuffix(k, ".") == field {
+				return true
+			}
+		}
+		return false
+	}
+	switch {
+	case has(config.ProxyKeys()):
+		return &usageError{err: withHint(fmt.Errorf("%s is a proxy setting", field), "%s proxy %s", cmd, arg), cmd: cmd}
+	case has(setAppKeys()):
+		return &usageError{err: withHint(fmt.Errorf("%s is an app setting", field), "%s <app> %s", cmd, arg), cmd: cmd}
+	}
+	return &usageError{err: withHint(fmt.Errorf("no app or homelab setting called %q", field),
+		"`hl status` lists the apps; homelab settings: %s; proxy settings: %s proxy <key>", strings.Join(config.HomelabKeys(), ", "), cmd), cmd: cmd}
 }
 
 // unsetCommand is the hl unset command line that removes key from scope.
@@ -265,11 +308,19 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 				if edits, err = seedCompose(cfg.AppDir(a), a.Compose, changes); err != nil {
 					return err
 				}
+				if err := checkAppChanges(ctx, cfg, scope, a, edits); err != nil {
+					return err
+				}
 			}
 		}
 	}
 	if err := config.Edit(home, scope, edits); err != nil {
-		return withHint(err, "`hl show` lists the apps and settings; `hl set --help` lists the keys")
+		err = withHint(err, "`hl show` lists the apps and settings; `hl set --help` lists the keys")
+		var u *config.UnknownError
+		if errors.As(err, &u) {
+			return &usageError{err: err, cmd: "hl set"}
+		}
+		return err
 	}
 	if err := upgradeConfig(home); err != nil {
 		return err
@@ -290,6 +341,47 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 		}
 	}
 	say("apply it: %s", applyCommand(scope, changes))
+	return nil
+}
+
+// checkAppChanges refuses an app's path, compose or service change that can't work: the folder
+// must exist and have the compose files, and a service must be one of its compose files' (when
+// the compose config can be read; without Docker that check is left to hl up).
+func checkAppChanges(ctx context.Context, cfg *config.Config, name string, a *config.App, changes []config.Change) error {
+	files, svc := false, false
+	for _, c := range changes {
+		switch c.Key {
+		case "path", "compose":
+			files = true
+		case "service":
+			svc = !c.Unset
+		}
+	}
+	if !files && !svc {
+		return nil
+	}
+	b := *a
+	b.Env = maps.Clone(a.Env) // decoding reuses a map
+	if config.ApplyApp(&b, changes) != nil || b.Path == "" {
+		return nil // config.Edit says what is wrong
+	}
+	p, err := project(cfg, name, &b)
+	if err != nil {
+		if files {
+			return err
+		}
+		return nil
+	}
+	if svc && b.Service != "" {
+		m, err := p.Model(ctx)
+		if err != nil {
+			return nil
+		}
+		if _, ok := m.Services[b.Service]; !ok {
+			return withHint(fmt.Errorf("%s: no service %q in its compose files", name, b.Service),
+				"services: %s", strings.Join(sortedServices(m.Services), ", "))
+		}
+	}
 	return nil
 }
 
@@ -438,9 +530,15 @@ func editCmd() *cobra.Command {
 		Short: "Open hl.yml in your editor (a fallback: hl set/unset change every setting); saved only once it checks out",
 		Long: `Open hl.yml in $VISUAL or $EDITOR (default: ` + defaults.DefaultEditor + `). You edit a copy (` + defaults.EditDraft + `);
 when the editor closes hl checks it and replaces hl.yml only if it has no problems.
-Otherwise it lists them and offers to open the editor again, so hl.yml is never left broken.`,
+Otherwise it lists them and offers to open the editor again, so hl.yml is never left broken.
+It needs a terminal; in a script, use hl set and hl unset.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !stdinTerminal(cmd.InOrStdin()) {
+				// An editor (vi by default) without a terminal hangs or garbles the file.
+				return withHint(errors.New("hl edit needs a terminal for the editor, and this isn't one"),
+					"change settings with `hl set` and `hl unset`, or run hl edit in a terminal")
+			}
 			home, err := homeDir()
 			if err != nil {
 				return err
@@ -483,8 +581,7 @@ Otherwise it lists them and offers to open the editor again, so hl.yml is never 
 					say("%s", p.In(draft))
 				}
 				keep := fmt.Errorf("hl.yml not changed; your edit is in %s (fix it there, or run hl edit again to start over)", draft)
-				if !stdinTerminal(cmd.InOrStdin()) ||
-					!newPrompter(cmd.InOrStdin(), stdout).confirm(plural(len(ps), "problem", "problems")+" - open the editor again?", true) {
+				if !newPrompter(cmd.InOrStdin(), stdout).confirm(plural(len(ps), "problem", "problems")+" - open the editor again?", true) {
 					return keep
 				}
 			}
