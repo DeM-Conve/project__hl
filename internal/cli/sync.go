@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
@@ -45,7 +46,7 @@ skipped. Apps outside the projects folders are left alone.`,
 
 func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry, noEnv bool) error {
 	if len(cfg.Projects) == 0 {
-		return withHint(fmt.Errorf("no projects folders in %s", config.FileName), "add one with hl projects add <folder>, e.g. hl projects add ~/code")
+		return withHint(fmt.Errorf("no projects folders in %s", config.FileName), "add one with hl set projects+=<folder>, e.g. hl set projects+=~/code")
 	}
 	d, err := scan.Compare(cfg)
 	if err != nil {
@@ -137,22 +138,40 @@ func printPlan(out io.Writer, cfg *config.Config, plan []scan.Action) {
 	for _, a := range plan {
 		switch a.Kind {
 		case scan.Add:
-			fmt.Fprintf(w, "  + add\t%s\t%s\t%s\n", a.Name, a.Path, pinned(a.Service, a.Port))
+			fmt.Fprintf(w, "  + add\t%s\t%s\t%s\n", a.Name, shortPath(cfg, a.Path), pinned(a.Service, a.Port))
 			for _, kv := range scan.EnvList(a.Env) {
-				fmt.Fprintf(w, "\t\t  env %s\n", kv)
+				fmt.Fprintf(w, "\t\t\tenv %s\n", kv)
 			}
 			if a.Note != "" {
-				fmt.Fprintf(w, "\t\t  note: %s\n", a.Note)
+				fmt.Fprintf(w, "\t\t\tnote: %s\n", a.Note)
 			}
 		case scan.Remove:
-			fmt.Fprintf(w, "  - remove\t%s\t%s\tfolder gone; %s stays\n", a.Name, a.Path, relTo(cfg.Dir, cfg.DataDir(a.Name)))
+			fmt.Fprintf(w, "  - remove\t%s\t%s\tfolder gone; %s stays\n", a.Name, shortPath(cfg, a.Path), relTo(cfg.Dir, cfg.DataDir(a.Name)))
 		case scan.Update:
-			fmt.Fprintf(w, "  ~ update\t%s\t%s\t%s -> %s\n", a.Name, a.Path, a.Old, pinned(a.Service, a.Port))
+			fmt.Fprintf(w, "  ~ update\t%s\t%s\t%s -> %s\n", a.Name, shortPath(cfg, a.Path), a.Old, pinned(a.Service, a.Port))
 		case scan.Skip:
-			fmt.Fprintf(w, "  ! skip\t%s\t%s\t%s\n", a.Name, a.Path, a.Reason)
+			fmt.Fprintf(w, "  ! skip\t%s\t%s\t%s\n", a.Name, shortPath(cfg, a.Path), a.Reason)
 		}
 	}
 	_ = w.Flush()
+}
+
+// shortPath is an app folder as the plan shows it: as in hl.yml, except that under a projects
+// folder written as an absolute path it is <projects folder name>/<rest> (code/blog), so a
+// long path isn't repeated on every line.
+func shortPath(cfg *config.Config, path string) string {
+	if !filepath.IsAbs(path) {
+		return path
+	}
+	for _, p := range cfg.Projects {
+		if !filepath.IsAbs(p) {
+			continue
+		}
+		if rel, err := filepath.Rel(p, path); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+			return filepath.Join(filepath.Base(p), rel)
+		}
+	}
+	return path
 }
 
 func pinned(service string, port int) string {
@@ -176,8 +195,7 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 			if !mapsBasePath(a.Env) {
 				noBase = append(noBase, a.Name)
 			}
-			fmt.Fprintf(out, "added %s\n", a.Name)
-			printEnv(out, "  ", a.Env)
+			fmt.Fprintf(out, "added %s\n", a.Name) // its env was in the plan
 		case scan.Remove:
 			name := cfg.ProjectName(a.Name)
 			if inv, err := containers(context.Background()); err == nil && inv.owner(cfg, name) == "" && len(inv.of(name)) > 0 {
@@ -190,7 +208,7 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 				return err
 			}
 			_ = os.RemoveAll(cfg.StateDir(a.Name))
-			fmt.Fprintf(out, "removed %s; its data stays in %s\n", a.Name, cfg.DataDir(a.Name))
+			fmt.Fprintf(out, "removed %s; its data stays in %s\n", a.Name, relTo(cfg.Dir, cfg.DataDir(a.Name)))
 		case scan.Update:
 			if err := config.PinApp(cfg.Dir, a.Name, a.Service, a.Port); err != nil {
 				return err
@@ -202,7 +220,7 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 		if len(noBase) > 0 && cfg.Proxy.Routing == config.RoutingPath {
 			fmt.Fprintf(out, "%snote:%s path routing serves each app under /<app>/; an app must support that base path.\n"+
 				"No base-path setting was found for %s: map ${HL_PREFIX} to its setting\n"+
-				"(hl set <app> env.<NAME>='${HL_PREFIX}'), or set routing: host for it.\n", yellow, reset, strings.Join(noBase, ", "))
+				"(hl set <app> env.<NAME>='${HL_PREFIX}'), or route it by host name: hl set <app> routing=host\n", yellow, reset, strings.Join(noBase, ", "))
 		}
 		fmt.Fprintf(out, "start them: hl up %s\n", strings.Join(added, " "))
 	}

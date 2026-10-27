@@ -192,7 +192,7 @@ apps:
 	want := []string{
 		"add new-one app:5000",
 		"add server server:8080",
-		"skip cache (not a web app? service cache on port 6380 - add it with hl add",
+		"skip cache (not a web app? (service cache, port 6380) - run it without the proxy: hl add ~/'my code/cache' routing=none, or skip it for good: hl set ignore+=cache)",
 		"remove gone",
 		"update moved-port web:3000",
 		"update renamed frontend:8080",

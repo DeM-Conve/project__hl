@@ -359,6 +359,10 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   `hl ignore add`). A kept app with a pinned `service` is checked against its model: service gone -> detect
   both again; pinned port not among the service's published targets -> pin its first one. Apps
   with nothing pinned are detected on every run anyway and are left alone.
+- **Showing**: `printPlan` lists each change once (an add with its env); a folder under a
+  projects folder written as an absolute path shows as `<its name>/<rest>` (`shortPath`), and
+  skip reasons name the folder once, as in hl.yml when that starts with `~/` (`scan.shellPath`).
+  Applying then says only "added <app>".
 - **Applying**: adds go through `config.AddApp` with `path` = the projects entry as written joined
   with the subfolder (so `~/code/blog`, not an absolute path); removes stop the app by compose
   project name if it still runs (its files are gone), then `config.RemoveApp` and delete

@@ -78,28 +78,28 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Act
 	}
 	for _, f := range d.New {
 		act := Action{Kind: Add, Name: f.Name, Path: f.Path}
+		dir := shellPath(f)
 		switch {
 		case f.Name == "":
 			act.Kind, act.Name = Skip, f.Path
-			act.Reason = fmt.Sprintf("no usable app name - hl add %s --name <name>", quote(f.Dir))
+			act.Reason = fmt.Sprintf("no usable app name - hl add %s name=<name>", dir)
 		case reserved(f.Name):
 			act.Kind = Skip
-			act.Reason = fmt.Sprintf("%s is a name hl keeps for itself - hl add %s --name <other>", f.Name, quote(f.Dir))
+			act.Reason = fmt.Sprintf("%s is a name hl keeps for itself - hl add %s name=<other>", f.Name, dir)
 		case taken[f.Name]:
 			act.Kind = Skip
-			act.Reason = fmt.Sprintf("an app named %s already exists - hl add %s --name <other>", f.Name, quote(f.Dir))
+			act.Reason = fmt.Sprintf("an app named %s already exists - hl add %s name=<other>", f.Name, dir)
 		default:
 			app := &config.App{Path: f.Path}
 			svc, port, err := detect(cfg, f.Name, app, model)
 			switch {
 			case err != nil:
 				act.Kind = Skip
-				act.Reason = fmt.Sprintf("%v; add it with hl add %s", err, quote(f.Dir))
+				act.Reason = fmt.Sprintf("%v; add it with hl add %s", err, dir)
 			case svc != "" && !LooksWeb(svc, port):
 				act.Kind = Skip
-				act.Reason = fmt.Sprintf("not a web app? service %s on port %d - add it with hl add %s --routing none "+
-					"(not behind the proxy) or hl add %[3]s (routed), or skip it for good with hl ignore add %s",
-					svc, port, quote(f.Dir), quote(filepath.Base(f.Dir)))
+				act.Reason = fmt.Sprintf("not a web app? (service %s, port %d) - run it without the proxy: hl add %s routing=none, "+
+					"or skip it for good: hl set ignore+=%s", svc, port, dir, quote(filepath.Base(f.Dir)))
 			}
 			act.Service, act.Port = svc, port
 			if act.Kind == Add && vars != nil {
@@ -172,7 +172,7 @@ func planUpdate(cfg *config.Config, name string, model ModelFunc) *Action {
 			}
 		}
 		return &Action{Kind: Skip, Name: name, Path: a.Path,
-			Reason: fmt.Sprintf("service %s is gone and %v - set apps.%s.service in hl.yml", a.Service, err, name)}
+			Reason: fmt.Sprintf("service %s is gone and %v - hl set %s service=<service>", a.Service, err, name)}
 	}
 	if a.Port == 0 || len(s.Ports) == 0 {
 		return nil
@@ -187,6 +187,15 @@ func planUpdate(cfg *config.Config, name string, model ModelFunc) *Action {
 		return nil
 	}
 	return &Action{Kind: Update, Name: name, Path: a.Path, Service: a.Service, Port: port, Old: old}
+}
+
+// shellPath is a new folder as hint commands show it: as it goes into hl.yml when that is
+// short (~/code/blog), else the full path; quoted for a shell, leaving a leading ~/ to expand.
+func shellPath(f Folder) string {
+	if rest, ok := strings.CutPrefix(f.Path, "~/"); ok {
+		return "~/" + quote(rest)
+	}
+	return quote(f.Dir)
 }
 
 // quote makes a folder safe to paste into a shell.

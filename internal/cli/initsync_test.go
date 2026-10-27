@@ -145,7 +145,7 @@ func TestInitNonInteractive(t *testing.T) {
 		t.Errorf("wiki = %+v", a)
 	}
 	if !strings.Contains(out, "skip  two") || !strings.Contains(out, "hl up blog wiki") ||
-		!strings.Contains(out, "skip  kv") || !strings.Contains(out, "--routing none") || !strings.Contains(out, "hl ignore add kv") {
+		!strings.Contains(out, "skip  kv") || !strings.Contains(out, "routing=none") || !strings.Contains(out, "hl set ignore+=kv") {
 		t.Errorf("output:\n%s", out)
 	}
 	if got := strings.TrimSpace(readFile(t, filepath.Join(home, ".config", "hl", "home"))); got != lab {
@@ -236,6 +236,9 @@ func TestInitInteractive(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
+	}
+	if strings.Count(out, "env BLOG_URL") != 1 {
+		t.Errorf("an app's env is shown once, in the plan:\n%s", out)
 	}
 	if strings.Count(out, "Set it up like this?") != 2 {
 		t.Errorf("init should ask one question (asked again after a bad answer):\n%s", out)
@@ -469,6 +472,9 @@ func TestInitSharedPrefix(t *testing.T) {
 	if !strings.Contains(out, "app names  without project__ - the folders share it (--strip-prefix none keeps whole names)") {
 		t.Errorf("the plan should say it strips the shared prefix:\n%s", out)
 	}
+	if !strings.Contains(out, "or route it by host name: hl set <app> routing=host") {
+		t.Errorf("the base-path note should name the command:\n%s", out)
+	}
 	cfg, err := config.Load(lab)
 	if err != nil {
 		t.Fatal(err)
@@ -485,6 +491,21 @@ func TestInitSharedPrefix(t *testing.T) {
 	cfg, _ = config.Load(whole)
 	if strings.Join(cfg.Names(), ",") != "plain,project__blog,project__wiki" || len(cfg.StripPrefix) != 0 || strings.Contains(out, "app names") {
 		t.Errorf("apps = %v, strip_prefix = %q\n%s", cfg.Names(), cfg.StripPrefix, out)
+	}
+}
+
+func TestShortPath(t *testing.T) {
+	cfg := &config.Config{Projects: []string{"/srv/long/path/code", "~/src"}}
+	for in, want := range map[string]string{
+		"/srv/long/path/code/blog":   "code/blog",
+		"/srv/long/path/code/a/b":    "code/a/b",
+		"~/src/wiki":                 "~/src/wiki",
+		"/elsewhere/app":             "/elsewhere/app",
+		"/srv/long/path/codex/other": "/srv/long/path/codex/other",
+	} {
+		if got := shortPath(cfg, in); got != want {
+			t.Errorf("shortPath(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 

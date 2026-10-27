@@ -27,20 +27,18 @@ hl init plan
   apps       2 apps to add
   + add   blog     ~/code/blog     web:8080
   + add   tracker  ~/code/tracker  frontend:80
-                     env TRACKER_BASE_PATH=${HL_PREFIX}
-                     env TRACKER_URL=${HL_URL}
-  ! skip  cache    ~/code/cache    not a web app? service redis on port 6379 - add it with ...
+                                   env TRACKER_BASE_PATH=${HL_PREFIX}
+                                   env TRACKER_URL=${HL_URL}
+  ! skip  cache    ~/code/cache    not a web app? (service redis, port 6379) - run it without the proxy: ...
 
 Set it up like this? [Y/n]: y
 wrote /home/you/homelab/hl.yml
 default homelab: /home/you/homelab
 added blog
 added tracker
-  env TRACKER_BASE_PATH=${HL_PREFIX}
-  env TRACKER_URL=${HL_URL}
 note: path routing serves each app under /<app>/; an app must support that base path.
 No base-path setting was found for blog: map ${HL_PREFIX} to its setting
-(hl set <app> env.<NAME>='${HL_PREFIX}'), or set routing: host for it.
+(hl set <app> env.<NAME>='${HL_PREFIX}'), or route it by host name: hl set <app> routing=host
 start them: hl up blog tracker
 
 $ hl up

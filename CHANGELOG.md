@@ -164,6 +164,11 @@ release differs from earlier builds of `main`.
   port don't collide (`hl doctor` used to report the clash only after the fact).
 - `hl init` warns when hl commands would keep using another homelab than the one it just made
   default (`$HL_HOME`, `--home`, or the current folder inside another homelab), and says how to fix it.
+- Quieter `hl init` and `hl sync`: an app's env is shown once, in the plan (not again after
+  "added"); a skipped folder's line names its path once (a projects folder given as a long
+  absolute path is shortened to `<its name>/<app folder>`), and the hints name the commands:
+  `hl add <folder> routing=none`, `hl set ignore+=<folder>`, `hl set <app> routing=host`,
+  `hl set projects+=<folder>`.
 - `hl status` said "1 new app ... run hl sync" forever when the only new folder was one sync
   always skips (not a web app); it now counts only the folders sync would add. Its header for a
   proxy run by another homelab reads `proxy: run by another homelab (<folder>) - see hl doctor`

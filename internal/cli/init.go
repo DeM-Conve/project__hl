@@ -120,7 +120,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 			}
 		}
 		if len(cfg.Projects) > 0 && o.projects != nil {
-			note("--projects is ignored: %s already lists projects folders - change them with hl projects", config.FileName)
+			note("--projects is ignored: %s already lists projects folders - change them with hl set projects+=<folder>", config.FileName)
 		}
 		if len(cfg.Projects) == 0 {
 			if cfg.Projects, err = initProjects(dir, o.projects); err != nil {
@@ -131,7 +131,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		switch {
 		case o.strip == nil, noStrip:
 		case len(cfg.StripPrefix) > 0:
-			note("--strip-prefix is ignored: %s already has strip_prefix - change it with hl strip-prefix", config.FileName)
+			note("--strip-prefix is ignored: %s already has strip_prefix - change it with hl set strip_prefix=<prefix>", config.FileName)
 		default:
 			cfg.StripPrefix, saveStrip = o.strip, true
 		}
@@ -244,7 +244,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 	case len(cfg.Apps) > 0:
 		say("next: hl up")
 	case len(cfg.Projects) == 0:
-		say("next: hl projects add <folder> (then hl sync), or hl add <app folder>")
+		say("next: hl set projects+=<folder> (then hl sync), or hl add <app folder>")
 	default:
 		say("next: hl add <app folder>")
 	}
@@ -264,7 +264,7 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 		w("homelab", "%s (new hl.yml, data/)", cfg.Dir)
 	}
 	if len(cfg.Projects) == 0 {
-		w("projects", "none - pass --projects <folder>, or later hl projects add <folder>")
+		w("projects", "none - pass --projects <folder>, or later hl set projects+=<folder>")
 	} else {
 		w("projects", "%s", strings.Join(cfg.Projects, ", "))
 	}
@@ -355,7 +355,7 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 		printPlan(out, cfg, chosen)
 	}
 	if len(left) > 0 {
-		w("left out", "%s (--apps) - add later with hl sync, or skip for good with hl ignore add <folder name> or a %s file",
+		w("left out", "%s (--apps) - add later with hl sync, or skip for good with hl set ignore+=<folder name> or a %s file",
 			strings.Join(left, ", "), defaults.IgnoreFile)
 	}
 	fmt.Fprintln(out)
