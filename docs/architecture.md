@@ -318,7 +318,9 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
 - **`scan.Plan`** adds Docker through a `ModelFunc` (`docker compose config` via `cli.project`):
   a new folder gets the service and port `hl add` would pick (`Exposed`/`TargetPort`), or a skip
   with the reason and the `hl add` command to run instead (name taken, ambiguous services, compose
-  error). A kept app with a pinned `service` is checked against its model: service gone -> detect
+  error, or not a web app: `scan.LooksWeb` - the service has none of `defaults.ExposedServices`'
+  names and its port isn't in `defaults.WebPorts` - which suggests `--routing none` and
+  `hl ignore add`). A kept app with a pinned `service` is checked against its model: service gone -> detect
   both again; pinned port not among the service's published targets -> pin its first one. Apps
   with nothing pinned are detected on every run anyway and are left alone.
 - **Applying**: adds go through `config.AddApp` with `path` = the projects entry as written joined

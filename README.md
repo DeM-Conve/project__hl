@@ -354,6 +354,13 @@ without touching `hl.yml`. Ignoring only stops sync from adding a folder; an app
 sync, and an app whose projects folder is missing altogether (say, an unmounted drive) is not
 removed.
 
+`hl init` and `hl sync` only add **web apps** on their own: a folder whose service has none of the
+preferred names (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`) and publishes a port that isn't
+a common HTTP one (see [Built-in values](#built-in-values)) may be a database or a cache, which the
+HTTP proxy can't serve. Such a folder is listed with the commands to use instead:
+`hl add <folder> --routing none` to run it without the proxy, `hl add <folder>` to route it
+anyway, or `hl ignore add <folder name>` to stop seeing it.
+
 ### `version` and editor support
 
 `version: 1` is the `hl.yml` format. A file without it (from before versions) keeps working;
@@ -444,6 +451,7 @@ today and not `hl.yml` settings (some have a command-line flag):
 | `code`, `projects`, `src` | projects folders `hl init` suggests, under your home folder, when they exist |
 | `.hlignore` | a folder holding a file with this name is never picked up as an app |
 | `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` | service names `hl add` prefers when several publish ports |
+| `80`, `443`, `3000`, `3001`, `4000`, `4200`, `5000`, `5173`, `8000`, `8008`, `8080`, `8081`, `8088`, `8443`, `8888` | container ports `hl init` and `hl sync` take for a web app; a service with another port and none of the names above is not added by them (see [`projects`](#projects-ignore-scan_depth-strip_prefix)) |
 | `<X>_BASE_PATH`, `<X>_URL`, `DATA_LOCATION`, `BACKUP_LOCATION` | the variables `hl add`, `init` and `sync` fill in ([Env hl fills in](#env-hl-fills-in)) |
 | `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 

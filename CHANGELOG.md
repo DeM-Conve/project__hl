@@ -122,6 +122,9 @@ release differs from earlier builds of `main`.
   the command, all listed at once with their lines. Run `hl config check` before upgrading and
   fix what it lists.
 - The Traefik dashboard is off unless `proxy.dashboard: true` is set.
+- `hl init` and `hl sync` add only folders that look like web apps (a preferred service name or a
+  common HTTP port); others, like a database on its own port, are listed with the `hl add`
+  command to use (`--routing none` to run it without the proxy).
 - `hl restart` starts the proxy first, like `hl up`, `hl rebuild` and `hl update`.
 
 ### Fixed

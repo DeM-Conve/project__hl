@@ -150,7 +150,7 @@ apps:
   broken: {path: ~/my code/broken, service: web, port: 80}
   gone: {path: ~/my code/gone, service: web, port: 80}
 `)
-	for _, a := range []string{"same", "moved-port", "renamed", "unpinned", "broken", "new-one", "two-ui", "no-port", "Same", "Proxy"} {
+	for _, a := range []string{"same", "moved-port", "renamed", "unpinned", "broken", "new-one", "two-ui", "no-port", "Same", "Proxy", "cache", "server"} {
 		l.app("my code/" + a)
 	}
 	models := map[string]*compose.Model{
@@ -160,6 +160,8 @@ apps:
 		"new-one":    model(map[string][]int{"app": {5000}}),
 		"two-ui":     model(map[string][]int{"a": {1}, "b": {2}}),
 		"no-port":    model(map[string][]int{"worker": nil}),
+		"cache":      model(map[string][]int{"cache": {6380}}),
+		"server":     model(map[string][]int{"server": {8080}}),
 	}
 	calls := 0
 	fn := func(name string, a *config.App) (*compose.Model, error) {
@@ -189,6 +191,8 @@ apps:
 	}
 	want := []string{
 		"add new-one app:5000",
+		"add server server:8080",
+		"skip cache (not a web app? service cache on port 6380 - add it with hl add",
 		"remove gone",
 		"update moved-port web:3000",
 		"update renamed frontend:8080",

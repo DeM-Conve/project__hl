@@ -164,6 +164,12 @@ var EnvByName = map[string]string{
 	"BACKUP_LOCATION": "${HL_DATA}/backups",
 }
 
+// WebPorts are container ports `hl init` and `hl sync` take as a sign of a web app: a new folder
+// whose service has none of the ExposedServices names and whose port isn't one of these is
+// listed with the `hl add` command to use instead of being added (it may be a database or a
+// cache, which the HTTP proxy can't serve).
+var WebPorts = []int{80, 443, 3000, 3001, 4000, 4200, 5000, 5173, 8000, 8008, 8080, 8081, 8088, 8443, 8888}
+
 // Environment variables.
 const (
 	// HomeEnv is the homelab folder, after --home.

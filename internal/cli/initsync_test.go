@@ -105,6 +105,7 @@ func TestInitNonInteractive(t *testing.T) {
 	fakeApp(t, filepath.Join(code, "blog"), webModel)
 	fakeApp(t, filepath.Join(code, "Wiki"), `{"services":{"app":{"ports":[{"target":3000}]}}}`)
 	fakeApp(t, filepath.Join(code, "two"), `{"services":{"a":{"ports":[{"target":1}]},"b":{"ports":[{"target":2}]}}}`)
+	fakeApp(t, filepath.Join(code, "kv"), `{"services":{"kv":{"ports":[{"target":6380}]}}}`)
 	lab := filepath.Join(home, "homelab")
 
 	out, err := runHL(t, "", "init", lab, "--projects", code, "--routing", "host", "--bind", "0.0.0.0", "--port", "8081")
@@ -127,7 +128,8 @@ func TestInitNonInteractive(t *testing.T) {
 	if a := cfg.Apps["wiki"]; a.Path != "~/my code/Wiki" || a.Service != "app" || a.Port != 3000 {
 		t.Errorf("wiki = %+v", a)
 	}
-	if !strings.Contains(out, "skip two") || !strings.Contains(out, "hl up blog wiki") {
+	if !strings.Contains(out, "skip two") || !strings.Contains(out, "hl up blog wiki") ||
+		!strings.Contains(out, "skip kv") || !strings.Contains(out, "--routing none") || !strings.Contains(out, "hl ignore add kv") {
 		t.Errorf("output:\n%s", out)
 	}
 	if got := strings.TrimSpace(readFile(t, filepath.Join(home, ".config", "hl", "home"))); got != lab {

@@ -2,11 +2,13 @@ package scan
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // Kind is what sync does with one app.
@@ -89,9 +91,15 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Act
 		default:
 			app := &config.App{Path: f.Path}
 			svc, port, err := detect(cfg, f.Name, app, model)
-			if err != nil {
+			switch {
+			case err != nil:
 				act.Kind = Skip
 				act.Reason = fmt.Sprintf("%v; add it with hl add %s", err, quote(f.Dir))
+			case svc != "" && !LooksWeb(svc, port):
+				act.Kind = Skip
+				act.Reason = fmt.Sprintf("not a web app? service %s on port %d - add it with hl add %s --routing none "+
+					"(not behind the proxy) or hl add %[3]s (routed), or skip it for good with hl ignore add %s",
+					svc, port, quote(f.Dir), quote(filepath.Base(f.Dir)))
 			}
 			act.Service, act.Port = svc, port
 			if act.Kind == Add && vars != nil {
@@ -108,6 +116,22 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Act
 		out = append(out, act)
 	}
 	return out
+}
+
+// LooksWeb reports whether a service is likely served over HTTP: it has one of the names hl
+// prefers (defaults.ExposedServices) or a common HTTP port (defaults.WebPorts).
+func LooksWeb(service string, port int) bool {
+	for _, s := range defaults.ExposedServices {
+		if s == service {
+			return true
+		}
+	}
+	for _, p := range defaults.WebPorts {
+		if p == port {
+			return true
+		}
+	}
+	return false
 }
 
 func detect(cfg *config.Config, name string, a *config.App, model ModelFunc) (string, int, error) {
