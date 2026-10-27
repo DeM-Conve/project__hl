@@ -149,8 +149,11 @@ apps:
   unpinned: {path: ~/my code/unpinned}
   broken: {path: ~/my code/broken, service: web, port: 80}
   gone: {path: ~/my code/gone, service: web, port: 80}
+  old-blog: {path: ~/my code/old-blog, service: site, port: 4000, env: {A: b}}
+  twin-a: {path: ~/my code/twin-a, service: web, port: 7000}
+  twin-b: {path: ~/my code/twin-b, service: web, port: 7000}
 `)
-	for _, a := range []string{"same", "moved-port", "renamed", "unpinned", "broken", "new-one", "two-ui", "no-port", "Same", "Proxy", "cache", "server"} {
+	for _, a := range []string{"same", "moved-port", "renamed", "unpinned", "broken", "new-one", "two-ui", "no-port", "Same", "Proxy", "cache", "server", "new-blog", "twin"} {
 		l.app("my code/" + a)
 	}
 	models := map[string]*compose.Model{
@@ -162,6 +165,8 @@ apps:
 		"no-port":    model(map[string][]int{"worker": nil}),
 		"cache":      model(map[string][]int{"cache": {6380}}),
 		"server":     model(map[string][]int{"server": {8080}}),
+		"new-blog":   model(map[string][]int{"site": {4000}}),
+		"twin":       model(map[string][]int{"web": {7000}}),
 	}
 	calls := 0
 	fn := func(name string, a *config.App) (*compose.Model, error) {
@@ -186,6 +191,8 @@ apps:
 			line += " " + a.Service + ":" + strconv.Itoa(a.Port)
 		case Skip:
 			line += " (" + a.Reason + ")"
+		case Move:
+			line += " " + a.Old + " -> " + a.Path
 		}
 		got = append(got, line)
 	}
@@ -193,7 +200,11 @@ apps:
 		"add new-one app:5000",
 		"add server server:8080",
 		"skip cache (not a web app? (service cache, port 6380) - run it without the proxy: hl add ~/'my code/cache' routing=none, or skip it for good: hl set ignore+=cache)",
+		"add twin web:7000", // two apps it could be: not a move
+		"move old-blog ~/my code/old-blog -> ~/my code/new-blog",
 		"remove gone",
+		"remove twin-a",
+		"remove twin-b",
 		"update moved-port web:3000",
 		"update renamed frontend:8080",
 		"skip same (an app named same already exists",

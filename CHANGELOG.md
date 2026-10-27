@@ -15,6 +15,11 @@ release differs from earlier builds of `main`.
 
 ### Added
 
+- `hl sync` follows a moved or renamed app folder: when an app's folder is gone and exactly one
+  new folder routes the same service and port (and has the app's data volumes), the plan says
+  `~ moved <app>: <old> -> <new>` and only the app's `path` changes, so it keeps its name,
+  settings and data instead of being removed and added again.
+
 - `hl set <app> name=<new>` renames an app: its settings (and hl.yml's comments) stay, its
   `data/<app>/` and `.hl/<app>/` move along. Refused while the app has containers (`hl down
   <app>` first), when `data/<new>/` exists, or for a name `hl add` would refuse.

@@ -25,6 +25,9 @@ func syncCmd() *cobra.Command {
 		Short: "Make hl.yml follow your projects folders: add new apps, remove ones whose folder is gone",
 		Long: `Compare the projects folders in hl.yml (projects:) with its apps and show a plan:
   + add     a new subfolder with a compose file (service, port and env detected like hl add)
+  ~ moved   an app whose folder is gone, when exactly one new folder routes the same
+            service and port (and has its data volumes): path changes, the app keeps its
+            name, settings and data
   - remove  an app whose folder is gone; its data in data/<app> stays
   ~ update  an app whose pinned service or port is no longer in its compose file
 Folders matching ignore: in hl.yml, hidden ones, and ones with a ` + defaults.IgnoreFile + ` file are
@@ -132,6 +135,9 @@ func printPlan(out io.Writer, cfg *config.Config, plan []scan.Action) {
 			if a.Note != "" {
 				fmt.Fprintf(w, "\t\t\tnote: %s\n", a.Note)
 			}
+		case scan.Move:
+			fmt.Fprintf(w, "  ~ moved\t%s\t%s -> %s\tsame service and port; keeps its settings and %s\n", a.Name, shortPath(cfg, a.Old), shortPath(cfg, a.Path),
+				relTo(cfg.Dir, cfg.DataDir(a.Name)))
 		case scan.Remove:
 			fmt.Fprintf(w, "  - remove\t%s\t%s\tfolder gone; %s stays\n", a.Name, shortPath(cfg, a.Path), relTo(cfg.Dir, cfg.DataDir(a.Name)))
 		case scan.Update:
@@ -171,9 +177,15 @@ func pinned(service string, port int) string {
 // applyPlan writes the plan into hl.yml. A removed app is stopped first if
 // it still runs; its data folder is never touched.
 func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
-	var added, noBase []string
+	var added, noBase, moved []string
 	for _, a := range plan {
 		switch a.Kind {
+		case scan.Move:
+			if err := config.EditApp(cfg.Dir, a.Name, []config.Change{{Key: "path", Value: a.Path}}); err != nil {
+				return err
+			}
+			moved = append(moved, a.Name)
+			fmt.Fprintf(out, "moved %s to %s\n", a.Name, a.Path)
 		case scan.Add:
 			if err := config.AddApp(cfg.Dir, a.Name, &config.App{Path: a.Path, Service: a.Service, Port: a.Port, Env: a.Env}); err != nil {
 				return err
@@ -210,6 +222,9 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 				yellow, reset, strings.Join(noBase, ", "))
 		}
 		fmt.Fprintf(out, "start them: hl up %s\n", strings.Join(added, " "))
+	}
+	if len(moved) > 0 {
+		fmt.Fprintf(out, "apply it: hl up %s (from the new folder)\n", strings.Join(moved, " "))
 	}
 	return nil
 }

@@ -410,7 +410,13 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   names and its port isn't in `defaults.WebPorts` - which suggests `routing=none` and
   `hl set ignore+=`). A kept app with a pinned `service` is checked against its model: service gone -> detect
   both again; pinned port not among the service's published targets -> pin its first one. Apps
-  with nothing pinned are detected on every run anyway and are left alone.
+  with nothing pinned are detected on every run anyway and are left alone. Before the adds,
+  `planMoves` pairs gone apps with new folders: a gone app with a pinned `service` and `port`
+  (routing not `none`) matches a new folder that has its `compose` files, isn't named like
+  another app, exposes that service on that port, and has a named volume for every folder in
+  `data/<app>/`. A pair unambiguous both ways (one folder for the app, one app for the folder)
+  becomes a `scan.Move`, and both drop out of the adds and removes. The `ModelFunc` is cached per
+  folder and compose list, so a folder's model is read once.
 - **Showing**: `printPlan` lists each change once (an add with its env); a folder under a
   projects folder written as an absolute path shows as `<its name>/<rest>` (`shortPath`), and
   skip reasons name the folder once, as in hl.yml when that starts with `~/` (`scan.shellPath`).
@@ -418,7 +424,8 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
 - **Applying**: adds go through `config.AddApp` with `path` = the projects entry as written joined
   with the subfolder (so `~/code/blog`, not an absolute path); removes stop the app by compose
   project name if it still runs (its files are gone), then `config.RemoveApp` and delete
-  `.hl/<app>/` - `data/<app>/` is never touched; updates use `config.PinApp`. All edits keep
+  `.hl/<app>/` - `data/<app>/` is never touched; updates use `config.PinApp`; a move is
+  `config.EditApp` with the new `path` (name, settings, `data/<app>/` and `.hl/<app>/` stay). All edits keep
   hl.yml's comments.
 - **`hl status`** calls `syncHint`: `scan.Compare`, then, for new folders only, `scan.PlanAdds`
   (one `docker compose config` each, as sync does), and prints one line when sync would add an

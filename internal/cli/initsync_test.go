@@ -394,6 +394,51 @@ func TestSync(t *testing.T) {
 	}
 }
 
+// A renamed app folder is a move: the app keeps its name, settings and data.
+func TestSyncMovedFolder(t *testing.T) {
+	home := initSyncEnv(t)
+	code := filepath.Join(home, "my code")
+	lab := filepath.Join(home, "lab")
+	vols := `{"services":{"web":{"ports":[{"target":80}]}},"volumes":{"db":{}}}`
+	fakeApp(t, filepath.Join(code, "blog"), vols)
+	if out, err := runHL(t, "", "init", lab, "--projects", code, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if out, err := runHL(t, "", "set", "--home", lab, "blog", "env.TZ=UTC"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if err := os.MkdirAll(filepath.Join(lab, "data", "blog", "db"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(code, "blog"), filepath.Join(code, "my-blog")); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runHL(t, "", "sync", "--home", lab, "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	contains(t, "sync", out, "~ moved  blog  ~/my code/blog -> ~/my code/my-blog", "moved blog to ~/my code/my-blog", "apply it: hl up blog")
+	lacks(t, "sync", out, "+ add", "- remove")
+	cfg, err := config.Load(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.Names(), ",") != "blog" || cfg.Apps["blog"].Path != "~/my code/my-blog" || cfg.Apps["blog"].Env["TZ"] != "UTC" {
+		t.Errorf("after the move: %v %+v", cfg.Names(), cfg.Apps["blog"])
+	}
+
+	// Without the app's data volume in the new folder, it is no move: remove and add.
+	if err := os.Rename(filepath.Join(code, "my-blog"), filepath.Join(code, "other")); err != nil {
+		t.Fatal(err)
+	}
+	fakeApp(t, filepath.Join(code, "other"), webModel)
+	if out, err = runHL(t, "", "sync", "--home", lab, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	contains(t, "sync", out, "+ add", "- remove")
+	lacks(t, "sync", out, "~ moved")
+}
+
 func TestStatusOtherHomelabsProxy(t *testing.T) {
 	home := initSyncEnv(t)
 	lab, other := filepath.Join(home, "lab"), filepath.Join(home, "other lab")

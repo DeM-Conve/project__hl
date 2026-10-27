@@ -2,6 +2,7 @@ package scan
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ const (
 	Add    Kind = "add"    // a new folder: add it to hl.yml
 	Remove Kind = "remove" // its folder is gone: remove it from hl.yml (data stays)
 	Update Kind = "update" // its pinned service or port is gone: pin the detected ones
+	Move   Kind = "move"   // its folder moved: point path at the new one (name and data stay)
 	Skip   Kind = "skip"   // something to tell the user, nothing changes
 )
 
@@ -28,7 +30,7 @@ type Action struct {
 	Path    string // the app's folder as in hl.yml
 	Service string // Add/Update: the service and port to pin
 	Port    int
-	Old     string            // Update: what was pinned, for display
+	Old     string            // Update: what was pinned, for display; Move: the old path
 	Reason  string            // Skip: why, and what to do
 	Env     map[string]string // Add: env mapped from the compose file's variables (AutoEnv)
 	Note    string            // Add: something to tell the user, e.g. why env wasn't mapped
@@ -40,9 +42,11 @@ type ModelFunc func(name string, a *config.App) (*compose.Model, error)
 // VarsFunc lists the variables an app's compose files use (`docker compose config --variables`).
 type VarsFunc func(name string, a *config.App) ([]string, error)
 
-// Plan is what sync would change: adds, then removes, then updates, then skips. With vars
+// Plan is what sync would change: adds, then moves, then removes, then updates, then skips. With vars
 // set, each add carries the env AutoEnv maps; nil leaves env alone.
 func Plan(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Action {
+	model = cached(model)
+	moves, d := planMoves(cfg, d, model)
 	adds := PlanAdds(cfg, d, model, vars)
 	var out, skips []Action
 	for _, a := range adds {
@@ -52,6 +56,7 @@ func Plan(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Action 
 			out = append(out, a)
 		}
 	}
+	out = append(out, moves...)
 	for _, n := range d.Gone {
 		out = append(out, Action{Kind: Remove, Name: n, Path: cfg.Apps[n].Path})
 	}
@@ -66,6 +71,108 @@ func Plan(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Action 
 		}
 	}
 	return append(out, skips...)
+}
+
+// cached is model, asked at most once per app folder.
+func cached(model ModelFunc) ModelFunc {
+	type res struct {
+		m   *compose.Model
+		err error
+	}
+	seen := map[string]res{}
+	return func(name string, a *config.App) (*compose.Model, error) {
+		key := a.Path + "\x00" + strings.Join(a.Compose, ",")
+		if r, ok := seen[key]; ok {
+			return r.m, r.err
+		}
+		m, err := model(name, a)
+		seen[key] = res{m, err}
+		return m, err
+	}
+}
+
+// planMoves finds apps whose folder moved: an app whose folder is gone, and a new folder whose
+// compose model exposes the same service on the same port as the app has pinned (and has the
+// app's compose files, if it names any). Only a match that is unambiguous both ways counts: one
+// new folder for the app and one app for the folder. It returns a Move per match and d without
+// those apps and folders.
+func planMoves(cfg *config.Config, d *Diff, model ModelFunc) ([]Action, *Diff) {
+	if len(d.Gone) == 0 || len(d.New) == 0 {
+		return nil, d
+	}
+	matches := map[string][]int{} // gone app -> new folders
+	byFolder := map[int][]string{}
+	for i, f := range d.New {
+		if f.Name == "" {
+			continue
+		}
+		for _, g := range d.Gone {
+			a := cfg.Apps[g]
+			if a.Service == "" || a.Port == 0 || cfg.Routing(a) == config.RoutingNone {
+				continue // nothing pinned to recognise it by
+			}
+			if _, other := cfg.Apps[f.Name]; (other && f.Name != g) || !hasFiles(f.Dir, a.Compose) {
+				continue // named like another app: a copy of that one, not g moved
+			}
+			// model is cached: one compose call per folder and compose list.
+			na := &config.App{Path: f.Path, Compose: a.Compose}
+			svc, port, err := detect(cfg, f.Name, na, model)
+			if err != nil || svc != a.Service || port != a.Port {
+				continue
+			}
+			if m, err := model(f.Name, na); err != nil || !hasVolumes(m, cfg.DataDir(g)) {
+				continue
+			}
+			matches[g] = append(matches[g], i)
+			byFolder[i] = append(byFolder[i], g)
+		}
+	}
+	var moves []Action
+	movedApp, movedFolder := map[string]bool{}, map[int]bool{}
+	for _, g := range d.Gone {
+		if fs := matches[g]; len(fs) == 1 && len(byFolder[fs[0]]) == 1 {
+			f := d.New[fs[0]]
+			moves = append(moves, Action{Kind: Move, Name: g, Path: f.Path, Old: cfg.Apps[g].Path})
+			movedApp[g], movedFolder[fs[0]] = true, true
+		}
+	}
+	if len(moves) == 0 {
+		return nil, d
+	}
+	rest := &Diff{Kept: d.Kept, MissingRoots: d.MissingRoots}
+	for i, f := range d.New {
+		if !movedFolder[i] {
+			rest.New = append(rest.New, f)
+		}
+	}
+	for _, g := range d.Gone {
+		if !movedApp[g] {
+			rest.Gone = append(rest.Gone, g)
+		}
+	}
+	return moves, rest
+}
+
+// hasVolumes reports whether m has a named volume for every folder in the app's data folder
+// (data/<app>/<volume>), so a moved app finds its data again.
+func hasVolumes(m *compose.Model, dataDir string) bool {
+	entries, _ := os.ReadDir(dataDir)
+	for _, e := range entries {
+		if _, ok := m.Volumes[e.Name()]; e.IsDir() && !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// hasFiles reports whether every file in files exists in dir.
+func hasFiles(dir string, files []string) bool {
+	for _, f := range files {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // PlanAdds is the part of the plan for new folders: an Add with the detected
