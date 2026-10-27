@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -109,7 +110,7 @@ func doctor(ctx context.Context) error {
 		}
 		return c.result()
 	}
-	c.ok(fmt.Sprintf("homelab %s (%d apps)", cfg.Dir, len(cfg.Apps)))
+	c.ok(fmt.Sprintf("homelab %s (%s)", cfg.Dir, plural(len(cfg.Apps), "app", "apps")))
 
 	// The proxy.
 	p := cfg.Proxy
@@ -209,10 +210,10 @@ func latestRelease(ctx context.Context) string {
 func (c *checks) result() error {
 	fmt.Fprintln(stdout)
 	if c.bad > 0 {
-		return withHint(fmt.Errorf("%d problem(s) found", c.bad),
+		return withHint(errors.New(plural(c.bad, "problem", "problems")+" found"),
 			"fix them and run `hl doctor` again; for a bug report, paste this output (check it for private paths first)")
 	}
-	say("all good%s", map[bool]string{true: fmt.Sprintf(" (%d warning(s))", c.warned), false: ""}[c.warned > 0])
+	say("all good%s", map[bool]string{true: " (" + plural(c.warned, "warning", "warnings") + ")", false: ""}[c.warned > 0])
 	return nil
 }
 

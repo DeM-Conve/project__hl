@@ -15,6 +15,10 @@ release differs from earlier builds of `main`.
 
 ### Added
 
+- `hl set <app> name=<new>` renames an app: its settings (and hl.yml's comments) stay, its
+  `data/<app>/` and `.hl/<app>/` move along. Refused while the app has containers (`hl down
+  <app>` first), when `data/<new>/` exists, or for a name `hl add` would refuse.
+
 - `hl logs <app>` (or `hl logs proxy`) on something that isn't running says so, instead of
   printing nothing.
 
@@ -62,8 +66,8 @@ release differs from earlier builds of `main`.
   and where it came from. When the zone can't be told, no `TZ` is set.
 - `hl logs` with no app shows every app's logs at once, each line prefixed by its app; `-n`/`--tail`
   sets how many lines (default 200).
-- `hl rebuild --pull` runs `git pull --ff-only` in each app's folder before rebuilding it, skips
-  folders that aren't git repos or have uncommitted changes, and says which it skipped and why;
+- `hl rebuild --pull` runs `git pull --ff-only` in each app's folder before rebuilding it; a folder
+  that isn't a git repo or has uncommitted changes is rebuilt from its own code without a pull, and the summary says which and why;
   `hl rebuild proxy --pull` pulls the proxy's image.
 - `hl shell` opens the service behind the proxy by default, also when hl detected it rather than
   `hl.yml` pinning it, and exits with the shell's own status.
@@ -172,8 +176,8 @@ release differs from earlier builds of `main`.
 - **Breaking:** `hl projects`, `hl ignore` and `hl strip-prefix` are gone: `hl set projects+=<folder>`,
   `hl set ignore-=<pattern>`, `hl set strip_prefix=<prefix>` and `hl unset <key>` do what their
   `add`/`remove` did, and `hl show` lists them.
-- **Breaking:** `hl update` is `hl rebuild --pull` (same skips: folders that aren't git repos or
-  have uncommitted changes are neither pulled nor rebuilt).
+- **Breaking:** `hl update` is `hl rebuild --pull`; a folder that isn't a git repo or has
+  uncommitted changes is no longer skipped altogether but rebuilt without a pull.
 - **Breaking:** `hl config`, `hl ps`, `hl path` and `--wait-all` are gone. `hl config <app>` is
   `hl show <app> --compose`; `hl config check` is what every command (and `hl doctor`) does
   already; what `hl config defaults` showed that matters is in `hl show` (the `TZ` apps get, the
@@ -200,8 +204,42 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
+  into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
+  path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl
+  said `hl up` applies it. hl now records each service's build settings after `hl up`
+  (`.hl/<app>/builds.json`) and rebuilds the services whose settings changed since.
+- `hl up proxy` after `hl set proxy port=` (or `bind=`) to an address something else uses took
+  the proxy down: compose removed the running one and the new one couldn't bind. hl now checks
+  the new address first and refuses, leaving the running proxy as it is, with a free port in the
+  hint. `hl up` and `hl rebuild` print an error before the status table, not after it.
+- `hl set <app> compose+=<file>` (and `hl add <folder> compose+=<file>`) on an app that names no
+  compose file replaced the file compose picks with the new one; the list now starts from it.
+- `hl set` and `hl unset` mistakes: an unknown key or app, or a malformed `key=value`, exits 2
+  (usage) instead of 1; a key given without an app that belongs to the proxy or an app names that
+  command (`hl set routing=host` -> `hl set proxy routing=host`), and `hl unset nosuchkey` says
+  there is no app or homelab setting by that name. `hl set <app> path=` to a folder without the
+  compose files, `compose=` to a missing file, and `service=` to a service the compose files
+  don't have (when they can be read) are refused, listing the services. Unsetting the last proxy
+  setting leaves no empty `proxy: {}` behind.
+- `hl status` and `hl show` print folders inside your home folder as `~/...`, and `hl show` no
+  longer pads every row to its longest value (a long path pushed every source far right).
+- `hl init` making a second homelab the default said so only after writing; the plan says it
+  first, naming the homelab that was the default.
+- `hl logs proxy` printing nothing (Traefik logs only errors by default) now says how to see more:
+  `hl set proxy debug=true`. `hl logs <app> <service>` with a service the app doesn't have lists
+  its services instead of compose's error.
+- `hl edit` without a terminal (a script, a pipe) launched `vi` anyway; it now refuses, like
+  `hl init` and `hl sync`, and points to `hl set`/`hl unset`.
+- `hl set proxy port=...` said to apply it with `hl up proxy` only, but the port is in every
+  app's `HL_URL`; it now says `hl up proxy, then hl up`, like `domain` and `routing`.
+
 - `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
-  line, shown only with path routing when no base-path variable was mapped.
+  line, shown only with path routing when no base-path variable was mapped. `hl init` and
+  `hl sync` print the same one line instead of their three-line note.
+- `hl add` of a service that doesn't look like a web app (none of the usual names, not a common
+  HTTP port - what makes `hl init` and `hl sync` skip a folder) routed it without a word; it now
+  warns and names `hl set <app> routing=none`.
 
 - `hl init` strips a folder-name prefix the projects folders share (`project__blog`,
   `project__wiki` -> apps `blog`, `wiki`): a prefix ending in `-`, `_` or `__` that at least two,

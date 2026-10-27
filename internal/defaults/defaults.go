@@ -117,6 +117,10 @@ const (
 	StateDir = ".hl"
 	// OverrideFile is the generated override in <homelab>/.hl/<app>/.
 	OverrideFile = "override.yml"
+	// BuildStateFile in <homelab>/.hl/<app>/ records, per service, a hash of the build
+	// settings its image was last built with (compose's resolved build: context, dockerfile,
+	// args, ...), so `hl up` rebuilds an image whose build args changed.
+	BuildStateFile = "builds.json"
 	// UserConfigDir is hl's folder in the OS user config dir; HomeFile there
 	// records the default homelab (`hl init`).
 	UserConfigDir = "hl"

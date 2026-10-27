@@ -16,7 +16,7 @@ import (
 )
 
 // project is the app's own compose project, before hl's override: its
-// files, its .env, then the homelab's env files and settings.
+// files, its .env, then the homelab's settings.
 func project(cfg *config.Config, name string, a *config.App) (*compose.Project, error) {
 	dir := cfg.AppDir(a)
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {

@@ -92,6 +92,13 @@ func HasApp(dir, name string) bool {
 	return found
 }
 
+// UnknownError is a setting or app `hl set`/`hl unset` doesn't know: a usage mistake.
+type UnknownError struct{ msg string }
+
+func (e *UnknownError) Error() string { return e.msg }
+
+func unknown(format string, a ...any) error { return &UnknownError{msg: fmt.Sprintf(format, a...)} }
+
 // Edit applies changes to scope in <dir>/hl.yml - HomelabScope (top-level settings), ProxyScope
 // (proxy:) or an app's name - keeping the file's comments and order. The result is checked
 // first: if it has any problem, hl.yml is left as it was and the error lists them.
@@ -131,9 +138,9 @@ func EditApp(dir, name string, changes []Change) error {
 		}
 		if app == nil {
 			if s := suggest(name, names); s != "" {
-				return nil, fmt.Errorf("no app %q in %s - did you mean %q?", name, FileName, s)
+				return nil, unknown("no app %q in %s - did you mean %q?", name, FileName, s)
 			}
-			return nil, fmt.Errorf("no app %q in %s (apps: %s)", name, FileName, strings.Join(names, ", "))
+			return nil, unknown("no app %q in %s (apps: %s)", name, FileName, strings.Join(names, ", "))
 		}
 		return app, nil
 	})
@@ -192,6 +199,9 @@ func editScope(dir string, changes []Change, fields map[string]reflect.Type, fin
 				return err
 			}
 		}
+		if len(target.Content) == 0 && target == lookup(root, "proxy") {
+			remove(root, "proxy") // the last proxy setting is gone: no `proxy: {}` left behind
+		}
 		return nil
 	})
 	if err != nil {
@@ -214,9 +224,9 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 		sort.Strings(names)
 		msg := fmt.Sprintf("unknown setting %q", c.Key)
 		if s := suggest(field, names); s != "" {
-			return fmt.Errorf("%s - did you mean %q?", msg, s)
+			return unknown("%s - did you mean %q?", msg, s)
 		}
-		return fmt.Errorf("%s - use one of: %s", msg, strings.Join(keysOf(fields), ", "))
+		return unknown("%s - use one of: %s", msg, strings.Join(keysOf(fields), ", "))
 	}
 	isMap := t.Kind() == reflect.Map
 	if c.Op != "" && t.Kind() != reflect.Slice {

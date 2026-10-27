@@ -103,6 +103,16 @@ this file". `hl init` writes a `.gitignore` with `data/` and `.hl/`.
   `driver` and no `driver_opts` becomes a local bind volume with `device: <homelab>/data/<app>/<volume>`.
   hl creates those folders (mode 0755) before compose runs; containers may later chown them.
 
+**`.hl/<app>/builds.json`** (`cli.recordBuilds`, `internal/cli/build.go`): not a compose file
+but state - for each service with a `build:` section, a hash of that section as compose resolved
+it (`compose.Model.BuildHashes`: context, dockerfile, args with every variable filled in, keys
+sorted). `runApp` writes it after every successful `up` (with or without `--build`) and, on an
+`up` without `--build`, first runs `docker compose build <services>` for the services whose hash
+differs from the recorded one (`staleBuilds`), because compose's `up` reuses an existing image
+whatever its build args. No file (the first `up`, or an app added before this existed) means
+nothing is rebuilt: compose builds the missing images, as before. A new service with a build
+section is not stale either.
+
 **`.hl/proxy/traefik.yml`** (`gen.Traefik`): Traefik's static config, readable and commented, with
 no inline literals (every name, path and value is a constant in `internal/defaults` or an `hl.yml`
 setting): entrypoint `web` on `:80` (every app router uses it), entrypoint `traefik`
@@ -145,7 +155,10 @@ without a terminal (`stdinTerminal`, `golang.org/x/term`) it takes `Exposed`'s p
 `service=` only when no service has a preferred name (or `port=` when the service publishes several). Settings given to
 `hl add` skip the question. `hl add <folder> key=value...` takes `hl set <app>`'s keys (applied to the new
 `config.App` by `config.ApplyApp`, the same parsing as `hl set`) plus `name`; `env.NAME=` with no value is
-left out of the mapped env.
+left out of the mapped env. A routed service that fails `scan.LooksWeb` (what init/sync skip a
+folder for) gets a warning naming `routing=none` instead of the base-path hint, which (one line,
+the same in `applyPlan` for init and sync) is shown only with path routing when no value maps
+`${HL_PREFIX}`.
 `hl add` writes the picked `service` and `port` into `hl.yml` so later changes to the app's compose
 file don't silently move the route; `prepared` only detects them when `hl.yml` leaves them empty.
 Routing `none` needs neither.
@@ -191,7 +204,12 @@ warns. Kept apps are never re-mapped.
 - **The proxy as a pseudo-app**: `proxy` is the reserved app name, so `up`, `down`, `restart`,
   `rebuild`, `logs` and `show` take it among their arguments (`splitProxy`); the proxy runs first,
   then any apps named with it. `up proxy` (`upProxy`) starts it, or runs `up --detach` on a running
-  one so compose recreates it only when its files changed; `rebuild proxy` adds
+  one so compose recreates it only when its files changed. Before that, `moved` reads the
+  running container's published address (`docker ps --format {{.Ports}}`); when the port
+  differs from `proxy.port` (or the bind does and neither is a wildcard address), `checkPort`
+  runs first and a busy address is refused with the running proxy left alone - compose would
+  remove it and then fail to bind the new one. `statusAfter` prints a command's error before
+  the status table and exits 1. `rebuild proxy` adds
   `--force-recreate`; `restart proxy` restarts its container (starting it when it isn't running);
   `down proxy` is `downProxy`; `logs proxy` runs `docker compose logs` on it. Other commands that
   take an app refuse it with a hint (`targets`). Completion offers `proxy` where it is accepted.
@@ -227,16 +245,18 @@ warns. Kept apps are never re-mapped.
   characters escaped, to `ignore`; `hl add` removes an `ignore` entry that is exactly the
   folder's name),
   deletes it from `hl.yml` and `.hl/<app>/`, and keeps `data/<app>/`.
-- `rebuild --pull` per app (`pullAndRebuild`): skip if `git status --porcelain` fails (not a repo) or shows changes; otherwise
+- `rebuild --pull` per app (`pullAndRebuild`): no pull if `git status --porcelain` fails (not a repo) or shows changes; otherwise
   `git pull --ff-only` (a failed pull is a failure for that app; the folder is left as it was),
-  then `up --detach --build`. It ends with the updated and the skipped apps and why.
+  then `up --detach --build` either way. It ends with the pulled apps and the ones rebuilt without a pull, and why.
 - `status`: STATE `down`, `up n/m` or `partial n/m`; HEALTH from the containers' status:
   `healthy` (every healthcheck passes), `starting: <services>`, `unhealthy: <services>` (also
   restarting or exited ones), `-` without healthchecks. Without Docker it still prints hl.yml's
   apps, states `?`, and a warning with the hint.
 - `logs <app>` (and `logs proxy`) first checks the inventory: a project with no containers at
   all gets "isn't running" and exit 0 instead of compose's empty output (`notRunning`; without
-  Docker compose runs and says what is wrong).
+  Docker compose runs and says what is wrong). Services named after the app must be in its model
+  (else a usage error listing them). `logs proxy` counts what compose printed (`countWriter`):
+  nothing, without `-f` and `proxy.debug`, gets a note naming `hl set proxy debug=true`.
 - `logs` with no app runs `docker compose logs` for every app at once, each line prefixed by its
   app; `--tail` (default `defaults.LogTail`) and `-f` apply to all.
 - `show` (`internal/cli/show.go`) reads `hl.yml` and, only for an app whose `service` or `port`
@@ -248,7 +268,9 @@ warns. Kept apps are never re-mapped.
   apps get (`config.HostTimeZone` when the shared env has none), the projects folders (and which
   are missing), `ignore` with the built-in patterns, `scan_depth`, `strip_prefix`, and the apps.
   `--compose` runs `docker compose config` on the prepared app (or the proxy's project) instead:
-  the whole config as hl runs it.
+  the whole config as hl runs it. Only the key column is aligned (the source follows the value
+  after two spaces, so one long path doesn't push every row), and paths inside the user's home
+  folder print as `~/...` (`tilde`, also in `hl status` and `hl show proxy`).
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.
 - `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the
@@ -262,7 +284,7 @@ warns. Kept apps are never re-mapped.
   version), the daemon (`docker info`: version, OS, architecture), compose >= 2.24, that `hl.yml`
   loads (every problem with its line), the proxy (config, ownership, image), a non-loopback bind
   (a warning), the port and subnet when the proxy isn't running, projects owned
-  by another homelab, and that every app prepares. It ends "all good" or "n problem(s) found"
+  by another homelab, and that every app prepares. It ends "all good" or "n problems found"
   (exit 1) with a note to paste it into bug reports.
 - Completion: commands taking one app complete only the first argument; multi-app commands leave
   out apps already typed; `logs` and `shell` complete the app's services after the app name.
@@ -300,18 +322,33 @@ normalises indentation to two spaces).
   before `apps:`. Before editing, the CLI (`homelabChanges`) writes `projects` folders like
   `hl init` does (`storedPath`; each must exist; `-=` matches the written entry or the resolved
   path) and refuses `name` while any of this homelab's projects has containers (`nothingRuns`),
-  since it renames every project and network. A missing `proxy:` or
-  shared `env:` is added above `apps:`. A replaced value keeps the old one's comments. The new
-  content is run through `config.Check` and written only if it has no problems. The CLI tells
+  since it renames every project and network. For an app with no `compose` list, `compose+=`/
+  `compose-=` (in `hl set` and `hl add`) get a replace with the file `compose.FindFile` picks put
+  in front (`seedCompose`, not printed as a change), so the list starts from it. `hl set <app>
+  name=<new>` (alone) is a rename (`renameApp`): `ValidName`, no such app, no containers of the
+  old or new Docker project in the inventory, no `data/<new>`; then `config.RenameApp` changes
+  the key in the node tree (checked like any edit, so a clash of prefix, host or project is
+  refused), and `data/<old>` and `.hl/<old>` are renamed (a failed data move puts hl.yml
+  back). `ignore` holds folder names, which a rename doesn't change. A missing `proxy:` or
+  shared `env:` is added above `apps:`, and a `proxy:` left empty by an unset is removed. A
+  replaced value keeps the old one's comments. The new
+  content is run through `config.Check` and written only if it has no problems. An unknown key
+  or app is a `config.UnknownError`, which the CLI turns into a usage error (exit 2); so is a key
+  given without an app that isn't a homelab one (`notHomelabKey` names the scope that has it).
+  A change of an app's `path`, `compose` or `service` is tried first (`checkAppChanges`: the
+  `project` of the changed app must resolve, and the service be in its model when that can be
+  read). The CLI tells
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,
   so it is the shared scope; for `unset`, `env`/`env.NAME` is the shared scope unless an app has
   that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
-  `hl up <app>`, `hl up`, `hl up proxy`, `hl sync` for the projects settings, or `hl down` then
-  `hl up` when the proxy's network, subnet or project changed).
+  `hl up <app>`, `hl up`, `hl up proxy`, `hl up proxy` then `hl up` when the proxy's `domain`,
+  `routing` or `port` changed (they are in the apps' routes or `HL_URL`; `bind` is not), `hl sync`
+  for the projects settings, or `hl down` then `hl up` when the proxy's network, subnet or
+  project changed).
 - `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
   `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
   checks out. It finds the homelab with `config.Home`, not `Load`, so it works on a file that
-  doesn't load.
+  doesn't load. Without a terminal (`stdinTerminal`) it refuses before starting an editor.
 
 **Checking** (`config.Check`, `internal/config/validate.go`): walks the node tree against the
 `Config` type by reflection (yaml tags give the known keys, so a new field needs no checker
@@ -386,7 +423,8 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
 - **`hl init`** sets up the folder given, else the one `config.Home` finds (so a second run adds
   new apps to it), else `~/homelab` (`defaults.HomelabDir`) - never the current folder by itself
   (`initDir`). After recording the default it runs `config.Home` again and warns (`otherHome`)
-  when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win. It plans first and writes nothing until it is confirmed: the settings come from `--projects`,
+  when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win; the plan has a
+  `default` line when another homelab was the default (`config.DefaultHome`). It plans first and writes nothing until it is confirmed: the settings come from `--projects`,
   `--strip-prefix` and defaults only (the proxy has no flags: path routing on `127.0.0.1`;
   `--projects`, else `defaults.CandidateProjects` that exist in the home folder;
   the default port, or the first free of `defaults.AltPorts` (`freePort`) when that is busy, shown

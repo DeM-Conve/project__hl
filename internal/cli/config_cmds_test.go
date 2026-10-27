@@ -198,7 +198,11 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 		}
 	}
 
-	if out, err := run(t, "", "unset", "proxy", "port"); err != nil || !strings.Contains(out, "unset proxy.port") || !strings.Contains(out, "apply it: hl up proxy\n") {
+	// The port is in every app's HL_URL: the apps need hl up too; the bind isn't.
+	if out, err := run(t, "", "unset", "proxy", "port"); err != nil || !strings.Contains(out, "unset proxy.port") || !strings.Contains(out, "apply it: hl up proxy, then hl up (") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if out, err := run(t, "", "set", "proxy", "bind=0.0.0.0"); err != nil || !strings.Contains(out, "apply it: hl up proxy\n") {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if out, err := run(t, "", "unset", "env.TZ"); err != nil || !strings.Contains(out, "unset env.TZ") {
@@ -253,6 +257,48 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 	}
 }
 
+// compose+= on an app that names no compose file keeps the one compose picks.
+func TestSetComposeAddKeepsTheDetectedFile(t *testing.T) {
+	home, appDir := homelab(t, "version: 1\napps:\n  my-app:\n    path: ~/code/my-app\n")
+	if err := os.WriteFile(filepath.Join(appDir, "compose.dev.yml"), []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run(t, "", "set", "my-app", "compose+=compose.dev.yml")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "compose: [compose.yml, compose.dev.yml]") {
+		t.Errorf("want the detected file first:\n%s", got)
+	}
+	if strings.Contains(out, "compose = compose.yml") {
+		t.Errorf("the seeded file is not a change of the user's:\n%s", out)
+	}
+	if out, err := run(t, "", "set", "my-app", "compose-=compose.dev.yml"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "compose: [compose.yml]") {
+		t.Errorf("after -=:\n%s", got)
+	}
+
+	// hl add does the same.
+	fakeDocker(t, oneService)
+	other := filepath.Join(filepath.Dir(appDir), "other")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"docker-compose.yml", "compose.dev.yml"} {
+		if err := os.WriteFile(filepath.Join(other, f), []byte("services: {}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := run(t, "", "add", other, "compose+=compose.dev.yml"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "- docker-compose.yml\n      - compose.dev.yml") {
+		t.Errorf("hl add compose+=:\n%s", got)
+	}
+}
+
 func TestUnsetAppNamedLikeASharedKey(t *testing.T) {
 	home, _ := homelab(t, "version: 1\nenv:\n  TZ: UTC\napps:\n  env.tz:\n    path: ~/code/my-app\n    prefix: /x\n")
 	if out, err := run(t, "", "unset", "env.tz", "prefix"); err != nil || !strings.Contains(out, "unset apps.env.tz.prefix") {
@@ -295,8 +341,21 @@ func editorRuns(t *testing.T, runs string) string {
 const good = "version: 1\n# kept\napps:\n  my-app: {path: ~/code/my-app}  # mine\n"
 const bad = "version: 1\napps:\n  my-app: {path: ~/code/my-app, prot: 80}\n"
 
+func TestEditNeedsATerminal(t *testing.T) {
+	home, _ := homelab(t, good)
+	runs := fakeEditor(t, bad)
+	out, err := run(t, "", "edit")
+	if err == nil || !strings.Contains(err.Error(), "needs a terminal") || hintFor(err) == "" {
+		t.Fatalf("err = %v\n%s", err, out)
+	}
+	if editorRuns(t, runs) != "" || hlYML(t, home) != good {
+		t.Error("the editor ran without a terminal")
+	}
+}
+
 func TestEditNoChanges(t *testing.T) {
 	home, _ := homelab(t, good)
+	onTerminal(t)
 	fakeEditor(t)
 	if out, err := run(t, "", "edit"); err != nil || !strings.Contains(out, "no changes") {
 		t.Fatalf("%v\n%s", err, out)
@@ -308,6 +367,7 @@ func TestEditNoChanges(t *testing.T) {
 
 func TestEditSavesValidFile(t *testing.T) {
 	home, _ := homelab(t, "apps: {}\n")
+	onTerminal(t)
 	fakeEditor(t, good)
 	if out, err := run(t, "", "edit"); err != nil || !strings.Contains(out, "saved") {
 		t.Fatalf("%v\n%s", err, out)
@@ -336,13 +396,10 @@ func TestEditReopensOnError(t *testing.T) {
 func TestEditGivesUpWithoutBreakingHlYml(t *testing.T) {
 	for _, tc := range []struct {
 		name, answer string
-		terminal     bool
-	}{{"no terminal", "", false}, {"answered no", "n\n", true}} {
+	}{{"answered no", "n\n"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			home, _ := homelab(t, good)
-			if tc.terminal {
-				onTerminal(t)
-			}
+			onTerminal(t)
 			runs := fakeEditor(t, bad)
 			out, err := run(t, tc.answer, "edit")
 			if err == nil || !strings.Contains(err.Error(), "hl.yml not changed") {
@@ -360,6 +417,7 @@ func TestEditGivesUpWithoutBreakingHlYml(t *testing.T) {
 
 func TestEditWorksOnBrokenFile(t *testing.T) {
 	home, _ := homelab(t, "apps: [\n")
+	onTerminal(t)
 	fakeEditor(t, good)
 	if out, err := run(t, "", "edit"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
@@ -445,7 +503,7 @@ func TestShowHomelabSettings(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
-		home, "env ($HL_HOME)", "port", "8080", "http://127.0.0.1:8080",
+		"folder  ~/homelab  env ($HL_HOME)", "port", "8080", "http://127.0.0.1:8080",
 		"~/nowhere", "not found", "ignore", "old", "always: .*", "scan_depth", strconv.Itoa(defaults.ScanDepth), "default",
 	} {
 		if !strings.Contains(out, want) {

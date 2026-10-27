@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -237,6 +238,20 @@ func TestAddMapsEnv(t *testing.T) {
 	contains(t, "old compose", r.errOut, "env not mapped")
 }
 
+// hl add warns about a service that doesn't look like a web app, as init and sync skip one.
+func TestAddWarnsAboutNonWebApps(t *testing.T) {
+	f := newFake(t)
+	db := f.app("db", `{"services":{"postgres":{"ports":[{"target":5432,"published":"5432"}]}}}`)
+	f.lab("lab", "apps: {}\n")
+	r := f.must("add", db)
+	contains(t, "add db", r.errOut, "warning: not a web app? (service postgres, port 5432) - run it without the proxy: hl set db routing=none")
+	lacks(t, "add db", r.out, "if its links break")
+	r = f.must("add", f.app("web", apiModel))
+	lacks(t, "add web", r.errOut, "not a web app")
+	r = f.must("add", f.app("db2", `{"services":{"postgres":{"ports":[{"target":5432}]}}}`), "routing=none")
+	lacks(t, "add db routing=none", r.errOut, "not a web app")
+}
+
 func TestRemove(t *testing.T) {
 	f := newFake(t)
 	blog := f.app("blog", webModel2)
@@ -345,6 +360,56 @@ func TestUpRestartRebuild(t *testing.T) {
 	f.must("up", "b")
 }
 
+// An image keeps the build args it was built with: up rebuilds the services whose resolved
+// build section changed since the app last came up (say a base path from ${HL_PREFIX}).
+func TestUpRebuildsChangedBuildArgs(t *testing.T) {
+	f := newFake(t)
+	model := func(base string) string {
+		return `{"services":{"web":{"ports":[{"target":80}],"build":{"context":"/src","args":{"BASE_PATH":"` + base + `"}}},` +
+			`"worker":{"build":{"context":"/src/worker"}},"db":{}}}`
+	}
+	a := f.app("a", model("/a"))
+	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n")
+	state := filepath.Join(lab, ".hl", "a", "builds.json")
+
+	// The first up builds what is missing, as compose does, and records the build settings.
+	f.must("up", "a")
+	if len(f.find("compose", " build")) != 0 {
+		t.Errorf("first up: no separate build: %v", f.calls())
+	}
+	contains(t, "builds.json", f.read(state), `"web"`, `"worker"`)
+	lacks(t, "builds.json", f.read(state), `"db"`)
+
+	// Nothing changed: nothing is rebuilt.
+	f.reset()
+	f.must("up", "a")
+	if b := f.find("compose", " build"); len(b) != 0 {
+		t.Errorf("unchanged: %v", b)
+	}
+
+	// The prefix changed: only web is rebuilt, before up.
+	if err := os.WriteFile(filepath.Join(a, "model.json"), []byte(model("/g")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.reset()
+	r := f.must("up", "a")
+	contains(t, "up", r.out, "build settings changed - rebuilding web")
+	var order []string
+	for _, c := range f.find("--project-name hl-a") {
+		if s := c.String(); strings.HasSuffix(s, " build web") || strings.HasSuffix(s, "up --detach") || strings.Contains(s, " build ") {
+			order = append(order, s[strings.LastIndex(s, ".yml ")+5:])
+		}
+	}
+	if !slices.Equal(order, []string{"build web", "up --detach"}) {
+		t.Errorf("want web rebuilt (not worker), then up: %q", order)
+	}
+	f.reset()
+	f.must("up", "a")
+	if b := f.find("compose", " build"); len(b) != 0 {
+		t.Errorf("rebuilt again: %v", b)
+	}
+}
+
 func TestUpWait(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
@@ -438,12 +503,12 @@ func TestShow(t *testing.T) {
 		"  b: {path: '"+b+"', routing: host, service: api, port: 3000}\n")
 
 	r := f.must("show")
-	contains(t, "show", r.out, "homelab", lab, "env ($HL_HOME)", "port", "8082", "hl.yml", "listen", "http://127.0.0.1:8082", "hl show proxy",
+	contains(t, "show", r.out, "homelab", "folder  ~/lab  env ($HL_HOME)", "port", "8082", "hl.yml", "listen", "http://127.0.0.1:8082", "hl show proxy",
 		"TZ=UTC", "LANG=C", "http://localhost:8082/a/", "http://b.localhost:8082/")
 	lacks(t, "show", r.out, "bind", "dashboard_public") // settings left at their default are in hl show proxy
 
 	r = f.must("show", "a")
-	contains(t, "show a", r.out, "folder", a, "project", "hl-a", "compose.yml", "found in the folder",
+	contains(t, "show a", r.out, "folder   ~/my code/a  hl.yml\n", "project", "hl-a", "compose.yml", "found in the folder",
 		"service", "web", "detected", "port", "80", "routing", "default (proxy.routing)", "http://localhost:8082/a/",
 		"prefix", "/a", filepath.Join(lab, "data", "a"),
 		"HL_URL=http://localhost:8082/a", "A_BASE=/a", "apps.a.env: ${HL_PREFIX}",
@@ -543,11 +608,20 @@ func TestRebuildPull(t *testing.T) {
 	if r.code != 1 {
 		t.Fatalf("a failed pull fails the command: %s", r)
 	}
-	contains(t, "rebuild --pull", r.out, "skipped: uncommitted changes in 2 file(s)", "skipped: not a git repository",
-		"pulled and rebuilt: clean", "skipped: dirty (uncommitted changes in 2 file(s) - commit or stash them first); plain (not a git repository)")
+	// A folder hl may not pull is rebuilt from its own code; the reason is said once.
+	contains(t, "rebuild --pull", r.out, "pulled and rebuilt: clean",
+		"pull skipped, rebuilt from the code in the folder: dirty (uncommitted changes in 2 files); plain (not a git repository)")
+	if n := strings.Count(r.out, "not a git repository"); n != 1 {
+		t.Errorf("the reason is said %d times:\n%s", n, r.out)
+	}
 	contains(t, "rebuild --pull", r.errOut, "diverged: git pull --ff-only failed", "hl rebuild diverged --pull", "1 of 4 apps failed: diverged")
 	if p := f.find("-C "+dirty, "pull"); len(p) != 0 {
 		t.Errorf("pulled over uncommitted work: %v", p)
+	}
+	for _, n := range []string{"dirty", "plain"} {
+		if u := f.find("--project-name hl-"+n, "up --detach --build"); len(u) != 1 {
+			t.Errorf("%s not rebuilt: %v", n, u)
+		}
 	}
 	if p := f.find("-C "+clean, "pull --ff-only"); len(p) != 1 {
 		t.Errorf("clean app not pulled: %v", f.calls())
@@ -614,6 +688,20 @@ func TestLogs(t *testing.T) {
 	if r.code != 1 || !strings.Contains(r.errOut, `no app "nope"`) {
 		t.Errorf("unknown app: %s", r)
 	}
+	// A service the app doesn't have: its services are listed.
+	r = f.hl("logs", "a", "wbe")
+	if r.code != 2 || !strings.Contains(r.errOut, `a has no service "wbe"`) || !strings.Contains(r.errOut, "hint: its services: db, web") {
+		t.Errorf("unknown service: %s", r)
+	}
+
+	// The proxy logs nothing until debug is on: hl says how to see more.
+	f.rules = nil
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	r = f.must("logs", "proxy")
+	contains(t, "empty proxy logs", r.out, "hl set proxy debug=true")
+	f.on(rule{Match: []string{"--project-name hl-proxy", "logs"}, Stdout: "traefik-1  | an error\n"})
+	r = f.must("logs", "proxy")
+	lacks(t, "proxy logs", r.out, "debug=true")
 }
 
 func TestShellOpenCompose(t *testing.T) {
@@ -733,6 +821,33 @@ func TestProxyIsAPseudoApp(t *testing.T) {
 		}
 	}
 
+	// Moving the running proxy to a busy port is refused before compose replaces it.
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Ports}}"}, Stdout: "127.0.0.1:8080->80/tcp\n"})
+	f.lab("lab", "proxy: {port: 8000}\napps: {}\n")
+	portInUse = func(bind string, port int) bool { return port == 8000 }
+	f.reset()
+	r = f.hl("up", "proxy")
+	if r.code != 1 || len(f.find("compose", "up")) != 0 {
+		t.Fatalf("a busy new port: want a refusal and no compose up: %s\n%v", r, f.calls())
+	}
+	contains(t, "busy new port", r.errOut, "port 8000 on 127.0.0.1 is already in use", "the running proxy is left as it is", "hint: stop it, or move the proxy")
+	// The same port on another address the old one doesn't cover: checked too; on a wildcard: not.
+	f.lab("lab", "proxy: {port: 8080, bind: 10.0.0.5}\napps: {}\n")
+	portInUse = func(bind string, port int) bool { return bind == "10.0.0.5" }
+	if r = f.hl("up", "proxy"); r.code != 1 {
+		t.Fatalf("a busy new address: %s", r)
+	}
+	f.lab("lab", "proxy: {port: 8080, bind: 0.0.0.0}\napps: {}\n")
+	portInUse = func(string, int) bool { return true }
+	f.reset()
+	f.must("up", "proxy")
+	if len(f.find("--project-name hl-proxy", "up --detach")) != 1 {
+		t.Errorf("same port, wildcard bind: compose up expected: %v", f.calls())
+	}
+	portInUse = func(string, int) bool { return false }
+	f.lab("lab", "proxy: {port: 8080}\napps: {}\n")
+
 	r = f.must("show", "proxy")
 	contains(t, "show proxy", r.out, "listen", "http://127.0.0.1:8080", "port", "8080", "hl.yml", "image", "default", "traefik config")
 	for _, args := range [][]string{{"proxy"}, {"proxy", "up"}, {"shell", "proxy"}, {"open", "proxy"}} {
@@ -759,7 +874,7 @@ func TestDoctor(t *testing.T) {
 	}
 	contains(t, "doctor", r.out, "hl ", "go1.", "docker 27.3.1", "docker daemon 27.3.1 on Fake Linux", "docker compose 2.29.1",
 		"homelab ", "(2 apps)", "reachable from your network", "✓ app a", "✗ app b", "proxy port 0.0.0.0:80 is free")
-	contains(t, "doctor", r.errOut, "1 problem(s) found", "bug report")
+	contains(t, "doctor", r.errOut, "1 problem found", "bug report")
 
 	f.lab("lab2", "apps: {}\n")
 	r = f.must("doctor")
@@ -796,7 +911,7 @@ func TestDoctorChecksTheLatestRelease(t *testing.T) {
 
 	version.Version = "v0.1.0"
 	r := f.must("doctor")
-	contains(t, "out of date", r.out, "! hl v0.1.0 is out of date: v0.2.0 is the latest release", "update: curl -fsSL", "/releases", "all good (1 warning(s))")
+	contains(t, "out of date", r.out, "! hl v0.1.0 is out of date: v0.2.0 is the latest release", "update: curl -fsSL", "/releases", "all good (1 warning)")
 
 	latest.Store(`{"tag_name": "v0.1.0"}`)
 	r = f.must("doctor")

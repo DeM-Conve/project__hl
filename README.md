@@ -103,10 +103,10 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | --- | --- |
 | `hl init [folder]` | Set up a homelab folder (default `~/homelab`), find your apps, make it the default. Shows a plan and asks once; `--yes` doesn't ask. Flags: `--projects`, `--strip-prefix`; it picks the proxy itself (a free port), change it later with `hl set proxy`. |
 | `hl add <folder> [key=value...]` | Add an app: any folder with a compose file. Takes the [settings](#changing-settings) `hl set <app>` takes, plus `name=`. |
-| `hl up [app...]` | Start apps, the proxy first; builds missing images. `--wait` waits until they're healthy and shows the logs of any that aren't. Ends with `hl status`. |
+| `hl up [app...]` | Start apps, the proxy first; builds missing images, and rebuilds an image whose build args changed (a base path from `${HL_PREFIX}`, say). `--wait` waits until they're healthy and shows the logs of any that aren't. Ends with `hl status`. |
 | `hl down [app...]` | Stop and remove containers; with no app, also the proxy. Data stays. |
 | `hl restart [app...]` | Restart containers without rebuilding. |
-| `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (skips ones with uncommitted changes); for the proxy it pulls the image. |
+| `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (a folder with uncommitted changes, or not a git repo, is rebuilt without a pull); for the proxy it pulls the image. |
 | `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every app's, prefixed by its name. |
 | `hl status` | The proxy, then each app's state, health, URL and folder. Says when `hl sync` has something to do. |
 | `hl open <app>` | Print the app's URL and open it in the browser. |
@@ -129,6 +129,7 @@ where each value comes from. The first argument says what to change:
 ```sh
 hl set my-app routing=host               # an app (also on hl add <folder> routing=host)
 hl set my-app env.TZ=Europe/Berlin       # a variable for that app's compose file
+hl set my-app name=blog                  # rename it (stopped first: hl down my-app)
 hl set proxy port=8080 bind=0.0.0.0      # the proxy
 hl set env.TZ=UTC                        # env every app gets (an app's own wins)
 hl set projects+=~/src ignore+=old       # where hl init and hl sync look for apps
@@ -187,8 +188,8 @@ compose file. Walkthrough: [an app that needs a base path](docs/guides/base-path
 **What hl fills in.** `hl add`, `hl init` and `hl sync` look at the variables an app's compose file
 uses and map the common ones on their own: `<X>_BASE_PATH` gets `${HL_PREFIX}`, a matching
 `<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and `BACKUP_LOCATION`
-`${HL_DATA}/backups`. They say what they mapped, and `hl add` ends with a hint when it found no
-base-path variable. Other variables hl provides: `HL_APP`, `HL_HOST`, and `TZ` (this machine's time
+`${HL_DATA}/backups`. They say what they mapped, and end with a one-line hint for apps where they
+found no base-path variable. Other variables hl provides: `HL_APP`, `HL_HOST`, and `TZ` (this machine's time
 zone, unless you set one). Details: [Variables hl provides](docs/reference.md#variables-hl-provides).
 
 **Host routing** needs `<app>.localhost` to resolve to your machine. Browsers do this on their own;

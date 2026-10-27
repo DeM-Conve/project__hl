@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -232,5 +233,28 @@ func TestUnsetRemovedProxyKey(t *testing.T) {
 	}
 	if _, err := Load(dir); err != nil {
 		t.Errorf("after unset: %v", err)
+	}
+}
+
+func TestUnsetLastProxyKeyDropsTheSection(t *testing.T) {
+	dir := write(t, "version: 1\nproxy:\n  port: 8080\napps: {}\n")
+	if err := Edit(dir, ProxyScope, []Change{{Key: "port", Unset: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, dir); strings.Contains(got, "proxy") {
+		t.Errorf("an empty proxy: is left:\n%s", got)
+	}
+	if err := Edit(dir, ProxyScope, []Change{{Key: "port", Unset: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, dir); strings.Contains(got, "proxy") {
+		t.Errorf("unset on no proxy: adds one:\n%s", got)
+	}
+	var u *UnknownError
+	if err := Edit(dir, ProxyScope, []Change{{Key: "prot", Value: "1"}}); !errors.As(err, &u) {
+		t.Errorf("unknown key: %T %v", err, err)
+	}
+	if err := Edit(dir, "nope", []Change{{Key: "port", Value: "1"}}); !errors.As(err, &u) {
+		t.Errorf("unknown app: %T %v", err, err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os/exec"
 	"slices"
 	"sort"
@@ -111,6 +112,19 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 	}
 	p := pa.Project
 	step(name)
+	up := len(args) > 0 && args[0] == "up"
+	if up && !slices.Contains(args, "--build") {
+		// An image keeps the build args it was built with; rebuild the ones whose changed.
+		if stale := staleBuilds(cfg, name, pa.Model); len(stale) > 0 {
+			say("%sbuild settings changed - rebuilding %s%s", dim, strings.Join(stale, ", "), reset)
+			if err := p.Run(ctx, append([]string{"build"}, stale...)...); err != nil {
+				if errors.Is(err, interrupt.ErrInterrupted) {
+					return err
+				}
+				return fmt.Errorf("%s: %w", name, err)
+			}
+		}
+	}
 	// --wait: compose starts every service, then waits only for the ones that matter, so a
 	// sidecar with a slow healthcheck doesn't fail an app that already serves.
 	var waitFor []string
@@ -127,6 +141,11 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 			return unhealthy(ctx, p, name, err, nil)
 		}
 		return fmt.Errorf("%s: %w", name, err)
+	}
+	if up {
+		if err := recordBuilds(cfg, name, pa.Model); err != nil {
+			warn("%s: %v", name, err)
+		}
 	}
 	if waitFor != nil {
 		say("%swaiting for %s%s", dim, strings.Join(waitFor, ", "), reset)
@@ -263,7 +282,7 @@ func rebuildCmd() *cobra.Command {
 			return statusAfter(ctx, cfg, err)
 		})
 	w.add(c)
-	c.Flags().BoolVar(&pull, "pull", false, "first git pull each app's folder (fast-forward only; skips folders that aren't git repos or have uncommitted changes); for the proxy, pull its image")
+	c.Flags().BoolVar(&pull, "pull", false, "first git pull each app's folder (fast-forward only; a folder that isn't a git repo or has uncommitted changes is rebuilt without a pull); for the proxy, pull its image")
 	return c
 }
 
@@ -302,11 +321,52 @@ func upProxy(ctx context.Context, cfg *config.Config, args ...string) error {
 	if !running {
 		return startProxy(ctx, cfg, p, args...)
 	}
+	// Compose replaces a running proxy whose files changed; if the new address is taken, the
+	// old proxy is gone and the new one can't start. So check a new address first.
+	if moved(ctx, cfg, p.Name) {
+		if err := checkPort(ctx, cfg); err != nil {
+			return fmt.Errorf("%w - the running proxy is left as it is", err)
+		}
+	}
 	step(proxyArg)
 	if err := p.Run(ctx, append([]string{"up", "--detach"}, args...)...); err != nil {
 		return fmt.Errorf("starting the proxy: %w", err)
 	}
 	return nil
+}
+
+// moved reports whether the running proxy publishes another port than cfg's (or another
+// address, where the old one doesn't hold the new one too), so that the new address must be
+// checked before compose replaces it. False when Docker can't tell.
+func moved(ctx context.Context, cfg *config.Config, project string) bool {
+	out, err := docker(ctx, "ps", "--filter", "label="+composeProjectLabel+"="+project, "--format", "{{.Ports}}")
+	if err != nil {
+		return false
+	}
+	suffix := fmt.Sprintf("->%d/tcp", defaults.ProxyContainerPort)
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		for _, pub := range strings.Split(line, ",") {
+			hostPort, ok := strings.CutSuffix(strings.TrimSpace(pub), suffix)
+			if !ok {
+				continue
+			}
+			host, port, err := net.SplitHostPort(hostPort)
+			if err != nil {
+				continue
+			}
+			if port != strconv.Itoa(cfg.Proxy.Port) {
+				return true
+			}
+			// Same port: a wildcard address on either side is the proxy's own.
+			return host != cfg.Proxy.Bind && !unspecified(host) && !unspecified(cfg.Proxy.Bind)
+		}
+	}
+	return false
+}
+
+func unspecified(host string) bool {
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	return ip != nil && ip.IsUnspecified()
 }
 
 // restartProxy restarts the proxy's container, or starts it when it isn't running.
@@ -325,16 +385,20 @@ func restartProxy(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
-// statusAfter prints the status table after a command that started apps.
+// statusAfter prints the status table after a command that started apps. An error is printed
+// first, so it isn't lost above the table.
 func statusAfter(ctx context.Context, cfg *config.Config, err error) error {
 	if errors.Is(err, interrupt.ErrInterrupted) {
 		return err
+	}
+	if err != nil {
+		printErr(err)
 	}
 	fmt.Fprintln(stdout)
 	if serr := printStatus(ctx, cfg); err == nil {
 		return serr
 	}
-	return err
+	return &exitStatus{code: exitFail}
 }
 
 func downCmd() *cobra.Command {
@@ -432,8 +496,8 @@ func downProxy(ctx context.Context, cfg *config.Config, inv *inventory) error {
 }
 
 // pullAndRebuild is rebuild --pull for apps: git pull --ff-only in each app's folder, then
-// rebuild it. A folder that isn't a git repo or has uncommitted changes is skipped (neither
-// pulled nor rebuilt), and the summary says why.
+// rebuild it. A folder that isn't a git repo or has uncommitted changes isn't pulled but is
+// still rebuilt from the code it has; the summary says which and why.
 func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *waitFlags) error {
 	if _, err := exec.LookPath("git"); err != nil {
 		return withHint(errors.New("git not found on PATH"), "install git: --pull pulls each app's folder with it, or rebuild without --pull")
@@ -445,26 +509,25 @@ func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *
 	if err := ensureProxy(ctx, cfg, inv); err != nil {
 		return err
 	}
-	var updated, skipped []string
+	var pulled, local []string
 	f := &failures{total: len(names)}
 	for _, n := range names {
 		dir := cfg.AppDir(cfg.Apps[n])
 		step(n + " " + dim + "(" + dir + ")" + reset)
-		if why := dirty(ctx, dir); why != "" {
-			say("%sskipped:%s %s", yellow, reset, why)
-			skipped = append(skipped, n+" ("+why+")")
-			continue
-		}
-		pull := exec.Command("git", "-C", dir, "pull", "--ff-only")
-		pull.Stdout, pull.Stderr = stdout, stderr
-		if err := compose.Exec(ctx, pull); err != nil {
-			if errors.Is(err, interrupt.ErrInterrupted) {
-				return err
+		why := dirty(ctx, dir)
+		if why == "" {
+			pull := exec.Command("git", "-C", dir, "pull", "--ff-only")
+			pull.Stdout, pull.Stderr = stdout, stderr
+			if err := compose.Exec(ctx, pull); err != nil {
+				if errors.Is(err, interrupt.ErrInterrupted) {
+					return err
+				}
+				f.add(n, withHint(fmt.Errorf("%s: git pull --ff-only failed; the folder is left as it was", n),
+					"the branch may have diverged or have no upstream - sort it out in %s, then `hl rebuild %s --pull`", dir, n))
+				continue
 			}
-			f.add(n, withHint(fmt.Errorf("%s: git pull --ff-only failed; the folder is left as it was", n),
-				"the branch may have diverged or have no upstream - sort it out in %s, then `hl rebuild %s --pull`", dir, n))
-			continue
 		}
+		// A folder hl may not pull is still rebuilt from the code it has.
 		if err := runApp(ctx, cfg, inv, n, w, "up", "--detach", "--build"); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
@@ -472,14 +535,18 @@ func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *
 			f.add(n, err)
 			continue
 		}
-		updated = append(updated, n)
+		if why == "" {
+			pulled = append(pulled, n)
+		} else {
+			local = append(local, n+" ("+why+")")
+		}
 	}
 	fmt.Fprintln(stdout)
-	if len(updated) > 0 {
-		say("pulled and rebuilt: %s", strings.Join(updated, ", "))
+	if len(pulled) > 0 {
+		say("pulled and rebuilt: %s", strings.Join(pulled, ", "))
 	}
-	if len(skipped) > 0 {
-		say("%sskipped:%s %s", yellow, reset, strings.Join(skipped, "; "))
+	if len(local) > 0 {
+		say("%spull skipped%s, rebuilt from the code in the folder: %s", yellow, reset, strings.Join(local, "; "))
 	}
 	return f.err()
 }
@@ -494,7 +561,7 @@ func dirty(ctx context.Context, dir string) string {
 		return "git status failed: " + err.Error()
 	}
 	if n := len(strings.Split(strings.TrimSpace(out), "\n")); strings.TrimSpace(out) != "" {
-		return fmt.Sprintf("uncommitted changes in %d file(s) - commit or stash them first", n)
+		return "uncommitted changes in " + plural(n, "file", "files")
 	}
 	return ""
 }
@@ -532,7 +599,16 @@ func logsCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return p.Run(ctx, append(a, args[1:]...)...)
+				out := &countWriter{w: stdout}
+				p.Stdout = out
+				if err := p.Run(ctx, append(a, args[1:]...)...); err != nil {
+					return err
+				}
+				if out.n == 0 && !follow && !cfg.Proxy.Debug {
+					// Traefik logs only errors unless debug is on.
+					say("%sno proxy logs: Traefik logs only errors - for its INFO log and one line per request: hl set proxy debug=true, then hl up proxy%s", dim, reset)
+				}
+				return nil
 			}
 			if len(args) == 0 {
 				names, err := targets(cfg, nil)
@@ -547,10 +623,17 @@ func logsCmd() *cobra.Command {
 			if notRunning(ctx, cfg.ProjectName(args[0]), args[0]) {
 				return nil
 			}
-			p, err := prepared(ctx, cfg, args[0])
+			pa, err := prepare(ctx, cfg, args[0])
 			if err != nil {
 				return err
 			}
+			for _, s := range args[1:] {
+				if _, ok := pa.Model.Services[s]; !ok {
+					return &usageError{err: withHint(fmt.Errorf("%s has no service %q", args[0], s),
+						"its services: %s", strings.Join(sortedServices(pa.Model.Services), ", ")), cmd: "hl logs"}
+				}
+			}
+			p := pa.Project
 			if err := p.Run(ctx, append(a, args[1:]...)...); err != nil {
 				return fmt.Errorf("%s: %w", args[0], err)
 			}
@@ -560,6 +643,18 @@ func logsCmd() *cobra.Command {
 	c.Flags().BoolVarP(&follow, "follow", "f", false, "keep following")
 	c.Flags().IntVarP(&tail, "tail", "n", defaults.LogTail, "lines to show from the end of each log")
 	return c
+}
+
+// countWriter counts what passes through it.
+type countWriter struct {
+	w io.Writer
+	n int
+}
+
+func (c *countWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += n
+	return n, err
 }
 
 // notRunning says so and reports true when project has no containers at all (compose would

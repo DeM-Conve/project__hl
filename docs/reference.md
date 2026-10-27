@@ -53,22 +53,27 @@ those names.
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `name` | the folder's name, less a `strip_prefix` | Only on `hl add`: the app's name. |
+| `name` | the folder's name, less a `strip_prefix` | The app's name. On `hl add` it names the new app; `hl set <app> name=<new>` (on its own) renames one: it keeps its settings, and its `data/<app>/` and `.hl/<app>/` move along. Refused while the app has containers (`hl down <app>` first), when `data/<new>/` exists, and for a name `hl add` would refuse. The new name changes the default `prefix` and `host`, and the Docker project. |
 | `path` | required | The app's folder: absolute, `~/...`, or relative to the homelab folder. |
 | `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and asks for `service=<name>` only when none has one of those names. `hl add` writes it. |
 | `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `port=<port>`). `hl add` writes it. |
 | `routing` | `proxy.routing` | `path`, `host` or `none` (not behind the proxy). |
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
 | `host` | `<name>.<domain>` | Host routing: the host name. |
-| `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). |
+| `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). `compose+=compose.dev.yml` on an app that names none starts from the file compose picks, so it adds an override instead of replacing it. |
 | `env.NAME` | none | Variables for the app's compose file (`env.MY_APP_BASE_PATH='${HL_PREFIX}'`). Values can use the [variables hl provides](#variables-hl-provides) and your shell's variables. They are compose interpolation variables: they reach a container only through the app's compose file (`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`). |
 
-Applied by `hl up <app>`.
+Applied by `hl up <app>`. An app that bakes a setting into its image as a build arg
+(`build: args: BASE_PATH: ${MY_APP_BASE_PATH}`) gets that image rebuilt: after each `hl up` hl
+records the app's resolved build settings in `.hl/<app>/builds.json`, and the next `hl up`
+rebuilds the services whose build settings changed since. The first `hl up` only builds what is
+missing, as compose does; an image built before hl kept track needs one `hl rebuild <app>`.
 
 ## Proxy settings
 
-`hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up proxy` (hl says when a change
-also needs `hl up`, or `hl down` then `hl up`); `hl show proxy` says when the running proxy is
+`hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up proxy`; a change of `domain`,
+`routing` or `port` also needs `hl up` (it is in the apps' routes or URLs), one of `network`,
+`subnet` or `project` needs `hl down` then `hl up`, and hl says so. `hl show proxy` says when the running proxy is
 behind its settings.
 
 | Key | Default | What it does |
@@ -148,7 +153,8 @@ preferred names (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`) and publishes
 a common HTTP one (see [Built-in values](#built-in-values)) may be a database or a cache, which the
 HTTP proxy can't serve. Such a folder is listed with the commands to use instead:
 `hl add <folder> routing=none` to run it without the proxy, `hl add <folder>` to route it anyway,
-or `hl set ignore+=<folder name>` to stop seeing it.
+or `hl set ignore+=<folder name>` to stop seeing it. `hl add` routes such a service anyway and
+warns, naming `hl set <app> routing=none`.
 
 ### `name`
 
@@ -261,7 +267,7 @@ apps:
   `# yaml-language-server: $schema=<its raw GitHub URL>` yourself). hl's own check doesn't need it.
 - **`hl edit`** is the fallback for editing by hand: it opens a copy (`.hl/edit/hl.yml`) in
   `$VISUAL`, then `$EDITOR`, else `vi`, checks it when the editor closes and saves it only if it
-  has no problems, else lists them and offers to reopen the editor. It works on a broken `hl.yml`.
+  has no problems, else lists them and offers to reopen the editor. It works on a broken `hl.yml`, and needs a terminal.
 - **Written whole.** `hl.yml`, the default-homelab note and every generated file are written to a
   temporary file and renamed into place, so a crash or Ctrl-C never leaves half a file. An
   existing file keeps its permissions, and a symlinked `hl.yml` stays a symlink.
@@ -276,7 +282,7 @@ and not settings (some have a command-line flag):
 | Value | Used for |
 | --- | --- |
 | `hl-` | compose project name prefix: `hl-<app>`, `hl-proxy`; with `name`, `hl-<name>-<app>`, `hl-<name>-proxy` |
-| `.hl/` | generated files in the homelab: `.hl/<app>/override.yml`, `.hl/proxy/compose.yml`, `.hl/proxy/traefik.yml` |
+| `.hl/` | generated files in the homelab: `.hl/<app>/override.yml` (and `builds.json`, the build settings its images were built with), `.hl/proxy/compose.yml`, `.hl/proxy/traefik.yml` |
 | `data/` | app data in the homelab: `data/<app>/<volume>` |
 | `web` | the Traefik entrypoint name (container port 80) |
 | `traefik` on `:8080` | Traefik's entrypoint for `/ping` (the proxy's healthcheck); not published |

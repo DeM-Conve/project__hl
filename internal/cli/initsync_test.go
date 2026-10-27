@@ -409,7 +409,7 @@ func TestStatusOtherHomelabsProxy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if !strings.Contains(out, "proxy: run by another homelab ("+other+") - see hl doctor\nhome "+lab) || strings.Contains(out, "127.0.0.1:80") {
+	if !strings.Contains(out, "proxy: run by another homelab ("+other+") - see hl doctor\nhome ~/lab") || strings.Contains(out, "127.0.0.1:80") {
 		t.Errorf("status header:\n%s", out)
 	}
 }
@@ -476,8 +476,8 @@ func TestInitSharedPrefix(t *testing.T) {
 	if !strings.Contains(out, "app names  without project__ - the folders share it (--strip-prefix none keeps whole names)") {
 		t.Errorf("the plan should say it strips the shared prefix:\n%s", out)
 	}
-	if !strings.Contains(out, "or route it by host name: hl set <app> routing=host") {
-		t.Errorf("the base-path note should name the command:\n%s", out)
+	if !strings.Contains(out, "hint: if links break under /<app>/ (blog, plain, wiki): hl set <app> env.<BASE_PATH_VAR>='${HL_PREFIX}' (or routing=host)\n") {
+		t.Errorf("the base-path hint: one line, as hl add has it:\n%s", out)
 	}
 	cfg, err := config.Load(lab)
 	if err != nil {
@@ -671,6 +671,10 @@ func TestInitDefaultFolder(t *testing.T) {
 	second := filepath.Join(home, "second")
 	if out, err = runHL(t, "", "init", second, "--yes"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
+	}
+	// A second homelab takes over as the default: the plan says so.
+	if !strings.Contains(out, "default    this homelab becomes the default, instead of "+lab) {
+		t.Errorf("the plan should say the default changes:\n%s", out)
 	}
 	chdir(t, second)
 	if out, err = runHL(t, "", "init", "--yes"); err != nil || !strings.Contains(out, "homelab    "+second+" (hl.yml kept)") {

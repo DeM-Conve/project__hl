@@ -73,7 +73,7 @@ func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry bool) err
 		if !stdinTerminal(in) {
 			return errors.New("not a terminal - pass --yes to apply the plan, or --dry-run to only show it")
 		}
-		if !newPrompter(in, out).confirm(fmt.Sprintf("apply %d change(s) to %s?", changes, config.FileName), false) {
+		if !newPrompter(in, out).confirm(fmt.Sprintf("apply %s to %s?", plural(changes, "change", "changes"), config.FileName), false) {
 			fmt.Fprintln(out, "nothing changed")
 			return nil
 		}
@@ -205,9 +205,9 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 	}
 	if len(added) > 0 {
 		if len(noBase) > 0 && cfg.Proxy.Routing == config.RoutingPath {
-			fmt.Fprintf(out, "%snote:%s path routing serves each app under /<app>/; an app must support that base path.\n"+
-				"No base-path setting was found for %s: map ${HL_PREFIX} to its setting\n"+
-				"(hl set <app> env.<NAME>='${HL_PREFIX}'), or route it by host name: hl set <app> routing=host\n", yellow, reset, strings.Join(noBase, ", "))
+			// One line, as hl add says it.
+			fmt.Fprintf(out, "%shint:%s if links break under /<app>/ (%s): hl set <app> env.<BASE_PATH_VAR>='${HL_PREFIX}' (or routing=host)\n",
+				yellow, reset, strings.Join(noBase, ", "))
 		}
 		fmt.Fprintf(out, "start them: hl up %s\n", strings.Join(added, " "))
 	}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"golang.org/x/term"
 
@@ -24,6 +26,21 @@ func setColors(w io.Writer) {
 		return
 	}
 	bold, dim, red, green, yellow, cyan, reset = "\x1b[1m", "\x1b[2m", "\x1b[31m", "\x1b[32m", "\x1b[33m", "\x1b[36m", "\x1b[0m"
+}
+
+// tilde writes a path inside the user's home folder as ~/..., the way people type it.
+func tilde(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || home == string(filepath.Separator) {
+		return path
+	}
+	if path == home {
+		return "~"
+	}
+	if rest, ok := strings.CutPrefix(path, home+string(filepath.Separator)); ok {
+		return "~/" + rest
+	}
+	return path
 }
 
 func say(format string, a ...any) { fmt.Fprintf(stdout, format+"\n", a...) }

@@ -5,6 +5,8 @@ package compose
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -191,6 +193,31 @@ type Service struct {
 	Networks map[string]json.RawMessage `json:"networks"`
 	// DependsOn: compose's resolved model always has the long (map) form.
 	DependsOn map[string]json.RawMessage `json:"depends_on"`
+	// Build is the resolved build section (context, dockerfile, args, ...), empty without one.
+	Build json.RawMessage `json:"build"`
+}
+
+// BuildHashes is, for each service with a build section, a hash of that section as compose
+// resolved it (variables filled in), so a change of any build setting changes the hash.
+func (m *Model) BuildHashes() map[string]string {
+	out := map[string]string{}
+	for name, s := range m.Services {
+		if len(s.Build) == 0 || string(s.Build) == "null" {
+			continue
+		}
+		// Decoded and encoded again: map keys come out sorted, so the hash doesn't depend on
+		// the order compose printed them in.
+		b := []byte(s.Build)
+		var v any
+		if json.Unmarshal(s.Build, &v) == nil {
+			if c, err := json.Marshal(v); err == nil {
+				b = c
+			}
+		}
+		h := sha256.Sum256(b)
+		out[name] = hex.EncodeToString(h[:])[:16]
+	}
+	return out
 }
 
 // WithDeps is services and every service they depend on (depends_on, followed through),
