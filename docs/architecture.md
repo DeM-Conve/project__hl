@@ -313,7 +313,9 @@ normalises indentation to two spaces).
   before `apps:`. Before editing, the CLI (`homelabChanges`) writes `projects` folders like
   `hl init` does (`storedPath`; each must exist; `-=` matches the written entry or the resolved
   path) and refuses `name` while any of this homelab's projects has containers (`nothingRuns`),
-  since it renames every project and network. A missing `proxy:` or
+  since it renames every project and network. For an app with no `compose` list, `compose+=`/
+  `compose-=` (in `hl set` and `hl add`) get a replace with the file `compose.FindFile` picks put
+  in front (`seedCompose`, not printed as a change), so the list starts from it. A missing `proxy:` or
   shared `env:` is added above `apps:`. A replaced value keeps the old one's comments. The new
   content is run through `config.Check` and written only if it has no problems. The CLI tells
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,

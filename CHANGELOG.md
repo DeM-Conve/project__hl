@@ -191,6 +191,8 @@ release differs from earlier builds of `main`.
   the proxy down: compose removed the running one and the new one couldn't bind. hl now checks
   the new address first and refuses, leaving the running proxy as it is, with a free port in the
   hint. `hl up` and `hl rebuild` print an error before the status table, not after it.
+- `hl set <app> compose+=<file>` (and `hl add <folder> compose+=<file>`) on an app that names no
+  compose file replaced the file compose picks with the new one; the list now starts from it.
 
 - `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
   line, shown only with path routing when no base-path variable was mapped.

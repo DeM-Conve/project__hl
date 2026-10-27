@@ -253,6 +253,48 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 	}
 }
 
+// compose+= on an app that names no compose file keeps the one compose picks.
+func TestSetComposeAddKeepsTheDetectedFile(t *testing.T) {
+	home, appDir := homelab(t, "version: 1\napps:\n  my-app:\n    path: ~/code/my-app\n")
+	if err := os.WriteFile(filepath.Join(appDir, "compose.dev.yml"), []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run(t, "", "set", "my-app", "compose+=compose.dev.yml")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "compose: [compose.yml, compose.dev.yml]") {
+		t.Errorf("want the detected file first:\n%s", got)
+	}
+	if strings.Contains(out, "compose = compose.yml") {
+		t.Errorf("the seeded file is not a change of the user's:\n%s", out)
+	}
+	if out, err := run(t, "", "set", "my-app", "compose-=compose.dev.yml"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "compose: [compose.yml]") {
+		t.Errorf("after -=:\n%s", got)
+	}
+
+	// hl add does the same.
+	fakeDocker(t, oneService)
+	other := filepath.Join(filepath.Dir(appDir), "other")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"docker-compose.yml", "compose.dev.yml"} {
+		if err := os.WriteFile(filepath.Join(other, f), []byte("services: {}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := run(t, "", "add", other, "compose+=compose.dev.yml"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "- docker-compose.yml\n      - compose.dev.yml") {
+		t.Errorf("hl add compose+=:\n%s", got)
+	}
+}
+
 func TestUnsetAppNamedLikeASharedKey(t *testing.T) {
 	home, _ := homelab(t, "version: 1\nenv:\n  TZ: UTC\napps:\n  env.tz:\n    path: ~/code/my-app\n    prefix: /x\n")
 	if out, err := run(t, "", "unset", "env.tz", "prefix"); err != nil || !strings.Contains(out, "unset apps.env.tz.prefix") {

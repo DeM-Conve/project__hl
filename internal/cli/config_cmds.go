@@ -229,7 +229,18 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 			return err
 		}
 	}
-	if err := config.Edit(home, scope, changes); err != nil {
+	edits := changes
+	if scope != config.HomelabScope && scope != config.ProxyScope {
+		// compose+= on an app that names no compose file starts from the one compose picks.
+		if cfg, err := config.Load(home); err == nil {
+			if a, ok := cfg.Apps[scope]; ok {
+				if edits, err = seedCompose(cfg.AppDir(a), a.Compose, changes); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if err := config.Edit(home, scope, edits); err != nil {
 		return withHint(err, "`hl show` lists the apps and settings; `hl set --help` lists the keys")
 	}
 	if err := upgradeConfig(home); err != nil {

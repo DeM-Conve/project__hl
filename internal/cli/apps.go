@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
 	"github.com/DeM-Conve/project__hl/internal/defaults"
 	"github.com/DeM-Conve/project__hl/internal/scan"
@@ -65,7 +66,7 @@ the mapped ones; env.NAME= with no value leaves that variable out.`,
 				return withHint(fmt.Errorf("folder %s not found", dir), "pass the app's folder: the one with its compose file")
 			}
 			var a config.App
-			name, drop, err := addSettings(&a, args[1:])
+			name, drop, err := addSettings(&a, dir, args[1:])
 			if err != nil {
 				return err
 			}
@@ -168,7 +169,7 @@ func addKeys() []string {
 
 // addSettings applies hl add's key=value arguments to a. name is the app's name if one was
 // given; drop are the env variables given with no value (env.NAME=), left out of the mapping.
-func addSettings(a *config.App, kvs []string) (name string, drop []string, err error) {
+func addSettings(a *config.App, dir string, kvs []string) (name string, drop []string, err error) {
 	var rest []string
 	for _, kv := range kvs {
 		k, v, ok := strings.Cut(kv, "=")
@@ -191,10 +192,33 @@ func addSettings(a *config.App, kvs []string) (name string, drop []string, err e
 	if err != nil {
 		return "", nil, &usageError{err: err, cmd: "hl add"}
 	}
+	if changes, err = seedCompose(dir, nil, changes); err != nil {
+		return "", nil, err
+	}
 	if err := config.ApplyApp(a, changes); err != nil {
 		return "", nil, withHint(err, "`hl add --help` lists the settings")
 	}
 	return name, drop, nil
+}
+
+// seedCompose makes compose+=/compose-= start from the file compose picks on its own when the
+// app names none (have is empty): that file is put in the list first, so adding an override
+// doesn't drop it.
+func seedCompose(dir string, have []string, changes []config.Change) ([]config.Change, error) {
+	if len(have) > 0 {
+		return changes, nil
+	}
+	for _, c := range changes {
+		if c.Key != "compose" || c.Op == "" {
+			continue
+		}
+		f, err := compose.FindFile(dir)
+		if err != nil {
+			return nil, withHint(err, "name every file: compose=<file>[,<file>...]")
+		}
+		return append([]config.Change{{Key: "compose", Value: filepath.Base(f)}}, changes...), nil
+	}
+	return changes, nil
 }
 
 func sameCompose(a, b []string) bool { return strings.Join(a, ",") == strings.Join(b, ",") }

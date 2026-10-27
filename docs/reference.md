@@ -60,7 +60,7 @@ those names.
 | `routing` | `proxy.routing` | `path`, `host` or `none` (not behind the proxy). |
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
 | `host` | `<name>.<domain>` | Host routing: the host name. |
-| `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). |
+| `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). `compose+=compose.dev.yml` on an app that names none starts from the file compose picks, so it adds an override instead of replacing it. |
 | `env_files` | none | Extra env files, relative to the homelab folder, read after the app's own `.env`. Handy for secrets you keep outside the app's folder (a list). |
 | `env.NAME` | none | Variables for the app's compose file (`env.MY_APP_BASE_PATH='${HL_PREFIX}'`). Values can use the [variables hl provides](#variables-hl-provides) and your shell's variables. They are compose interpolation variables: they reach a container only through the app's compose file (`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`). |
 
