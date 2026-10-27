@@ -227,6 +227,12 @@ release differs from earlier builds of `main`.
   mean "host"?`), and exits 2 like other usage mistakes. It used to point at a line of the
   `hl.yml` that was never written, and exit 1. A problem `hl.yml` already has is still shown
   with its file and line.
+- `hl set env.FOO` (no `=`) asks for the value (`hl set env.FOO=<value>`) instead of calling env
+  an app setting; `hl set scan_depth=0` is refused (it was written and then read as the
+  default); `hl add <folder>` without a compose file hints `hl add <folder> compose=<file>`
+  instead of an `hl set` for an app that isn't added yet; `hl add <folder>/compose.yml` says it
+  takes the folder. docs/reference.md no longer calls `hl-proxy` a reserved app name: only
+  `proxy` is.
 - `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
   into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl

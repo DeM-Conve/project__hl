@@ -140,6 +140,8 @@ func TestAddSettings(t *testing.T) {
 		{[]string{"add", dir, "name=x4", "compose=compose.yml", "service=nope"}, 1, `no service "nope"`},
 		{[]string{"add", dir, "name=x5", "compose=compose.yml", "routing=sideways"}, 1, "is not path, host or none"},
 		{[]string{"add", filepath.Join(f.home, "missing")}, 1, "not found"},
+		{[]string{"add", filepath.Join(dir, "compose.yml")}, 2, "is a file; hl add takes the app's folder\nhint: hl add " + dir + " (and compose=compose.yml"},
+		{[]string{"add", f.home}, 1, "hint: add a compose file to the folder, or name yours: hl add " + f.home + " compose=<file>"},
 		{[]string{"add"}, 2, "requires at least 1 arg"},
 		{[]string{"add", dir, "port=x"}, 1, "not a whole number"},
 		{[]string{"add", dir, "colour=red"}, 1, `unknown setting "colour"`},

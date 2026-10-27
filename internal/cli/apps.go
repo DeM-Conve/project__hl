@@ -62,7 +62,11 @@ the mapped ones; env.NAME= with no value leaves that variable out.`,
 			if err != nil {
 				return err
 			}
-			if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+			if st, err := os.Stat(dir); err == nil && !st.IsDir() {
+				// hl add path/to/compose.yml: the folder, and the file only if compose can't find it.
+				return &usageError{err: withHint(fmt.Errorf("%s is a file; hl add takes the app's folder", dir),
+					"hl add %s (and compose=%s if hl doesn't find that file by itself)", filepath.Dir(args[0]), filepath.Base(dir)), cmd: "hl add"}
+			} else if err != nil {
 				return withHint(fmt.Errorf("folder %s not found", dir), "pass the app's folder: the one with its compose file")
 			}
 			var a config.App
@@ -89,6 +93,12 @@ the mapped ones; env.NAME= with no value leaves that variable out.`,
 			cfg.Apps[name] = &a
 			if err := cfg.Validate(); err != nil {
 				return withHint(err, "fix the settings (see `hl add --help`)")
+			}
+			if len(a.Compose) == 0 {
+				// The app isn't in hl.yml yet: the fix is on this command line, not hl set.
+				if _, err := compose.FindFile(dir); err != nil {
+					return withHint(err, "add a compose file to the folder, or name yours: hl add %s compose=<file>[,<file>...]", args[0])
+				}
 			}
 			p, err := project(cfg, name, &a)
 			if err != nil {

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -81,6 +82,10 @@ written if the result is valid; hl says which command applies the change.
 				scope, kvs = config.HomelabScope, args
 			} else if len(kvs) == 0 {
 				if home, err := homeDir(); err == nil && scope != config.ProxyScope && !config.HasApp(home, scope) {
+					if config.IsHomelabKey(scope) {
+						// hl set env.TZ, scan_depth: a homelab setting without its value.
+						return &usageError{err: withHint(fmt.Errorf("%s needs a value", scope), "hl set %s=<value>", scope), cmd: cmd.CommandPath()}
+					}
 					return notHomelabKey("set", scope, scope+"=<value>")
 				}
 				return &usageError{err: fmt.Errorf("nothing to set for %q - give key=value, e.g. hl set %s port=8080", scope, scope), cmd: cmd.CommandPath()}
@@ -234,6 +239,12 @@ func homelabChanges(ctx context.Context, home string, changes []config.Change) e
 				out = append(out, storedPath(home, abs))
 			}
 			changes[i].Value = strings.Join(out, ",")
+		case "scan_depth":
+			// 0 would read as "not set" (the default): refuse it rather than ignore it.
+			if n, err := strconv.Atoi(c.Value); err == nil && !c.Unset && n < 1 {
+				return &usageError{err: withHint(fmt.Errorf("scan_depth: %d must be 1 or more", n),
+					"`hl unset scan_depth` goes back to the default (%d)", defaults.ScanDepth), cmd: "hl set"}
+			}
 		case "name":
 			if err := nothingRuns(ctx, cfg); err != nil {
 				return err

@@ -47,9 +47,9 @@ hl unset env.TZ
 
 App names use lowercase letters, digits, `.`, `_` and `-`, starting with a letter or digit. By
 default `hl add` uses the folder's name, less a [`strip_prefix`](#where-hl-init-and-hl-sync-look-for-apps).
-`proxy` is reserved (`hl up proxy` and the like mean the proxy), and so is `hl-proxy`: no app's
-compose project `hl-<app>` may equal the proxy's project. `hl init` and `hl sync` skip folders with
-those names.
+`proxy` is the one reserved name: `hl up proxy` and the like mean the proxy, and its compose
+project `hl-proxy` (or `hl-<name>-proxy`) would be the proxy's. `hl init` and `hl sync` skip a
+folder with that name.
 
 | Key | Default | What it does |
 | --- | --- | --- |
@@ -140,7 +140,7 @@ hl unset ignore                     # back to the default (none)
 | --- | --- | --- |
 | `projects` | none | Folders holding your projects: absolute, `~/...`, or relative to the homelab folder (hl writes them that way). Each subfolder with a compose file (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) is an app, named after the folder (lowercased). A folder with a compose file is not looked into further. |
 | `ignore` | none | Folder-name patterns (`*`, `?`, `[...]`) to skip. Always skipped as well: hidden folders (`.*`), `node_modules`, `vendor`, `__pycache__`, `venv`. `hl remove` adds an app's folder name here when the folder is in a projects folder. |
-| `scan_depth` | `1` | How many levels below a projects folder to look. |
+| `scan_depth` | `1` | How many levels below a projects folder to look; 1 or more. |
 | `strip_prefix` | none | Folder-name prefixes left out of app names, by `hl init`, `hl sync` and `hl add` (without `name=`). A new homelab gets the prefix its folders share, if any. A folder loses the first one it starts with, unless nothing would be left. Apps already in the homelab keep their names. |
 
 A folder with a `.hlignore` file in it is skipped too. Ignoring only stops sync from adding a

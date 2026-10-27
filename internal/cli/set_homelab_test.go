@@ -159,6 +159,8 @@ func TestSetUnsetMistakes(t *testing.T) {
 		{[]string{"set", "b", "port=80"}, 2, []string{`no app "b"`}},
 		{[]string{"unset", "a", "prot"}, 2, []string{`unknown setting "prot"`}},
 		{[]string{"set", "a", "port="}, 2, []string{"no value"}},
+		{[]string{"set", "env.FOO"}, 2, []string{"error: env.FOO needs a value\nhint: hl set env.FOO=<value>\n"}},
+		{[]string{"set", "scan_depth=0"}, 2, []string{"scan_depth: 0 must be 1 or more", "hl unset scan_depth"}},
 		// A wrong value: the full key, the fix as the hint, no place in hl.yml.
 		{[]string{"set", "a", "routing=hots"}, 2, []string{"error: apps.a.routing: \"hots\" is not path, host or none\nhint: did you mean \"host\"?\n"}},
 		{[]string{"set", "a", "port=0"}, 2, []string{"error: apps.a.port: 0 is not a port\nhint: use a number from 1 to 65535\n"}},
