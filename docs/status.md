@@ -27,7 +27,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   `bind port routing domain subnet image debug` (`network` and `project` follow `name`), the app keys to `path service port routing prefix host compose env`; `hl logs` of a stopped app says so; no command aliases
   (`start`, `stop`, `ls`) or `--version`/`version --short`; `hl init` takes only `--projects`,
   `--strip-prefix` and `--yes` (the proxy is `hl set proxy ...` afterwards); no `--no-env` on
-  init or sync (`hl unset <app> env`).
+  init or sync (`hl unset <app> env`); no `hl sync --dry-run` (answering n, or no terminal, only shows the plan).
 - **Correctness fixes from the 2026-10-27 review**: `hl up` rebuilds images whose build args
   changed (`.hl/<app>/builds.json`); `hl up proxy` refuses a busy new port instead of taking
   the running proxy down; `compose+=` keeps the compose file hl found; `hl set <app> name=<new>`

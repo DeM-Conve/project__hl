@@ -115,7 +115,7 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl shell <app> [service]` | A shell in a running container (default: the service behind the proxy). |
 | `hl show [app\|proxy]` | Settings in effect and where each comes from; `--compose` prints the compose config as hl runs it. |
 | `hl set` / `hl unset` | Change settings: see [Changing settings](#changing-settings). |
-| `hl sync` | Make the homelab follow your projects folders: add new apps, remove ones whose folder is gone, follow a moved or renamed folder (the app keeps its name and data). Shows a plan and asks; `--dry-run`, `--yes`. |
+| `hl sync` | Make the homelab follow your projects folders: add new apps, remove ones whose folder is gone, follow a moved or renamed folder (the app keeps its name and data). Shows a plan and asks (n, or no terminal, only shows it); `--yes` applies it. |
 | `hl remove <app>` | Stop the app and forget it. Its data stays; `hl sync` won't add its folder back. |
 | `hl doctor` | Check Docker, compose, the settings, the proxy and every app; warns about an old Traefik or hl. |
 | `hl edit` | Fallback: open `hl.yml` in your editor; saved only if it checks out. |

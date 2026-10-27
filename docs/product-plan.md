@@ -76,7 +76,7 @@ in hl may assume the maintainer's setup.
 - [x] **`hl sync`**: compares `projects` with `hl.yml` and shows a plan before changing anything:
   new folders with a compose file -> add (service and port detected like `hl add`); apps whose
   folder is gone -> remove from hl.yml (data kept, never deleted); apps whose compose changed
-  (service/port no longer there) -> re-detect. `--yes` applies without asking; `--dry-run` only
+  (service/port no longer there) -> re-detect. `--yes` applies without asking; answering n (or no terminal) only
   shows.
 - [x] **Ignore list**: `ignore:` patterns in hl.yml, and a folder can opt out with a `.hlignore`
   file - so libraries/experiments aren't picked up.

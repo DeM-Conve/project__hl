@@ -337,8 +337,9 @@ func TestSync(t *testing.T) {
 	if !strings.Contains(out, "1 new app in ~/my code, 1 app's folder is gone - run hl sync") {
 		t.Errorf("status hint missing:\n%s", out)
 	}
-	out, err = runHL(t, "", "sync", "--home", lab, "--dry-run")
-	if err != nil {
+	// Without a terminal: the plan, nothing written, and the way to apply it.
+	out, err = runHL(t, "", "sync", "--home", lab)
+	if err == nil || !strings.Contains(err.Error(), "nothing was written") || hintFor(err) != "pass --yes to apply the plan" {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{"+ add", "new", "web:80\n", "env NEW_BASE_PATH=${HL_PREFIX}\n", "env DATA_LOCATION=${HL_DATA}\n",
@@ -351,10 +352,10 @@ func TestSync(t *testing.T) {
 		t.Errorf("lib has a .hlignore:\n%s", out)
 	}
 	if readFile(t, filepath.Join(lab, config.FileName)) != before {
-		t.Error("--dry-run changed hl.yml")
+		t.Error("sync without a terminal changed hl.yml")
 	}
-	if _, err := runHL(t, "", "sync", "--home", lab); err == nil || !strings.Contains(err.Error(), "--yes") {
-		t.Errorf("sync without a terminal must ask for --yes, got %v", err)
+	if _, err := runHL(t, "", "sync", "--home", lab, "--dry-run"); err == nil || !strings.Contains(err.Error(), "unknown flag") {
+		t.Errorf("--dry-run is gone, got %v", err)
 	}
 
 	// Interactive: "no" keeps hl.yml, "yes" applies.

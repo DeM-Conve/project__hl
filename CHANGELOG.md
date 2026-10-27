@@ -45,7 +45,7 @@ release differs from earlier builds of `main`.
   patterns, a `.hlignore` file or `scan_depth` control what is picked up.
 - `hl sync` keeps `hl.yml` in step with the projects folders: adds new apps, removes ones whose
   folder is gone (data kept), re-detects a pinned service or port that disappeared. It shows the
-  plan first; `--dry-run` only shows it, `--yes` applies it without asking. `hl status` says when
+  plan first and asks (answer n to only see it; without a terminal it needs `--yes`). `hl status` says when
   `hl sync` has something to do.
 - `hl add` adds any folder with a compose file as an app, finding the service that publishes a
   port; when several services or ports could be the one, it asks on a terminal and otherwise
@@ -150,6 +150,8 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- **Breaking:** `hl sync --dry-run` is gone: answering n, or running without a terminal, already
+  shows the plan and writes nothing.
 - **Breaking:** the command aliases `start` (`hl up`), `stop` (`hl down`) and `ls` (`hl status`),
   the `-v`/`--version` flag and `hl version --short` are gone; `hl version` prints the version.
 - **Breaking:** `hl init` no longer takes `--bind`, `--port`, `--routing` or `--apps`. It sets up

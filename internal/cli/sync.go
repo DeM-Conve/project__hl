@@ -19,7 +19,7 @@ import (
 )
 
 func syncCmd() *cobra.Command {
-	var yes, dry bool
+	var yes bool
 	c := &cobra.Command{
 		Use:   "sync",
 		Short: "Make hl.yml follow your projects folders: add new apps, remove ones whose folder is gone",
@@ -31,22 +31,23 @@ func syncCmd() *cobra.Command {
   - remove  an app whose folder is gone; its data in data/<app> stays
   ~ update  an app whose pinned service or port is no longer in its compose file
 Folders matching ignore: in hl.yml, hidden ones, and ones with a ` + defaults.IgnoreFile + ` file are
-skipped. Apps outside the projects folders are left alone.`,
+skipped. Apps outside the projects folders are left alone.
+It asks before changing hl.yml; answer n to only see the plan. Without a terminal
+it shows the plan and writes only with --yes.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
 			if err != nil {
 				return err
 			}
-			return runSync(cmd.InOrStdin(), cmd.OutOrStdout(), cfg, yes, dry)
+			return runSync(cmd.InOrStdin(), cmd.OutOrStdout(), cfg, yes)
 		},
 	}
 	c.Flags().BoolVarP(&yes, "yes", "y", false, "apply the plan without asking")
-	c.Flags().BoolVar(&dry, "dry-run", false, "only show the plan")
 	return c
 }
 
-func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry bool) error {
+func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes bool) error {
 	if len(cfg.Projects) == 0 {
 		return withHint(fmt.Errorf("no projects folders in %s", config.FileName), "add one with hl set projects+=<folder>, e.g. hl set projects+=~/code")
 	}
@@ -69,12 +70,12 @@ func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry bool) err
 		return nil
 	}
 	printPlan(out, cfg, plan)
-	if changes == 0 || dry {
+	if changes == 0 {
 		return nil
 	}
 	if !yes {
 		if !stdinTerminal(in) {
-			return errors.New("not a terminal - pass --yes to apply the plan, or --dry-run to only show it")
+			return withHint(errors.New("not a terminal, so nothing was written"), "pass --yes to apply the plan")
 		}
 		if !newPrompter(in, out).confirm(fmt.Sprintf("apply %s to %s?", plural(changes, "change", "changes"), config.FileName), false) {
 			fmt.Fprintln(out, "nothing changed")
