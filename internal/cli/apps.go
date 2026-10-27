@@ -249,8 +249,8 @@ func removeCmd() *cobra.Command {
 				return err
 			}
 			name := args[0]
-			if _, err := cfg.App(name); err != nil {
-				return withHint(err, "`hl status` lists the apps")
+			if _, err := appArg(cfg, name); err != nil {
+				return err
 			}
 			inv, err := containers(ctx)
 			if err != nil {
@@ -308,9 +308,9 @@ func openCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			a, err := cfg.App(args[0])
+			a, err := appArg(cfg, args[0])
 			if err != nil {
-				return withHint(err, "`hl status` lists the apps")
+				return err
 			}
 			u := cfg.URL(args[0], a)
 			if u == "" {

@@ -360,7 +360,8 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   shared `env:` is added above `apps:`, and a `proxy:` left empty by an unset is removed. A
   replaced value keeps the old one's comments. The new
   content is run through `config.Check` and written only if it has no problems. An unknown key
-  or app is a `config.UnknownError`, which the CLI turns into a usage error (exit 2); so is a key
+  or app is a `config.UnknownError`, which the CLI turns into a usage error (exit 2; an app name
+  is checked first with `appArg`, which every command that takes an app uses); so is a key
   given without an app that isn't a homelab one (`notHomelabKey` names the scope that has it).
   A value that can't be used (not a number, not in the list for `-=`, or a problem `Check` finds
   in the result while the file before had none) is a `config.ValueError`: the full key

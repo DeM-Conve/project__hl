@@ -281,7 +281,7 @@ func TestRemove(t *testing.T) {
 		t.Errorf("apps left: %v", cfg.Names())
 	}
 	r = f.hl("remove", "blog")
-	if r.code != 1 || !strings.Contains(r.errOut, "no apps yet") {
+	if r.code != 2 || !strings.Contains(r.errOut, "no apps yet") {
 		t.Errorf("removing twice: %s", r)
 	}
 }
@@ -659,7 +659,7 @@ func TestShow(t *testing.T) {
 	lacks(t, "show b", r.out, "detected", "prefix")
 
 	r = f.hl("show", "c")
-	if r.code != 1 {
+	if r.code != 2 {
 		t.Fatalf("unknown app: %s", r)
 	}
 	contains(t, "show c", r.errOut, `no app "c"`, "hint:")
@@ -835,7 +835,7 @@ func TestLogs(t *testing.T) {
 		}
 	}
 	r = f.hl("logs", "nope")
-	if r.code != 1 || !strings.Contains(r.errOut, `no app "nope"`) {
+	if r.code != 2 || !strings.Contains(r.errOut, `no app "nope"`) {
 		t.Errorf("unknown app: %s", r)
 	}
 	// A service the app doesn't have: its services are listed.
@@ -918,7 +918,7 @@ func TestShellOpenCompose(t *testing.T) {
 	if c := f.find("--project-name hl-proxy", " config"); len(c) != 1 {
 		t.Errorf("show proxy --compose: %v", f.calls())
 	}
-	if r := f.hl("show", "aa", "--compose"); r.code != 1 || !strings.Contains(r.errOut, `did you mean "a"`) {
+	if r := f.hl("show", "aa", "--compose"); r.code != 2 || !strings.Contains(r.errOut, `did you mean "a"`) {
 		t.Errorf("close name: %s", r)
 	}
 	for _, gone := range []string{"ps", "path", "config", "update", "proxy"} {
@@ -1154,7 +1154,7 @@ func TestErrors(t *testing.T) {
 	}{
 		{[]string{"sideways"}, 2, []string{`unknown command "sideways"`, "hl --help"}},
 		{[]string{"up", "--nope"}, 2, []string{"unknown flag: --nope", "hint: see `hl up --help`"}},
-		{[]string{"up", "b"}, 1, []string{`no app "b"`}},
+		{[]string{"up", "b"}, 2, []string{`no app "b"`, "hint: `hl status` lists the apps"}},
 		{[]string{"status", "x"}, 2, []string{"unknown command"}},
 	} {
 		r := f.hl(c.args...)
@@ -1220,6 +1220,31 @@ func TestErrors(t *testing.T) {
 	contains(t, "no homelab", r.errOut, "no homelab found", "hl init")
 	r = f.hl("--home", filepath.Join(f.home, "nothing here"), "status")
 	contains(t, "no hl.yml", r.errOut, "no hl.yml in", "hl init")
+}
+
+// An app name that isn't in hl.yml is a usage error (exit 2) for every command that takes one,
+// with "did you mean" or the list of apps, and the same hint.
+func TestUnknownAppIsAUsageError(t *testing.T) {
+	f := newFake(t)
+	a, b := f.app("blog", webModel2), f.app("wiki", apiModel)
+	f.lab("lab", "apps:\n  blog: {path: '"+a+"'}\n  wiki: {path: '"+b+"'}\n")
+	for _, args := range [][]string{
+		{"up", "blgo"}, {"down", "blgo"}, {"restart", "blgo"}, {"rebuild", "blgo"}, {"rebuild", "blgo", "--pull"},
+		{"logs", "blgo"}, {"logs", "blgo", "web"}, {"shell", "blgo"}, {"open", "blgo"}, {"show", "blgo"}, {"show", "blgo", "--compose"},
+		{"remove", "blgo"}, {"set", "blgo", "port=80"}, {"set", "blgo", "name=x"}, {"set", "blgo"}, {"unset", "blgo", "port"}, {"unset", "blgo"},
+		{"up", "blog", "blgo"},
+	} {
+		r := f.hl(args...)
+		if r.code != 2 {
+			t.Errorf("hl %v: want exit 2: %s", args, r)
+		}
+		contains(t, fmt.Sprintf("hl %v", args), r.errOut, `no app "blgo" - did you mean "blog"?`, "hint: `hl status` lists the apps")
+	}
+	r := f.hl("show", "zzz")
+	contains(t, "no close name", r.errOut, `no app "zzz" (apps: blog, wiki)`)
+	if len(f.find("compose")) != 0 {
+		t.Errorf("an unknown app ran compose: %v", f.find("compose"))
+	}
 }
 
 func TestWindowsIsUnsupported(t *testing.T) {

@@ -146,6 +146,11 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- An app name that isn't in `hl.yml` exits 2 (usage) for every command that takes one (`up`,
+  `down`, `restart`, `rebuild`, `logs`, `shell`, `open`, `show`, `remove`, `set`, `unset`), with
+  "did you mean" or the list of apps and the same hint; most of them exited 1, and `hl set` /
+  `hl unset` of a mistyped app gave a different message.
+
 - `hl doctor` warns when the running proxy was started from older settings than hl.yml's (the
   check `hl show proxy` makes), with `hl up` to apply them; both used to say `hl up proxy`.
 
