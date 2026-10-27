@@ -171,7 +171,7 @@ Anything else is left alone: a `<X>_URL` without a matching `<X>_BASE_PATH` (say
 upstream service) and `DB_DATA_LOCATION` and the like (named volumes are under `data/<app>/`
 already). `hl add <folder> env.NAME=value` sets a value of your own (it wins over a mapped one),
 `env.NAME=` with no value leaves that variable out, and `hl unset <app> env.NAME` drops one
-later. `hl init` and `hl sync` take `--no-env` to map nothing.
+later; `hl unset <app> env` drops them all.
 
 ## Several homelabs on one Docker (`name`)
 

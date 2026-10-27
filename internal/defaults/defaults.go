@@ -156,7 +156,7 @@ const (
 
 // Env auto-mapping: `hl add`, `hl init` and `hl sync` read the variables an app's compose
 // file uses (`docker compose config --variables`) and fill in apps.<app>.env for the ones that
-// follow the common self-hosting conventions (Immich, Paperless, linuxserver). An env.NAME= setting on hl add leaves one out; init and sync take --no-env.
+// follow the common self-hosting conventions (Immich, Paperless, linuxserver). An env.NAME= setting on hl add leaves one out; hl unset <app> env.NAME drops one later.
 const (
 	// EnvBasePathSuffix: <X>_BASE_PATH gets EnvBasePathValue, with path routing only.
 	EnvBasePathSuffix = "_BASE_PATH"

@@ -19,7 +19,7 @@ import (
 )
 
 func syncCmd() *cobra.Command {
-	var yes, dry, noEnv bool
+	var yes, dry bool
 	c := &cobra.Command{
 		Use:   "sync",
 		Short: "Make hl.yml follow your projects folders: add new apps, remove ones whose folder is gone",
@@ -35,16 +35,15 @@ skipped. Apps outside the projects folders are left alone.`,
 			if err != nil {
 				return err
 			}
-			return runSync(cmd.InOrStdin(), cmd.OutOrStdout(), cfg, yes, dry, noEnv)
+			return runSync(cmd.InOrStdin(), cmd.OutOrStdout(), cfg, yes, dry)
 		},
 	}
 	c.Flags().BoolVarP(&yes, "yes", "y", false, "apply the plan without asking")
 	c.Flags().BoolVar(&dry, "dry-run", false, "only show the plan")
-	c.Flags().BoolVar(&noEnv, "no-env", false, "don't fill in the env of new apps from their compose variables")
 	return c
 }
 
-func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry, noEnv bool) error {
+func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry bool) error {
 	if len(cfg.Projects) == 0 {
 		return withHint(fmt.Errorf("no projects folders in %s", config.FileName), "add one with hl set projects+=<folder>, e.g. hl set projects+=~/code")
 	}
@@ -55,7 +54,7 @@ func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry, noEnv bo
 	for _, r := range d.MissingRoots {
 		fmt.Fprintf(out, "%swarning:%s projects folder %s not found - its apps are left as they are\n", yellow, reset, r)
 	}
-	plan := scan.Plan(cfg, d, modelFunc(cfg), varsFunc(cfg, noEnv))
+	plan := scan.Plan(cfg, d, modelFunc(cfg), varsFunc(cfg))
 	changes := 0
 	for _, a := range plan {
 		if a.Kind != scan.Skip {
@@ -93,11 +92,8 @@ func modelFunc(cfg *config.Config) scan.ModelFunc {
 	}
 }
 
-// varsFunc lists an app's compose variables, for the env hl maps; nil with --no-env.
-func varsFunc(cfg *config.Config, noEnv bool) scan.VarsFunc {
-	if noEnv {
-		return nil
-	}
+// varsFunc lists an app's compose variables, for the env hl maps.
+func varsFunc(cfg *config.Config) scan.VarsFunc {
 	return func(name string, a *config.App) ([]string, error) {
 		p, err := project(cfg, name, a)
 		if err != nil {

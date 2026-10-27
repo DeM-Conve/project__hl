@@ -26,7 +26,7 @@ release differs from earlier builds of `main`.
   a plan - projects folders (`~/code`, `~/projects`, `~/src` when they exist), the proxy (a free
   port when 80 is busy, a `name` when another homelab runs one), every web app found with its
   service, port and env, and the folders it skips and why - shows it and asks once;
-  `--projects`, `--strip-prefix` and `--no-env`
+  `--projects` and `--strip-prefix`
   change the plan and `--yes` applies it without asking (required without a terminal, as for
   `hl sync`). It checks Docker and compose first, and on an existing homelab never overwrites
   `hl.yml` but adds the new apps. The `hl.yml` it writes
@@ -126,8 +126,8 @@ release differs from earlier builds of `main`.
 - `hl add`, `hl init` and `hl sync` fill in an app's `env` from the variables its compose file
   uses (`docker compose config --variables`): `<X>_BASE_PATH` gets `${HL_PREFIX}` (path
   routing), the matching `<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and
-  `BACKUP_LOCATION` `${HL_DATA}/backups`. They print what they mapped; `hl init` and `hl sync`
-  take `--no-env` to map nothing, `hl add <folder> env.NAME=` leaves one variable out.
+  `BACKUP_LOCATION` `${HL_DATA}/backups`. They print what they mapped;
+  `hl add <folder> env.NAME=` leaves one variable out, `hl unset <app> env` drops them all.
 - `hl add <folder> key=value...` takes the settings `hl set <app>` takes, plus `name`:
   `hl add ~/code/wiki routing=host service=web port=8080 env.TZ=UTC`. `env.NAME=value` wins over
   the mapped values.
@@ -147,6 +147,8 @@ release differs from earlier builds of `main`.
   the proxy itself (path routing on `127.0.0.1`, port 80 or a free one); change it afterwards with
   `hl set proxy bind=0.0.0.0 port=8080 routing=host`. To leave out an app init added,
   `hl remove <app>` (its folder is then ignored by `hl sync`).
+- **Breaking:** `hl init --no-env` and `hl sync --no-env` are gone, as on `hl add`: undo a
+  mapped variable with `hl unset <app> env.NAME`, or all of them with `hl unset <app> env`.
 - **Breaking:** the proxy keys `config`, `dynamic`, `dashboard`, `dashboard_public`, `access_log`
   and `log_level` are gone; `proxy.debug: true` (`hl set proxy debug=true`) turns on Traefik's
   INFO log and access log. An `hl.yml` that still has one is refused with a message naming the

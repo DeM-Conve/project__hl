@@ -26,7 +26,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   `hl remove` ignores an app's folder so `hl sync` doesn't re-add it; the proxy keys are down to
   `bind port routing domain subnet image network project debug`; `hl logs` of a stopped app says so; no command aliases
   (`start`, `stop`, `ls`) or `--version`/`version --short`; `hl init` takes only `--projects`,
-  `--strip-prefix` and `--yes` (the proxy is `hl set proxy ...` afterwards).
+  `--strip-prefix` and `--yes` (the proxy is `hl set proxy ...` afterwards); no `--no-env` on
+  init or sync (`hl unset <app> env`).
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install

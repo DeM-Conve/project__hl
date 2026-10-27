@@ -24,7 +24,6 @@ type initOptions struct {
 	projects []string
 	strip    []string
 	yes      bool
-	noEnv    bool
 }
 
 func initCmd() *cobra.Command {
@@ -66,7 +65,6 @@ projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
 	f := c.Flags()
 	f.StringSliceVar(&o.projects, "projects", nil, "folders with your projects; each subfolder with a compose file is an app (default: "+strings.Join(defaults.CandidateProjects, ", ")+" in your home)")
 	f.BoolVarP(&o.yes, "yes", "y", false, "apply the plan without asking")
-	f.BoolVar(&o.noEnv, "no-env", false, "don't fill in the apps' env from their compose variables")
 	f.StringSliceVar(&o.strip, "strip-prefix", nil, "folder-name prefixes left out of app names, project__blog -> blog (default: a prefix most folders found share; "+pickNone+" for whole names)")
 	return c
 }
@@ -277,7 +275,7 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 			w("apps", "found %s, but hl needs docker to read their compose files - fix the above, then run hl sync",
 				plural(len(d.New), "folder", "folders"))
 		default:
-			plan = scan.PlanAdds(cfg, d, modelFunc(cfg), varsFunc(cfg, o.noEnv))
+			plan = scan.PlanAdds(cfg, d, modelFunc(cfg), varsFunc(cfg))
 		}
 	}
 

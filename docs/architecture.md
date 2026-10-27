@@ -176,7 +176,7 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
 `apps.<app>.env`, where they are ordinary settings. `<X>_BASE_PATH` -> `${HL_PREFIX}` with path
 routing; `<X>_URL` -> `${HL_URL}` only when `<X>_BASE_PATH` exists too and routing isn't `none`;
 `DATA_LOCATION`/`BACKUP_LOCATION` by name. A failing `--variables` call (older compose) only
-warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-mapped.
+warns. Kept apps are never re-mapped.
 
 ## Command notes
 

@@ -188,6 +188,9 @@ func TestInitErrors(t *testing.T) {
 		{"init", filepath.Join(home, "c"), "--bind", "0.0.0.0"},
 		{"init", filepath.Join(home, "d"), "--port", "8081"},
 		{"init", filepath.Join(home, "e"), "--apps", "blog"},
+		// Mapped env is undone per variable: hl set <app> env.X= or hl unset <app> env.
+		{"init", filepath.Join(home, "f"), "--no-env"},
+		{"sync", "--home", filepath.Join(home, "g"), "--no-env"},
 	} {
 		if out, err := runHL(t, "", args...); err == nil {
 			t.Errorf("%v: expected an error\n%s", args, out)
