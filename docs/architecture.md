@@ -326,8 +326,10 @@ normalises indentation to two spaces).
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,
   so it is the shared scope; for `unset`, `env`/`env.NAME` is the shared scope unless an app has
   that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
-  `hl up <app>`, `hl up`, `hl up proxy`, `hl sync` for the projects settings, or `hl down` then
-  `hl up` when the proxy's network, subnet or project changed).
+  `hl up <app>`, `hl up`, `hl up proxy`, `hl up proxy` then `hl up` when the proxy's `domain`,
+  `routing` or `port` changed (they are in the apps' routes or `HL_URL`; `bind` is not), `hl sync`
+  for the projects settings, or `hl down` then `hl up` when the proxy's network, subnet or
+  project changed).
 - `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
   `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
   checks out. It finds the homelab with `config.Home`, not `Load`, so it works on a file that

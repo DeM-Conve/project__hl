@@ -198,7 +198,11 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 		}
 	}
 
-	if out, err := run(t, "", "unset", "proxy", "port"); err != nil || !strings.Contains(out, "unset proxy.port") || !strings.Contains(out, "apply it: hl up proxy\n") {
+	// The port is in every app's HL_URL: the apps need hl up too; the bind isn't.
+	if out, err := run(t, "", "unset", "proxy", "port"); err != nil || !strings.Contains(out, "unset proxy.port") || !strings.Contains(out, "apply it: hl up proxy, then hl up (") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if out, err := run(t, "", "set", "proxy", "bind=0.0.0.0"); err != nil || !strings.Contains(out, "apply it: hl up proxy\n") {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if out, err := run(t, "", "unset", "env.TZ"); err != nil || !strings.Contains(out, "unset env.TZ") {

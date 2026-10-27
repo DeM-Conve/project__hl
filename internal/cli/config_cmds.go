@@ -386,12 +386,13 @@ func applyCommand(scope string, changes []config.Change) string {
 			case "network", "subnet", "project":
 				// Every app joins the proxy's network: both move together.
 				return "hl down, then hl up (the proxy and every app move to the new network or project)"
-			case "domain", "routing":
+			case "domain", "routing", "port":
+				// The apps' routes or their HL_URL (which has the port unless it is 80) change too.
 				apps = true
 			}
 		}
 		if apps {
-			return "hl up proxy, then hl up (the apps' routes change too)"
+			return "hl up proxy, then hl up (the apps' routes or URLs change too)"
 		}
 		return "hl up proxy"
 	}

@@ -197,6 +197,8 @@ release differs from earlier builds of `main`.
   hint. `hl up` and `hl rebuild` print an error before the status table, not after it.
 - `hl set <app> compose+=<file>` (and `hl add <folder> compose+=<file>`) on an app that names no
   compose file replaced the file compose picks with the new one; the list now starts from it.
+- `hl set proxy port=...` said to apply it with `hl up proxy` only, but the port is in every
+  app's `HL_URL`; it now says `hl up proxy, then hl up`, like `domain` and `routing`.
 
 - `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
   line, shown only with path routing when no base-path variable was mapped.

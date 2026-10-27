@@ -72,8 +72,9 @@ missing, as compose does; an image built before hl kept track needs one `hl rebu
 
 ## Proxy settings
 
-`hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up proxy` (hl says when a change
-also needs `hl up`, or `hl down` then `hl up`); `hl show proxy` says when the running proxy is
+`hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up proxy`; a change of `domain`,
+`routing` or `port` also needs `hl up` (it is in the apps' routes or URLs), one of `network`,
+`subnet` or `project` needs `hl down` then `hl up`, and hl says so. `hl show proxy` says when the running proxy is
 behind its settings.
 
 | Key | Default | What it does |
