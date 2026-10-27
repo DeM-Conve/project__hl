@@ -163,6 +163,15 @@ by hl (`os.Expand`) against the `HL_*` values first, then the shell environment;
 to each other. `HL_URL` has no trailing slash; `HL_PREFIX` is empty unless routing is `path`;
 `HL_HOST` is the domain unless routing is `host`.
 
+`TZ` (`config.hostTZ`, `internal/config/timezone.go`): when neither the shared `env`, the app's
+`env`, nor a `TZ=`/`export TZ=` line in the app's `.env` or `env_files` sets it (hl reads those
+lines because the process env would otherwise win over them), hl adds the host's zone right
+after the `HL_*` values: `$TZ` (unless it names a file, `:...`), else the part after `zoneinfo/`
+of `/etc/localtime`'s symlink target (Linux and macOS), else `/etc/timezone`. If none tells,
+no `TZ` is added. `config.HostTimeZone` is a variable so tests can fix it; the paths are in
+`internal/defaults`. `config.EnvVars` reports it with the source (`host ($TZ)`, ...), and
+`hl config defaults` lists it as `env.TZ`.
+
 These are only interpolation variables: an app sees them in its containers only if its own compose
 file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
 

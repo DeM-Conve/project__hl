@@ -364,6 +364,9 @@ func (c *Config) EnvVars(name string, a *App) []EnvVar {
 	for _, k := range hlVars {
 		add(k, "", SourceHL)
 	}
+	if tz, source := c.hostTZ(name, a); tz != "" {
+		add(defaults.TZEnv, "", source)
+	}
 	for _, src := range []struct {
 		m      map[string]string
 		source string
@@ -391,7 +394,8 @@ func (c *Config) EnvVars(name string, a *App) []EnvVar {
 }
 
 // AppEnv is what the app's compose files can interpolate, as KEY=VALUE: the
-// HL_* values, then the shared env, then the app's own (later ones win).
+// HL_* values, the host's TZ when nothing else sets it (hostTZ), then the
+// shared env, then the app's own (later ones win).
 // Values may refer to HL_* and to the shell's environment as ${NAME}.
 func (c *Config) AppEnv(name string, a *App) []string {
 	hl := map[string]string{
@@ -409,9 +413,12 @@ func (c *Config) AppEnv(name string, a *App) []string {
 			return os.Getenv(key)
 		})
 	}
-	env := make([]string, 0, len(hl)+len(c.Env)+len(a.Env))
+	env := make([]string, 0, len(hl)+len(c.Env)+len(a.Env)+1)
 	for _, k := range hlVars {
 		env = append(env, k+"="+hl[k])
+	}
+	if tz, _ := c.hostTZ(name, a); tz != "" {
+		env = append(env, defaults.TZEnv+"="+tz)
 	}
 	for _, m := range []map[string]string{c.Env, a.Env} {
 		keys := make([]string, 0, len(m))
@@ -505,7 +512,7 @@ proxy:
   # other than 127.0.0.1 it also needs dashboard_public: true.
   # dashboard: true
 
-# Settings passed to every app, e.g. the time zone. An app's own env wins.
+# Settings passed to every app. TZ defaults to this machine's time zone. An app's own env wins.
 # env:
 #   TZ: UTC
 

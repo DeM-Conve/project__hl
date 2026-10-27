@@ -16,6 +16,76 @@ func write(t *testing.T, body string) string {
 	return dir
 }
 
+func TestHostTimeZone(t *testing.T) {
+	t.Setenv("TZ", "Asia/Kolkata")
+	if z, src := hostTimeZone(); z != "Asia/Kolkata" || src != "host ($TZ)" {
+		t.Errorf("from $TZ: %q %q", z, src)
+	}
+	t.Setenv("TZ", ":/etc/localtime") // a file, not a zone: read the system's instead
+	if z, _ := hostTimeZone(); strings.HasPrefix(z, ":") {
+		t.Errorf("a TZ naming a file was used: %q", z)
+	}
+}
+
+func TestHostTZOnlyWhenNothingSetsIt(t *testing.T) {
+	old := HostTimeZone
+	HostTimeZone = func() (string, string) { return "Europe/Berlin", "host (/etc/localtime)" }
+	t.Cleanup(func() { HostTimeZone = old })
+	app := t.TempDir()
+	dir := write(t, "apps:\n  a: {path: '"+app+"'}\n")
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tz := func() (string, string) {
+		for _, v := range c.EnvVars("a", c.Apps["a"]) {
+			if v.Name == "TZ" {
+				return v.Value, v.Source
+			}
+		}
+		return "", ""
+	}
+	if v, src := tz(); v != "Europe/Berlin" || src != "host (/etc/localtime)" {
+		t.Errorf("nothing sets TZ: %q from %q", v, src)
+	}
+	if env := strings.Join(c.AppEnv("a", c.Apps["a"]), "\n"); !strings.Contains(env, "\nTZ=Europe/Berlin") {
+		t.Errorf("AppEnv: %s", env)
+	}
+
+	c.Env = map[string]string{"TZ": "UTC"}
+	if v, src := tz(); v != "UTC" || src != SourceSharedEnv {
+		t.Errorf("shared env: %q from %q", v, src)
+	}
+	c.Env = nil
+	c.Apps["a"].Env = map[string]string{"TZ": "America/Lima"}
+	if v, src := tz(); v != "America/Lima" || src != SourceAppEnv {
+		t.Errorf("app env: %q from %q", v, src)
+	}
+	c.Apps["a"].Env = nil
+
+	// The app's own .env, or an env file, setting TZ: hl adds nothing, so theirs applies.
+	if err := os.WriteFile(filepath.Join(app, ".env"), []byte("# zone\n  TZ = Asia/Tokyo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := tz(); v != "" {
+		t.Errorf(".env sets TZ, hl added %q", v)
+	}
+	_ = os.Remove(filepath.Join(app, ".env"))
+	if err := os.WriteFile(filepath.Join(dir, "extra.env"), []byte("export TZ=Asia/Tokyo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c.Apps["a"].EnvFiles = []string{"extra.env"}
+	if v, _ := tz(); v != "" {
+		t.Errorf("env_files set TZ, hl added %q", v)
+	}
+	c.Apps["a"].EnvFiles = nil
+
+	HostTimeZone = func() (string, string) { return "", "" }
+	if env := strings.Join(c.AppEnv("a", c.Apps["a"]), "\n"); strings.Contains(env, "TZ=") {
+		t.Errorf("host zone unknown, TZ set anyway: %s", env)
+	}
+}
+
 func TestDefaultsAndURLs(t *testing.T) {
 	dir := write(t, `
 proxy: {port: 8080}

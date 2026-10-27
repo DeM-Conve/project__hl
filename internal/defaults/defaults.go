@@ -144,6 +144,16 @@ var ComposeFiles = []string{"compose.yaml", "compose.yml", "docker-compose.yaml"
 // ExposedServices are the service names hl prefers, in order, when several publish a port.
 var ExposedServices = []string{"frontend", "web", "app", "nginx", "proxy", "ui"}
 
+// The time zone hl gives apps (TZ) when neither the shared env, the app's env nor its env
+// files set one: the host's, from $TZ, else the zoneinfo file /etc/localtime links to, else
+// /etc/timezone. When none of these tells, hl sets no TZ.
+const (
+	TZEnv         = "TZ"
+	LocalTimeFile = "/etc/localtime"
+	ZoneInfoDir   = "zoneinfo"
+	TimeZoneFile  = "/etc/timezone"
+)
+
 // Environment variables.
 const (
 	// HomeEnv is the homelab folder, after --home.

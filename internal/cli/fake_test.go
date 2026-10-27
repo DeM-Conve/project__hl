@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/DeM-Conve/project__hl/internal/config"
 )
 
 func TestMain(m *testing.M) {
@@ -67,7 +69,7 @@ func fakeMain(name string, args []string) int {
 	wd, _ := os.Getwd()
 	env := map[string]string{}
 	for _, kv := range os.Environ() {
-		if k, v, _ := strings.Cut(kv, "="); strings.HasPrefix(k, "HL_") && k != fakeDirEnv {
+		if k, v, _ := strings.Cut(kv, "="); strings.HasPrefix(k, "HL_") && k != fakeDirEnv || k == "TZ" {
 			env[k] = v
 		}
 	}
@@ -177,15 +179,16 @@ func newFake(t *testing.T) *fake {
 	t.Setenv(fakeDirEnv, f.dir)
 	// A race-detector build sleeps a second at exit; the fake runs dozens of times.
 	t.Setenv("GORACE", "atexit_sleep_ms=0")
-	oldGoos, oldPort, oldNets, oldTerm := goos, portInUse, hostSubnets, stdinTerminal
+	oldGoos, oldPort, oldNets, oldTerm, oldTZ := goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone
 	t.Cleanup(func() {
-		goos, portInUse, hostSubnets, stdinTerminal = oldGoos, oldPort, oldNets, oldTerm
+		goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone = oldGoos, oldPort, oldNets, oldTerm, oldTZ
 		homeFlag = ""
 		stdin, stdout, stderr = os.Stdin, os.Stdout, os.Stderr
 	})
 	portInUse = func(string, int) bool { return false }
 	hostSubnets = func() []*net.IPNet { return nil }
 	stdinTerminal = func(io.Reader) bool { return false }
+	config.HostTimeZone = func() (string, string) { return "", "" } // the host's TZ only where a test sets one
 	return f
 }
 

@@ -328,6 +328,7 @@ settings; after changing them, `hl proxy up` applies them;
 ### `env`
 
 A map of variables passed to every app, e.g. `TZ: UTC`. An app's own `env` wins over it.
+Without a `TZ` here, apps get this machine's time zone (see [Variables hl provides](#variables-hl-provides)).
 `hl set env.TZ=UTC` sets one, `hl unset env.TZ` removes it.
 
 ### `projects`, `ignore`, `scan_depth`
@@ -397,6 +398,7 @@ no app's `hl-<app>` may equal `proxy.project`), and the `hl config` subcommands,
 | `HL_PREFIX` | the path prefix, e.g. `/my-app`; empty unless routing is `path` |
 | `HL_HOST` | the host name: `<app>.<domain>` for host routing, else `domain` |
 | `HL_DATA` | the app's data folder, `<homelab>/data/<app>` |
+| `TZ` | this machine's time zone (from `$TZ`, else what `/etc/localtime` points to, else `/etc/timezone`), so apps log in your local time - only when neither the shared `env`, the app's `env` nor the app's `.env`/`env_files` set `TZ`, and only when hl can tell the zone. `hl config defaults` shows it and where it came from; `hl set env.TZ=UTC` picks another for every app. |
 
 **Order:** a variable's value comes from, later winning: the app's `.env`, the app's
 `env_files`, your shell, the shared `env`, the app's `env`.
@@ -427,7 +429,7 @@ today and not `hl.yml` settings (some have a command-line flag):
 | `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 
 `hl config defaults` prints every setting that has a default, the value in effect and where it
-comes from (`hl.yml`, default, flag or environment), including the homelab folder, the
+comes from (`hl.yml`, default, flag or environment), including the homelab folder, the `TZ` apps get (`env.TZ`), the
 editor `hl edit` runs (`$VISUAL`, then `$EDITOR`, else `vi`), and the built-in values above.
 
 **Environment variables hl reads:** `HL_HOME` (the homelab folder) and `NO_COLOR` (no colours;

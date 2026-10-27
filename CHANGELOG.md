@@ -46,6 +46,9 @@ release differs from earlier builds of `main`.
   and healthy, and for an app that isn't, name those services and show their last log lines. A
   sidecar nothing depends on (say, a backup job with a long healthcheck interval) no longer fails
   `--wait`; `--wait-all` waits for every service.
+- Apps get this machine's time zone as `TZ` (from `$TZ`, `/etc/localtime` or `/etc/timezone`)
+  unless the shared env, the app's env or its env files set one; `hl config defaults` shows it
+  and where it came from. When the zone can't be told, no `TZ` is set.
 - `hl logs` with no app shows every app's logs at once, each line prefixed by its app; `-n`/`--tail`
   sets how many lines (default 200).
 - `hl update` says which apps it skipped (not a git repo, uncommitted changes) and why.

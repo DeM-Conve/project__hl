@@ -41,8 +41,9 @@ in hl may assume the maintainer's setup.
   `$HL_HOME`/nearest `hl.yml`; the projects folders from `projects:`; hl's own state from the OS
   config dir (`os.UserConfigDir`); `~` expanded for the current user only. Paths in hl.yml may be
   relative to the homelab, so a homelab folder can be moved or shared.
-- [x] **Sensible, neutral defaults** that work on a fresh machine: no `TZ` unless the user sets
-  it (the container's default), port 80 with an offer of another if busy, `localhost`, no fixed
+- [x] **Sensible, neutral defaults** that work on a fresh machine: `TZ` is the host's time zone
+  unless the user sets one (none when it can't be told; changed 2026-10-27, see
+  requirements.md), port 80 with an offer of another if busy, `localhost`, no fixed
   subnet unless asked.
 - [x] **Fresh-user test**: an automated check that runs init -> add -> up (fake docker) as a
   different user name, in a home folder with spaces in its path, with no prior hl state, and on a

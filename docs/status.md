@@ -65,3 +65,7 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    like `up`, `rebuild` and `update`.
 6. ~~Windows~~ - decided 2026-10-23 (same): not supported; hl says so and suggests WSL 2.
 7. ~~CLI tests~~ - done 2026-10-23: `internal/cli` is tested with a fake `docker` on PATH.
+8. **Opting out of the host's `TZ`** (2026-10-27): apps now get the host's time zone unless
+   something sets `TZ`. To keep an image's own default instead, a user can only set an explicit
+   zone (`hl set env.TZ=UTC`). Is a way to say "no `TZ` at all" wanted (e.g. an empty
+   `env.TZ`, which `hl set` refuses today), or is an explicit zone enough?

@@ -378,6 +378,36 @@ func TestShow(t *testing.T) {
 	contains(t, "show a (broken)", r.out, "detected when the app starts", "note:")
 }
 
+func TestHostTimeZoneIsTheDefaultTZ(t *testing.T) {
+	f := newFake(t)
+	config.HostTimeZone = func() (string, string) { return "Asia/Kolkata", "host ($TZ)" }
+	a, b := f.app("a", webModel2), f.app("b", apiModel)
+	f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n  b: {path: '"+b+"', env: {TZ: UTC}}\n")
+	f.must("up")
+	if u := f.find("--project-name hl-a ", "up --detach"); len(u) != 1 || u[0].Env["TZ"] != "Asia/Kolkata" {
+		t.Errorf("a gets the host's TZ: %v", u)
+	}
+	if u := f.find("--project-name hl-b ", "up --detach"); len(u) != 1 || u[0].Env["TZ"] != "UTC" {
+		t.Errorf("b's own TZ wins: %v", u)
+	}
+	r := f.must("config", "defaults")
+	contains(t, "config defaults", r.out, "env.TZ", "the host's time zone", "Asia/Kolkata", "host ($TZ)")
+	r = f.must("show", "a")
+	contains(t, "show a", r.out, "TZ=Asia/Kolkata", "host ($TZ)")
+
+	// A shared TZ wins over the host's, everywhere.
+	f.lab("lab2", "env: {TZ: Europe/Paris}\napps:\n  a: {path: '"+a+"'}\n")
+	r = f.must("config", "defaults")
+	contains(t, "config defaults", r.out, "Europe/Paris")
+	lacks(t, "config defaults", r.out, "Asia/Kolkata")
+
+	// Unknown host zone: no TZ, and defaults says so.
+	config.HostTimeZone = func() (string, string) { return "", "" }
+	f.lab("lab3", "apps: {}\n")
+	r = f.must("config", "defaults")
+	contains(t, "config defaults", r.out, "none: the host's time zone can't be told")
+}
+
 func TestDown(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)

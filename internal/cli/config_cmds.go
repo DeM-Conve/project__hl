@@ -380,6 +380,24 @@ func builtinDefaults() [][2]string {
 	}
 }
 
+// tzSetting is the TZ every app gets: the shared env's, else the host's time zone. An app's
+// own env or env files may still set another (hl show <app> says).
+func tzSetting(home string) config.Setting {
+	s := config.Setting{Key: "env." + defaults.TZEnv, Default: "the host's time zone"}
+	if cfg, err := config.Load(home); err == nil {
+		if tz, ok := cfg.Env[defaults.TZEnv]; ok {
+			s.Value, s.Source = tz, config.FileName
+			return s
+		}
+	}
+	if tz, source := config.HostTimeZone(); tz != "" {
+		s.Value, s.Source = tz, source
+		return s
+	}
+	s.Value, s.Source = "-", "none: the host's time zone can't be told, so apps keep their own default"
+	return s
+}
+
 func configDefaultsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "defaults",
@@ -415,6 +433,7 @@ func configDefaultsCmd() *cobra.Command {
 				}
 			}
 			editor, editorFrom := editorCommand()
+			settings = append(settings, tzSetting(home))
 			settings = append(settings,
 				config.Setting{Key: "home", Default: "-", Value: home, Source: homeSource(home)},
 				config.Setting{Key: "version", Default: strconv.Itoa(defaults.ConfigVersion), Value: ver, Source: verFrom},
