@@ -264,8 +264,10 @@ apps:
   refused with a message to update hl.
 - **Broken by hand.** `hl set`/`hl unset` write only a valid result, so a broken `hl.yml` comes
   from editing it by hand. Every command then refuses with each problem's `hl.yml:line:column`
-  and what is wrong; fix those lines in any editor (or `hl unset` a key that shouldn't be
-  there), and `hl doctor` checks the file again.
+  and what is wrong; fix those lines in any editor, or `hl unset` a key that shouldn't be
+  there (`hl unset proxy prot`, `hl unset my-app servce`, `hl unset old_key`: hl unset removes
+  any key the file has at that place, setting or not, and says when it wasn't one; on a broken
+  file it writes the result when it adds no problem), and `hl doctor` checks the file again.
 - **Written whole.** `hl.yml`, the default-homelab note and every generated file are written to a
   temporary file and renamed into place, so a crash or Ctrl-C never leaves half a file. An
   existing file keeps its permissions, and a symlinked `hl.yml` stays a symlink.

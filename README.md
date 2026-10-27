@@ -240,7 +240,7 @@ Start with `hl doctor`. Every error says what failed and, on a `hint:` line, wha
   `hl up proxy`, then `hl logs proxy -f` shows each request Traefik gets.
 - **`hl.yml has 1 problem`** after editing it by hand. The error lists each problem as
   `hl.yml:line:column`; fix those lines in any editor (or `hl unset` a key that shouldn't be
-  there), then `hl doctor` checks it again. `hl set`/`hl unset` never write a broken file.
+  there, setting or not), then `hl doctor` checks it again. `hl set`/`hl unset` never break the file.
 - **`hl add` can't tell which service to route to.** Pass `service=<name>` (and `port=<port>`).
 - **`... belongs to another homelab`.** Two homelabs on one Docker: give one a
   [`name`](docs/reference.md#several-homelabs-on-one-docker-name), or stop the other.

@@ -107,6 +107,11 @@ func unknown(format string, a ...any) error { return &UnknownError{msg: fmt.Spri
 func Edit(dir, scope string, changes []Change) error {
 	switch scope {
 	case HomelabScope:
+		for _, c := range changes {
+			if field, _, _ := strings.Cut(c.Key, "."); managedKeys[field] {
+				return unknown("unknown setting %q - use one of: %s", c.Key, strings.Join(HomelabKeys(), ", "))
+			}
+		}
 		return editScope(dir, "", changes, homelabFields(), func(root *yaml.Node) (*yaml.Node, error) { return root, nil })
 	case ProxyScope:
 		fields := proxyFields()
@@ -218,7 +223,12 @@ func editScope(dir, prefix string, changes []Change, fields map[string]reflect.T
 		return err
 	}
 	if ps := Check(out); len(ps) > 0 {
-		if orig, err := os.ReadFile(path); err == nil && len(Check(orig)) == 0 {
+		orig, err := os.ReadFile(path)
+		if err == nil && allUnset(changes) && onlyOld(ps, Check(orig)) {
+			// hl unset on a broken hl.yml: one problem at a time may go, as long as none is added.
+			return writeKeepMode(path, out)
+		}
+		if err == nil && len(Check(orig)) == 0 {
 			// hl.yml was fine: the values given are wrong, not a place in the file.
 			for i := range ps {
 				ps[i].Line, ps[i].Column = 0, 0
@@ -228,6 +238,32 @@ func editScope(dir, prefix string, changes []Change, fields map[string]reflect.T
 		return fmt.Errorf("%s not changed: %w", FileName, &ProblemsError{File: path, Problems: ps})
 	}
 	return writeKeepMode(path, out)
+}
+
+func allUnset(changes []Change) bool {
+	for _, c := range changes {
+		if !c.Unset {
+			return false
+		}
+	}
+	return true
+}
+
+// onlyOld reports whether every problem in ps (after an edit) was in old (before it), by key
+// and message: lines may have moved.
+func onlyOld(ps, old []Problem) bool {
+	n := map[string]int{}
+	for _, p := range old {
+		n[p.Key+"\x00"+p.Message]++
+	}
+	for _, p := range ps {
+		k := p.Key + "\x00" + p.Message
+		if n[k] == 0 {
+			return false
+		}
+		n[k]--
+	}
+	return true
 }
 
 // ValueError is a value `hl set`/`hl unset` can't use (a usage mistake): each problem's key is
@@ -269,6 +305,20 @@ func valueErr(key, what, fix string) error {
 func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error {
 	field, sub, hasSub := strings.Cut(c.Key, ".")
 	t, ok := fields[field]
+	if !ok && c.Unset && present(app, c.Key) {
+		// Not a setting, but in the file (a typo, or a key of another hl version): hl unset
+		// removes it, so a file Check refuses can be fixed without an editor.
+		if !hasSub {
+			remove(app, field)
+			return nil
+		}
+		m := lookup(app, field)
+		remove(m, sub)
+		if len(m.Content) == 0 {
+			remove(app, field)
+		}
+		return nil
+	}
 	if !ok {
 		names := make([]string, 0, len(fields))
 		for k := range fields {
@@ -433,6 +483,47 @@ func set(m *yaml.Node, key string, val *yaml.Node) {
 }
 
 // remove deletes key from mapping m; a comment above it moves to the next key.
+// present reports whether mapping m has key (field, or field.sub with field a mapping).
+func present(m *yaml.Node, key string) bool {
+	field, sub, hasSub := strings.Cut(key, ".")
+	v := lookup(m, field)
+	if !hasSub || v == nil {
+		return v != nil
+	}
+	return v.Kind == yaml.MappingNode && sub != "" && lookup(v, sub) != nil
+}
+
+// managedKeys are top-level keys hl.yml has that aren't homelab settings: hl unset never
+// removes them as a whole.
+var managedKeys = map[string]bool{"version": true, ProxyScope: true, "apps": true}
+
+// Present reports whether <dir>/hl.yml has key (port, env.TZ, ...) in scope (as for Edit),
+// known setting or not. The keys hl manages at the top (version, proxy, apps) are not the
+// homelab scope's.
+func Present(dir, scope, key string) bool {
+	found := false
+	_, _ = edited(filepath.Join(dir, FileName), func(root *yaml.Node) error {
+		m := root
+		switch scope {
+		case HomelabScope:
+			if field, _, _ := strings.Cut(key, "."); managedKeys[field] {
+				return nil
+			}
+		case ProxyScope:
+			m = lookup(root, "proxy")
+		default:
+			if apps := lookup(root, "apps"); apps != nil && apps.Kind == yaml.MappingNode {
+				m = lookup(apps, scope)
+			} else {
+				m = nil
+			}
+		}
+		found = m != nil && m.Kind == yaml.MappingNode && present(m, key)
+		return nil
+	})
+	return found
+}
+
 func remove(m *yaml.Node, key string) {
 	for i := 0; i+1 < len(m.Content); i += 2 {
 		if m.Content[i].Value == key {

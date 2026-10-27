@@ -215,6 +215,11 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl unset` removes a key `hl.yml` has that isn't a setting (a typo like `hl unset proxy prot`,
+  or a key of another hl version) at any scope, and says it wasn't a known setting; it used to
+  refuse it as unknown although the error for such a file suggests it. On a file with several
+  problems it writes the result when it adds none, so they can be fixed one at a time. A key
+  that is neither a setting nor in the file is still refused.
 - `hl set`, `hl unset` and every other command that changes `hl.yml` (add, remove, sync, init)
   keep its blank lines and never add any; they used to remove all of them, so one setting
   rewrote the whole file's layout, and then added one below the header comment on every edit.

@@ -357,7 +357,12 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   back). `ignore` holds folder names, which a rename doesn't change. A missing `proxy:` or
   shared `env:` is added above `apps:`, and a `proxy:` left empty by an unset is removed. A
   replaced value keeps the old one's comments. The new
-  content is run through `config.Check` and written only if it has no problems. An unknown key
+  content is run through `config.Check` and written only if it has no problems, or, for an
+  unset on a file that already has problems, if it has none the file didn't have (`onlyOld`, by
+  key and message), so a broken file can be fixed one `hl unset` at a time. `hl unset` also
+  removes a key that is no setting but is in the file at that scope (`config.Present`; at the
+  top level not `version`, `proxy` or `apps`), and the CLI notes that it wasn't a known setting
+  (`knownSetting`); a key neither known nor present stays an unknown key. An unknown key
   or app is a `config.UnknownError`, which the CLI turns into a usage error (exit 2); so is a key
   given without an app that isn't a homelab one (`notHomelabKey` names the scope that has it).
   A value that can't be used (not a number, not in the list for `-=`, or a problem `Check` finds
@@ -369,8 +374,8 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   `project` of the changed app must resolve, and the service be in its model when that can be
   read). The CLI tells
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,
-  so it is the shared scope; for `unset`, `env`/`env.NAME` is the shared scope unless an app has
-  that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
+  so it is the shared scope; for `unset`, a homelab key (`env`/`env.NAME`, or any key hl.yml
+  has at the top) is the shared scope unless an app has that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
   `hl up <app>`, `hl up`, `hl up proxy`, `hl up proxy` then `hl up` when the proxy's `domain`,
   `routing` or `port` changed (they are in the apps' routes or `HL_URL`; `bind` is not), `hl sync`
   for the projects settings, or `hl down` then `hl up` when the proxy's network, subnet or

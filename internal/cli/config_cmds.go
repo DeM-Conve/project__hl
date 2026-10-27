@@ -49,6 +49,24 @@ func setAppKeys() []string {
 	return keys
 }
 
+// knownSetting reports whether key (port, env.TZ, ...) is one of scope's settings.
+func knownSetting(scope, key string) bool {
+	keys := setAppKeys()
+	switch scope {
+	case config.HomelabScope:
+		keys = config.HomelabKeys()
+	case config.ProxyScope:
+		keys = config.ProxyKeys()
+	}
+	field, _, _ := strings.Cut(key, ".")
+	for _, k := range keys {
+		if strings.TrimSuffix(k, ".") == field {
+			return true
+		}
+	}
+	return false
+}
+
 func scopesHelp() string {
 	return fmt.Sprintf(setScopesHelp, strings.Join(setAppKeys(), ", "), strings.Join(config.ProxyKeys(), ", "),
 		strings.Join(config.HomelabKeys(), ", "))
@@ -124,10 +142,14 @@ env.NAME removes one env setting, env removes them all.
 			}
 			scope, keys := args[0], args[1:]
 			// env and env.NAME without an app are the shared env - unless an app has that name.
-			if config.IsHomelabKey(scope) && !config.HasApp(home, scope) {
+			// So is a key hl.yml has at the top that isn't a setting (hl unset it to fix the file).
+			homelab := func(k string) bool {
+				return config.IsHomelabKey(k) || config.Present(home, config.HomelabScope, k)
+			}
+			if homelab(scope) && !config.HasApp(home, scope) {
 				scope, keys = config.HomelabScope, args
 				for _, k := range keys {
-					if !config.IsHomelabKey(k) {
+					if !homelab(k) {
 						return notHomelabKey("unset", k, k)
 					}
 				}
@@ -365,6 +387,9 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 	for _, c := range changes {
 		if c.Unset {
 			say("unset %s%s", prefix, c.Key)
+			if !knownSetting(scope, c.Key) {
+				say("note: %s%s was not a known setting; removed it from %s", prefix, c.Key, config.FileName)
+			}
 		} else {
 			say("set %s%s %s= %s", prefix, c.Key, c.Op, c.Value)
 		}

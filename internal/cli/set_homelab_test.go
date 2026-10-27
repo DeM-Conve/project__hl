@@ -247,3 +247,34 @@ func TestRenameApp(t *testing.T) {
 		t.Error("data and .hl/ didn't move")
 	}
 }
+
+// hl unset removes a key hl.yml has that isn't a setting (a typo, or one an older hl took), at
+// any scope, so a file every command refuses can be fixed without an editor.
+func TestUnsetUnknownKeyInFile(t *testing.T) {
+	f := newFake(t)
+	dir := f.app("blog", `{"services":{"web":{"ports":[{"target":80}]}}}`)
+	lab := f.lab("lab", "# my lab\n\nversion: 1\nprojects_old: [x]\nenv: {TZ: UTC}\n\nproxy:\n  port: 8080\n  prot: 1\n\napps:\n  blog:\n    path: "+dir+"\n    servce: web\n")
+	if r := f.hl("status"); r.code != 1 || !strings.Contains(r.errOut, "prot") {
+		t.Fatalf("an unknown key should be refused: %s", r)
+	}
+	r := f.must("unset", "proxy", "prot")
+	contains(t, "unset proxy prot", r.out, "unset proxy.prot", "note: proxy.prot was not a known setting; removed it from hl.yml")
+	r = f.must("unset", "blog", "servce")
+	contains(t, "unset blog servce", r.out, "note: apps.blog.servce was not a known setting")
+	r = f.must("unset", "projects_old")
+	contains(t, "unset projects_old", r.out, "note: projects_old was not a known setting")
+	if got := f.read(filepath.Join(lab, "hl.yml")); got != "# my lab\n\nversion: 1\nenv: {TZ: UTC}\n\nproxy:\n  port: 8080\n\napps:\n  blog:\n    path: "+dir+"\n" {
+		t.Errorf("hl.yml:\n%s", got)
+	}
+	f.must("status")
+
+	// A key that is neither a setting nor in the file is still refused, and so is a key hl manages.
+	for _, args := range [][]string{{"unset", "proxy", "prot"}, {"unset", "blog", "servce"}, {"unset", "projects_old"}, {"unset", "apps"}, {"unset", "env.TZ", "version"}} {
+		if r := f.hl(args...); r.code != 2 {
+			t.Errorf("%v: want a usage error: %s", args, r)
+		}
+	}
+	if r := f.must("unset", "proxy", "port"); strings.Contains(r.out, "note:") {
+		t.Errorf("a known setting needs no note: %s", r)
+	}
+}
