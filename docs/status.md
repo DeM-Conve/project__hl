@@ -10,16 +10,19 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   routing, fixed proxy subnet, shared `TZ`), which is how it is tested end to end.
 - **CLI first** (2026-10-27): the goal is that a user never has to open `hl.yml`. `hl set`/`hl unset`
   cover every app key, every `proxy.*` key (`hl set proxy port=8080`) and the shared env
-  (`hl set env.TZ=UTC`); `hl show [app]` reads it back; `hl edit` stays as the fallback. Still only reachable through
-  `hl edit`: `name` (renames every Docker object, so it needs `hl down` first). Error hints name
+  (`hl set env.TZ=UTC`), the homelab's own settings (`hl set projects+=~/src`, `scan_depth`,
+  `name` - refused while anything runs); `hl show [app|proxy]` reads it back; `hl edit` stays as
+  a fallback that nothing needs. Error hints name
   the `hl set`/`hl unset` command instead of the `hl.yml` key. Left on purpose: the "edit
   hl.yml, not this file" header of generated files (changing it would change the static
   config's hash and recreate every running proxy once). `hl add`'s base-path note, `hl sync`
-  with no `projects` and init's notes name `hl set` and `hl projects` too.
+  with no `projects` and init's notes name `hl set` too.
 - **Minimal surface** (2026-10-27): every command, flag and `hl.yml` key has to earn its
   place. Done so far: the proxy is a pseudo-app (`hl up|down|restart|rebuild|logs|show proxy`)
   instead of the `hl proxy` group; `hl config`, `hl ps`, `hl path` and `--wait-all` are gone
-  (`hl show <app> --compose`, `hl show`, `hl status`); `hl update` is `hl rebuild --pull`.
+  (`hl show <app> --compose`, `hl show`, `hl status`); `hl update` is `hl rebuild --pull`;
+  `hl projects`/`hl ignore`/`hl strip-prefix` are `hl set key+=`/`-=`, and `hl set` also takes
+  `scan_depth` and `name`.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install
@@ -85,8 +88,8 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    leave out variables the app's `.env` already sets?
 11. **Env for apps already in `hl.yml`**: add, init and sync map env only for apps they add;
     `hl sync` doesn't offer the mapping for apps added earlier. Should it (as an `~ update`)?
-12. **`scan_depth` from the command line**: `hl projects`/`hl ignore`/`hl strip-prefix` cover the
-    lists; `scan_depth` still needs `hl edit` unless the top-level `hl set` covers it.
+12. ~~`scan_depth` from the command line~~ - done 2026-10-27: `hl set scan_depth=2`; the lists
+    are `hl set projects+=...` and the like.
 13. **Picking apps on a terminal**: `hl init` used to offer the apps found as a checklist; now it
     shows the plan and asks once, and `--apps a,b` picks. Is that enough?
 14. **`hl rebuild --pull` and a folder with uncommitted changes** (2026-10-27): like `hl update`

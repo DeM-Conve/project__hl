@@ -15,10 +15,19 @@ import (
 
 // Change is one edit to a group of settings: Key=Value, or with Unset the key removed.
 // Keys are hl.yml keys of that group (port, routing, ...); a map setting takes a name: env.TZ.
+// A list setting takes Op: "" replaces it with Value (comma-separated), OpAdd adds the
+// entries of Value that aren't in it yet, OpRemove removes them (each must be in it).
 type Change struct {
 	Key, Value string
 	Unset      bool
+	Op         string
 }
+
+// List operations of a Change: hl set ignore+=old, hl set ignore-=old.
+const (
+	OpAdd    = "+"
+	OpRemove = "-"
+)
 
 // The scopes `hl set`/`hl unset` change besides an app: the settings shared by every app
 // (HomelabScope) and the proxy section. ProxyScope is the reserved app name, so no app has it.
@@ -27,10 +36,9 @@ const (
 	ProxyScope   = defaults.ReservedAppName
 )
 
-// homelabKeys are the top-level settings `hl set` changes. The others stay with hl edit or
-// commands of their own: name renames every Docker object, projects/ignore/scan_depth
-// belong to hl init and hl sync.
-var homelabKeys = []string{"env"}
+// homelabKeys are the top-level settings `hl set` changes without an app: every one but proxy,
+// apps and version (which hl manages).
+var homelabKeys = []string{"env", "name", "projects", "ignore", "scan_depth", "strip_prefix"}
 
 // AppKeys are the keys `hl set <app>` accepts, sorted; map settings end in "." (env.).
 func AppKeys() []string { return keysOf(appFields()) }
@@ -38,10 +46,11 @@ func AppKeys() []string { return keysOf(appFields()) }
 // ProxyKeys are the keys `hl set proxy` accepts, sorted.
 func ProxyKeys() []string { return keysOf(proxyFields()) }
 
-// HomelabKeys are the keys `hl set` accepts without an app (the shared env.), sorted.
+// HomelabKeys are the keys `hl set` accepts without an app (the shared env., name, the scan
+// settings), sorted.
 func HomelabKeys() []string { return keysOf(homelabFields()) }
 
-// IsHomelabKey reports whether key (env, env.TZ) is a setting shared by every app.
+// IsHomelabKey reports whether key (env, env.TZ, ignore, ...) is a homelab-wide setting.
 func IsHomelabKey(key string) bool {
 	field, _, _ := strings.Cut(key, ".")
 	_, ok := homelabFields()[field]
@@ -83,7 +92,7 @@ func HasApp(dir, name string) bool {
 	return found
 }
 
-// Edit applies changes to scope in <dir>/hl.yml - HomelabScope (the shared env), ProxyScope
+// Edit applies changes to scope in <dir>/hl.yml - HomelabScope (top-level settings), ProxyScope
 // (proxy:) or an app's name - keeping the file's comments and order. The result is checked
 // first: if it has any problem, hl.yml is left as it was and the error lists them.
 func Edit(dir, scope string, changes []Change) error {
@@ -185,6 +194,9 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 		return fmt.Errorf("%s - use one of: %s", msg, strings.Join(keysOf(fields), ", "))
 	}
 	isMap := t.Kind() == reflect.Map
+	if c.Op != "" && t.Kind() != reflect.Slice {
+		return fmt.Errorf("%s is not a list: use %s=value", c.Key, c.Key)
+	}
 	switch {
 	case isMap && !hasSub && !c.Unset:
 		return fmt.Errorf("%s needs a name: %s.NAME=value", field, field)
@@ -235,6 +247,16 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 				items = append(items, s)
 			}
 		}
+		if c.Op != "" {
+			var err error
+			if items, err = listOp(lookup(target, key), c, items); err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				remove(target, key) // nothing left in the list
+				return nil
+			}
+		}
 		v = items
 	case reflect.String:
 		v = c.Value
@@ -258,8 +280,55 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 	return nil
 }
 
-// set puts key: val into mapping m, keeping the old value's comments, or appends it.
+// listOp is the list old (a sequence node, or nil) with items added (OpAdd: the ones not in
+// it yet) or removed (OpRemove: each must be in it).
+func listOp(old *yaml.Node, c Change, items []string) ([]string, error) {
+	var have []string
+	if old != nil && old.Kind == yaml.SequenceNode {
+		for _, n := range old.Content {
+			have = append(have, n.Value)
+		}
+	}
+	in := func(list []string, s string) bool {
+		for _, x := range list {
+			if x == s {
+				return true
+			}
+		}
+		return false
+	}
+	switch c.Op {
+	case OpAdd:
+		for _, it := range items {
+			if !in(have, it) {
+				have = append(have, it)
+			}
+		}
+		return have, nil
+	case OpRemove:
+		for _, it := range items {
+			if !in(have, it) {
+				if len(have) == 0 {
+					return nil, fmt.Errorf("%s: %q is not in it (it is empty)", c.Key, it)
+				}
+				return nil, fmt.Errorf("%s: %q is not in it (%s)", c.Key, it, strings.Join(have, ", "))
+			}
+		}
+		var kept []string
+		for _, h := range have {
+			if !in(items, h) {
+				kept = append(kept, h)
+			}
+		}
+		return kept, nil
+	}
+	return nil, fmt.Errorf("%s: unknown list operation %q", c.Key, c.Op)
+}
+
+// set puts key: val into mapping m, keeping the old value's comments, or adds it: before
+// apps: in the top-level mapping, so settings stay above the apps, else at the end.
 func set(m *yaml.Node, key string, val *yaml.Node) {
+	at := len(m.Content)
 	for i := 0; i+1 < len(m.Content); i += 2 {
 		if m.Content[i].Value == key {
 			old := m.Content[i+1]
@@ -267,8 +336,12 @@ func set(m *yaml.Node, key string, val *yaml.Node) {
 			m.Content[i+1] = val
 			return
 		}
+		if m.Content[i].Value == "apps" && m.Content[i+1].Kind == yaml.MappingNode {
+			at = i
+		}
 	}
-	m.Content = append(m.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, val)
+	kv := []*yaml.Node{{Kind: yaml.ScalarNode, Value: key}, val}
+	m.Content = append(m.Content[:at], append(kv, m.Content[at:]...)...)
 }
 
 // remove deletes key from mapping m; a comment above it moves to the next key.

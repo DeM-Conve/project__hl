@@ -267,7 +267,7 @@ warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
 - Output: colours only on a terminal (`golang.org/x/term`; `/dev/null` is not one) and never with
   `NO_COLOR` set. Commands write through `cli.stdout`/`stderr`, set from cobra's writers.
 - Errors (`cli.report`): hints that fix a setting name the `hl set`/`hl unset` command, not the
-  `hl.yml` key (only `name` points to `hl edit`, `cli.nameHowTo`). `error: <what failed>`, then `hint: <what to do>` when known - from a
+  `hl.yml` key (`name`'s is `cli.nameHowTo`: `hl down` first). `error: <what failed>`, then `hint: <what to do>` when known - from a
   `hintError` the code attached, or read from docker's own error output (`dockerHint`: daemon
   down, permission, port allocated, old compose, pool overlap, missing network, name conflict,
   pull denied, disk full). Exit codes: 0 ok, 1 failure, 2 usage (cobra's unknown command/flag
@@ -287,24 +287,25 @@ normalises indentation to two spaces).
 
 - `hl add`/`hl remove` (`config.AddApp`, `RemoveApp`) touch only the `apps:` mapping (`apps: {}`
   from the template is turned into a block mapping).
-- `hl projects`, `hl ignore`, `hl strip-prefix` (`internal/cli/scan_cmds.go`, one `listCmd`
-  each) rewrite one top-level list with `config.SetList` (`config/projects.go`): a flow list kept
-  in place with its comment, a new key put before `apps:`, an empty list removes the key, and the
-  result is run through `config.Check` before it is written. `projects add` stores a folder the
-  way `hl init` does (`storedPath`); `remove` matches the written entry or the resolved path.
 - `hl set`/`hl unset` (`config.Edit`, `internal/config/set.go`) change keys of one scope: an
   app (`config.EditApp`), the proxy (`config.ProxyScope`, i.e. `proxy`, the reserved app name,
-  so never an app) or the shared settings (`config.HomelabScope`, no first argument; only `env`:
-  `name` renames every Docker object, `projects`/`ignore`/`strip_prefix` have their own commands, `scan_depth` needs `hl edit`).
+  so never an app) or the homelab's own settings (`config.HomelabScope`, no first argument:
+  `env`, `name`, `projects`, `ignore`, `scan_depth`, `strip_prefix`).
   Keys and their types come from the `App`/`Proxy`/`Config` structs by reflection (ints parsed,
-  bools as true/false, lists split on commas, map fields as `env.NAME`). A missing `proxy:` or
+  bools as true/false, lists split on commas, map fields as `env.NAME`). A list takes `key=`
+  (replace), `key+=` (add the entries not in it, `config.OpAdd`) or `key-=` (remove them, each
+  must be there, `config.OpRemove`); an empty list removes the key, and a new top-level key goes
+  before `apps:`. Before editing, the CLI (`homelabChanges`) writes `projects` folders like
+  `hl init` does (`storedPath`; each must exist; `-=` matches the written entry or the resolved
+  path) and refuses `name` while any of this homelab's projects has containers (`nothingRuns`),
+  since it renames every project and network. A missing `proxy:` or
   shared `env:` is added above `apps:`. A replaced value keeps the old one's comments. The new
   content is run through `config.Check` and written only if it has no problems. The CLI tells
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,
   so it is the shared scope; for `unset`, `env`/`env.NAME` is the shared scope unless an app has
   that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
-  `hl up <app>`, `hl up`, `hl up proxy`, or `hl down` then `hl up` when the proxy's network,
-  subnet or project changed).
+  `hl up <app>`, `hl up`, `hl up proxy`, `hl sync` for the projects settings, or `hl down` then
+  `hl up` when the proxy's network, subnet or project changed).
 - `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
   `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
   checks out. It finds the homelab with `config.Home`, not `Load`, so it works on a file that
@@ -362,7 +363,7 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   with the reason and the `hl add` command to run instead (name taken, ambiguous services, compose
   error, or not a web app: `scan.LooksWeb` - the service has none of `defaults.ExposedServices`'
   names and its port isn't in `defaults.WebPorts` - which suggests `--routing none` and
-  `hl ignore add`). A kept app with a pinned `service` is checked against its model: service gone -> detect
+  `hl set ignore+=`). A kept app with a pinned `service` is checked against its model: service gone -> detect
   both again; pinned port not among the service's published targets -> pin its first one. Apps
   with nothing pinned are detected on every run anyway and are left alone.
 - **Applying**: adds go through `config.AddApp` with `path` = the projects entry as written joined

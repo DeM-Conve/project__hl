@@ -168,7 +168,10 @@ func TestEditProxyRefusesBadResults(t *testing.T) {
 		{ProxyScope, []Change{{Key: "dashboard", Value: "yes please"}}, "not true or false"},
 		{ProxyScope, []Change{{Key: "bind", Value: "0.0.0.0"}, {Key: "dashboard", Value: "true"}}, "dashboard_public"},
 		{HomelabScope, []Change{{Key: "env.1X", Value: "a"}}, "not a valid variable name"},
-		{HomelabScope, []Change{{Key: "name", Value: "lab2"}}, "use one of: env."},
+		{HomelabScope, []Change{{Key: "name", Value: "Lab 2"}}, "lowercase"},
+		{HomelabScope, []Change{{Key: "name", Value: "x", Op: OpAdd}}, "not a list"},
+		{HomelabScope, []Change{{Key: "ignore", Value: "nope", Op: OpRemove}}, `"nope" is not in it`},
+		{HomelabScope, []Change{{Key: "scan_depth", Value: "-1"}}, "scan_depth"},
 		{HomelabScope, []Change{{Key: "apps", Value: "x"}}, "unknown setting"},
 	} {
 		err := Edit(dir, tc.scope, tc.changes)
@@ -182,10 +185,38 @@ func TestEditProxyRefusesBadResults(t *testing.T) {
 	if !HasApp(dir, "blog") || HasApp(dir, "nope") {
 		t.Error("HasApp")
 	}
-	if !IsHomelabKey("env.TZ") || !IsHomelabKey("env") || IsHomelabKey("port") {
+	if !IsHomelabKey("env.TZ") || !IsHomelabKey("env") || !IsHomelabKey("ignore") || IsHomelabKey("port") {
 		t.Error("IsHomelabKey")
 	}
 	if got := strings.Join(ProxyKeys(), " "); !strings.Contains(got, "port") || !strings.Contains(got, "dashboard_public") {
 		t.Errorf("ProxyKeys() = %s", got)
+	}
+}
+
+func TestEditLists(t *testing.T) {
+	dir := write(t, "version: 1\napps:\n  blog: {path: blog, compose: [a.yml]}\n")
+	steps := []struct {
+		changes []Change
+		want    string
+	}{
+		{[]Change{{Key: "ignore", Value: "old,scratch-*"}}, "ignore: [old, scratch-*]\napps:"},
+		{[]Change{{Key: "ignore", Value: "new,old", Op: OpAdd}}, "ignore: [old, scratch-*, new]"},
+		{[]Change{{Key: "ignore", Value: "old", Op: OpRemove}}, "ignore: [scratch-*, new]"},
+		{[]Change{{Key: "scan_depth", Value: "2"}, {Key: "name", Value: "lab2"}}, "scan_depth: 2\nname: lab2\napps:"},
+		{[]Change{{Key: "ignore", Value: "scratch-*,new", Op: OpRemove}}, "version: 1\nscan_depth: 2"},
+	}
+	for _, st := range steps {
+		if err := Edit(dir, HomelabScope, st.changes); err != nil {
+			t.Fatalf("%+v: %v", st.changes, err)
+		}
+		if got := read(t, dir); !strings.Contains(got, st.want) {
+			t.Errorf("%+v: want %q in:\n%s", st.changes, st.want, got)
+		}
+	}
+	if strings.Contains(read(t, dir), "ignore") {
+		t.Errorf("an empty list stays: %s", read(t, dir))
+	}
+	if err := Edit(dir, "blog", []Change{{Key: "compose", Value: "b.yml", Op: OpAdd}}); err != nil || !strings.Contains(read(t, dir), "compose: [a.yml, b.yml]") {
+		t.Errorf("app list: %v\n%s", err, read(t, dir))
 	}
 }

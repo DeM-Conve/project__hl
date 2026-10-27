@@ -128,12 +128,17 @@ release differs from earlier builds of `main`.
 - `hl add --env KEY=VALUE` (repeatable) sets an app's env as it is added, over the mapped values.
 - `strip_prefix:` in `hl.yml` (and `hl init --strip-prefix`): folder-name prefixes left out of
   app names, so folder `project__blog` becomes app `blog` in `hl init`, `hl sync` and `hl add`.
-- `hl projects`, `hl ignore` and `hl strip-prefix`, each with `add`, `remove` and `list`: change
-  the lists that tell `hl init` and `hl sync` where apps are and how to name them, keeping
-  `hl.yml`'s comments and checking the result before writing.
+- `hl set` changes the homelab's own settings too: `projects`, `ignore`, `scan_depth`,
+  `strip_prefix` and `name`. A list is replaced with `=`, and `+=` / `-=` add and remove entries
+  (`hl set projects+=~/src ignore-=old`, also for an app's `compose` and `env_files`);
+  `hl unset ignore` drops one. `name` is refused while any of the homelab's apps or its proxy
+  runs. Nothing needs `hl edit` any more; it stays as a fallback.
 
 ### Changed
 
+- **Breaking:** `hl projects`, `hl ignore` and `hl strip-prefix` are gone: `hl set projects+=<folder>`,
+  `hl set ignore-=<pattern>`, `hl set strip_prefix=<prefix>` and `hl unset <key>` do what their
+  `add`/`remove` did, and `hl show` lists them.
 - **Breaking:** `hl update` is `hl rebuild --pull` (same skips: folders that aren't git repos or
   have uncommitted changes are neither pulled nor rebuilt).
 - **Breaking:** `hl config`, `hl ps`, `hl path` and `--wait-all` are gone. `hl config <app>` is

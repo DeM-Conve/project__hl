@@ -81,7 +81,7 @@ func TestFreshUserJourney(t *testing.T) {
 	if r.code != 1 {
 		t.Fatalf("want a refusal: %s", r)
 	}
-	contains(t, "clash", r.errOut, "belongs to another homelab ("+lab+")", "hint:", "name:")
+	contains(t, "clash", r.errOut, "belongs to another homelab ("+lab+")", "hint:", "hl set name=")
 	if ups := f.find("--project-name hl-blog", "up"); len(ups) > 0 {
 		t.Errorf("the other homelab's app was started: %v", ups)
 	}

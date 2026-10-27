@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,7 +36,8 @@ func homeDir() (string, error) { return config.Home(homeFlag) }
 const setScopesHelp = `What to change is the first argument:
   <app>    that app's settings. Keys: ` + "%s" + `
   proxy    the proxy (proxy: in hl.yml). Keys: ` + "%s" + `
-  (none)   the settings every app gets (env: in hl.yml; an app's own env wins). Keys: ` + "%s" + `
+  (none)   the homelab: the env every app gets (an app's own env wins), name, and where hl init
+           and hl sync look for apps. Keys: ` + "%s" + `
 env takes a name: env.TZ=UTC.`
 
 func scopesHelp() string {
@@ -48,14 +50,18 @@ func setCmd() *cobra.Command {
 		Use:   "set [<app>|proxy] key=value...",
 		Short: "Change settings of an app, the proxy or every app (keeps hl.yml's comments; checks the result first)",
 		Long: `Change settings in hl.yml without opening it. ` + scopesHelp() + `
-Lists are comma-separated (compose=compose.yml,compose.prod.yml); switches take true or false.
-hl.yml keeps its comments and order, and is only written if the result is valid; hl says
-which command applies the change.
+Lists are comma-separated and replaced as a whole (projects=~/code,~/src); key+=value adds
+entries and key-=value removes them (ignore+=old, compose-=compose.dev.yml). Switches take true
+or false. A projects folder must exist; it is written like hl init does (~/..., or relative to
+the homelab). name renames every Docker project and network, so hl stops the change while any
+of this homelab's apps or its proxy runs. hl.yml keeps its comments and order, and is only
+written if the result is valid; hl says which command applies the change.
 
   hl set my-app routing=host host=my-app.example.com
   hl set my-app port=8080 env.TZ=UTC
   hl set proxy port=8080 bind=0.0.0.0
-  hl set env.TZ=Europe/Berlin`,
+  hl set env.TZ=Europe/Berlin
+  hl set projects+=~/src ignore+='scratch-*' scan_depth=2`,
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: completeSetKeys(true),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -66,18 +72,11 @@ which command applies the change.
 			} else if len(kvs) == 0 {
 				return &usageError{err: fmt.Errorf("nothing to set for %q - give key=value, e.g. hl set %s port=8080", scope, scope), cmd: cmd.CommandPath()}
 			}
-			var changes []config.Change
-			for _, kv := range kvs {
-				k, v, ok := strings.Cut(kv, "=")
-				if !ok || k == "" {
-					return fmt.Errorf("%q: use key=value, e.g. port=8080", kv)
-				}
-				if v == "" {
-					return fmt.Errorf("%q: no value - to remove a setting use %s", kv, unsetCommand(scope, k))
-				}
-				changes = append(changes, config.Change{Key: k, Value: v})
+			changes, err := parseSettings(scope, kvs)
+			if err != nil {
+				return err
 			}
-			return editScope(scope, changes)
+			return editScope(cmd.Context(), scope, changes)
 		},
 	}
 }
@@ -111,7 +110,7 @@ env.NAME removes one env setting, env removes them all.
 			for _, k := range keys {
 				changes = append(changes, config.Change{Key: k, Unset: true})
 			}
-			return editScope(scope, changes)
+			return editScope(cmd.Context(), scope, changes)
 		},
 	}
 }
@@ -124,12 +123,111 @@ func unsetCommand(scope, key string) string {
 	return "hl unset " + scope + " " + key
 }
 
-// editScope applies changes to scope (an app, the proxy or the shared settings) and says what
+// parseSettings turns key=value, key+=value and key-=value arguments into changes; unset names
+// the command that removes a setting given no value.
+func parseSettings(scope string, kvs []string) ([]config.Change, error) {
+	var changes []config.Change
+	for _, kv := range kvs {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok || k == "" {
+			return nil, fmt.Errorf("%q: use key=value, e.g. port=8080", kv)
+		}
+		op := ""
+		if strings.HasSuffix(k, config.OpAdd) || strings.HasSuffix(k, config.OpRemove) {
+			k, op = k[:len(k)-1], k[len(k)-1:]
+		}
+		if v == "" {
+			return nil, fmt.Errorf("%q: no value - to remove a setting use %s", kv, unsetCommand(scope, k))
+		}
+		changes = append(changes, config.Change{Key: k, Value: v, Op: op})
+	}
+	return changes, nil
+}
+
+// homelabChanges prepares changes to the homelab's own settings: projects folders are checked
+// and written like hl init writes them, and name may change only while nothing of this
+// homelab runs, since it renames every Docker project and network.
+func homelabChanges(ctx context.Context, home string, changes []config.Change) error {
+	cfg, _ := config.Load(home) // for the projects already listed; nil when hl.yml doesn't load
+	for i, c := range changes {
+		switch c.Key {
+		case "projects":
+			if c.Unset {
+				continue
+			}
+			var out []string
+			for _, item := range strings.Split(c.Value, ",") {
+				if item = strings.TrimSpace(item); item == "" {
+					continue
+				}
+				abs, err := filepath.Abs(config.ExpandHome(item))
+				if err != nil {
+					return err
+				}
+				if c.Op == config.OpRemove {
+					// The entry as hl.yml has it, in whichever spelling it was given.
+					if cfg != nil {
+						for _, e := range cfg.Projects {
+							if e == item || cfg.Abs(e) == abs {
+								item = e
+							}
+						}
+					}
+					out = append(out, item)
+					continue
+				}
+				if st, err := os.Stat(abs); err != nil || !st.IsDir() {
+					return withHint(fmt.Errorf("projects: folder %s not found", abs), "pass a folder that exists")
+				}
+				out = append(out, storedPath(home, abs))
+			}
+			changes[i].Value = strings.Join(out, ",")
+		case "name":
+			if err := nothingRuns(ctx, cfg); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// nothingRuns is an error when one of this homelab's apps or its proxy has containers.
+func nothingRuns(ctx context.Context, cfg *config.Config) error {
+	if cfg == nil {
+		return nil // hl.yml doesn't load: nothing hl could have started from it
+	}
+	inv, err := containers(ctx)
+	if err != nil {
+		return withHint(fmt.Errorf("can't tell whether this homelab's apps run, so name is left as it is: %w", err),
+			"name renames every Docker project; start Docker, `hl down`, then set it")
+	}
+	var running []string
+	if len(inv.of(cfg.ProxyProject())) > 0 && inv.owner(cfg, cfg.ProxyProject()) == "" {
+		running = append(running, proxyArg)
+	}
+	for _, n := range cfg.Names() {
+		if pn := cfg.ProjectName(n); len(inv.of(pn)) > 0 && inv.owner(cfg, pn) == "" {
+			running = append(running, n)
+		}
+	}
+	if len(running) > 0 {
+		return withHint(fmt.Errorf("name renames every Docker project and network, and %s still run under the old names", strings.Join(running, ", ")),
+			"stop them first: hl down, then set name, then hl up")
+	}
+	return nil
+}
+
+// editScope applies changes to scope (an app, the proxy or the homelab) and says what
 // changed and how to apply it.
-func editScope(scope string, changes []config.Change) error {
+func editScope(ctx context.Context, scope string, changes []config.Change) error {
 	home, err := homeDir()
 	if err != nil {
 		return err
+	}
+	if scope == config.HomelabScope {
+		if err := homelabChanges(ctx, home, changes); err != nil {
+			return err
+		}
 	}
 	if err := config.Edit(home, scope, changes); err != nil {
 		return withHint(err, "`hl show` lists the apps and settings; `hl set --help` lists the keys")
@@ -149,7 +247,7 @@ func editScope(scope string, changes []config.Change) error {
 		if c.Unset {
 			say("unset %s%s", prefix, c.Key)
 		} else {
-			say("set %s%s = %s", prefix, c.Key, c.Value)
+			say("set %s%s %s= %s", prefix, c.Key, c.Op, c.Value)
 		}
 	}
 	say("apply it: %s", applyCommand(scope, changes))
@@ -160,6 +258,23 @@ func editScope(scope string, changes []config.Change) error {
 func applyCommand(scope string, changes []config.Change) string {
 	switch scope {
 	case config.HomelabScope:
+		scanned, env := false, false
+		for _, c := range changes {
+			switch k, _, _ := strings.Cut(c.Key, "."); k {
+			case "name":
+				return "hl up (the apps and the proxy start under the new names)"
+			case "env":
+				env = true
+			default:
+				scanned = true
+			}
+		}
+		switch {
+		case scanned && env:
+			return "hl sync for the projects settings, hl up for the env"
+		case scanned:
+			return "hl sync (adds and removes apps to match)"
+		}
 		return "hl up (compose recreates the apps whose settings changed)"
 	case config.ProxyScope:
 		apps := false

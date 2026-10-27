@@ -159,11 +159,7 @@ func setProjects(root *yaml.Node, projects []string) {
 	setList(root, "projects", projects, projectsComment)
 }
 
-// ListKeys are the top-level lists of folder names and patterns that commands edit
-// (`hl projects`, `hl ignore`, `hl strip-prefix`).
-var ListKeys = []string{"projects", "ignore", "strip_prefix"}
-
-// SetList writes a top-level list (one of ListKeys) into <dir>/hl.yml, keeping comments;
+// SetList writes a top-level list (projects, ignore, strip_prefix) into <dir>/hl.yml, keeping comments;
 // an empty list removes the key. The result is checked first: on any problem hl.yml is left
 // as it was and the error lists them.
 func SetList(dir, key string, values []string) error {

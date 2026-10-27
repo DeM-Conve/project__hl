@@ -98,7 +98,7 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Act
 			case svc != "" && !LooksWeb(svc, port):
 				act.Kind = Skip
 				act.Reason = fmt.Sprintf("not a web app? service %s on port %d - add it with hl add %s --routing none "+
-					"(not behind the proxy) or hl add %[3]s (routed), or skip it for good with hl ignore add %s",
+					"(not behind the proxy) or hl add %[3]s (routed), or skip it for good with hl set ignore+=%s",
 					svc, port, quote(f.Dir), quote(filepath.Base(f.Dir)))
 			}
 			act.Service, act.Port = svc, port

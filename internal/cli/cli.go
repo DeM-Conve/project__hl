@@ -155,9 +155,9 @@ func hintFor(err error) string {
 	return ""
 }
 
-// nameHowTo says how to give a homelab a name. hl set doesn't do it: the new name renames
-// every Docker project, so the old ones must be stopped first.
-const nameHowTo = "`hl down`, then `hl edit` and add `name: <something>`; projects become " + defaults.Prefix + "<name>-<app>"
+// nameHowTo says how to give a homelab a name. The new name renames every Docker project, so
+// the old ones must be stopped first (hl set refuses while they run).
+const nameHowTo = "`hl down`, then `hl set name=<something>`; projects become " + defaults.Prefix + "<name>-<app>"
 
 // dockerHint explains a docker error message, or returns "".
 func dockerHint(msg string) string {
@@ -213,7 +213,7 @@ app's data (data/<app>/).
 	c.AddCommand(initCmd(), addCmd(), removeCmd(), statusCmd(),
 		upCmd(), downCmd(), restartCmd(), rebuildCmd(),
 		logsCmd(), openCmd(), shellCmd(),
-		doctorCmd(), versionCmd(), syncCmd(), projectsCmd(), ignoreCmd(), stripPrefixCmd(),
+		doctorCmd(), versionCmd(), syncCmd(),
 		setCmd(), unsetCmd(), editCmd(), showCmd())
 	c.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return &usageError{err: err, cmd: cmd.CommandPath()}

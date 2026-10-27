@@ -129,7 +129,7 @@ func TestInitNonInteractive(t *testing.T) {
 		t.Errorf("wiki = %+v", a)
 	}
 	if !strings.Contains(out, "skip  two") || !strings.Contains(out, "hl up blog wiki") ||
-		!strings.Contains(out, "skip  kv") || !strings.Contains(out, "--routing none") || !strings.Contains(out, "hl ignore add kv") {
+		!strings.Contains(out, "skip  kv") || !strings.Contains(out, "--routing none") || !strings.Contains(out, "hl set ignore+=kv") {
 		t.Errorf("output:\n%s", out)
 	}
 	if got := strings.TrimSpace(readFile(t, filepath.Join(home, ".config", "hl", "home"))); got != lab {
