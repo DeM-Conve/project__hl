@@ -858,6 +858,15 @@ func TestErrors(t *testing.T) {
 	contains(t, "removed name keys", r.errOut, "proxy.network: removed from hl", "proxy.project: removed from hl", "hl set name=")
 	f.must("unset", "proxy", "network", "project")
 	f.must("status")
+	// env_files: secrets live in the app's own .env.
+	f.lab("removed3", "apps:\n  a: {path: '"+a+"', env_files: [secrets.env]}\n")
+	r = f.hl("status")
+	contains(t, "removed app key", r.errOut, "apps.a.env_files: removed from hl", "`hl unset a env_files`")
+	f.must("unset", "a", "env_files")
+	f.must("status")
+	if r := f.hl("set", "a", "env_files=x.env"); r.code == 0 {
+		t.Errorf("hl set a env_files= should be refused: %s", r)
+	}
 	f.lab("hints", "proxy: {bind: 127.0.0.1}\napps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', prefix: /x}\n  b: {path: '"+a+"', prefix: /x}\n")
 	r = f.hl("status")
 	contains(t, "validation hints", r.errOut, "`hl set b prefix=/<path>`")

@@ -154,7 +154,7 @@ func showApp(ctx context.Context, cfg *config.Config, name string, a *config.App
 	}
 	row("data", cfg.DataDir(name), defaults.DataDir+"/<app>")
 	if p != nil && len(p.EnvFiles) > 0 {
-		row("env files", strings.Join(p.EnvFiles, ", "), "the app's "+defaults.AppEnvFile+", then env_files")
+		row("env file", strings.Join(p.EnvFiles, ", "), "the app's own, read by compose")
 	}
 	_ = w.Flush()
 

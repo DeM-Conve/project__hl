@@ -35,7 +35,7 @@ func hostTimeZone() (zone, source string) {
 }
 
 // hostTZ is the TZ hl adds for an app, and its source: the host's time zone, unless the
-// shared env, the app's env or one of its env files already sets TZ.
+// shared env, the app's env or the app's own .env already sets TZ.
 func (c *Config) hostTZ(name string, a *App) (zone, source string) {
 	if _, ok := c.Env[defaults.TZEnv]; ok {
 		return "", ""
@@ -43,11 +43,8 @@ func (c *Config) hostTZ(name string, a *App) (zone, source string) {
 	if _, ok := a.Env[defaults.TZEnv]; ok {
 		return "", ""
 	}
-	files := append([]string{filepath.Join(c.AppDir(a), defaults.AppEnvFile)}, c.EnvFiles(a)...)
-	for _, f := range files {
-		if setsVar(f, defaults.TZEnv) {
-			return "", ""
-		}
+	if setsVar(filepath.Join(c.AppDir(a), defaults.AppEnvFile), defaults.TZEnv) {
+		return "", ""
 	}
 	return HostTimeZone()
 }

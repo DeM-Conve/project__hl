@@ -140,7 +140,7 @@ hl unset proxy port
   lists are comma-separated and `=` replaces the list, `+=` adds entries, `-=` removes them
   (`compose-=compose.dev.yml`); switches take `true`/`false`.
 - **Keys:** an app has `path`, `service`, `port`, `routing`, `prefix`, `host`, `compose`,
-  `env_files`, `env.NAME`; the proxy has `bind`, `port`, `routing`, `domain`, `subnet`,
+  `env.NAME`; the proxy has `bind`, `port`, `routing`, `domain`, `subnet`,
   `image`, `debug`; the homelab has `env.NAME`, `projects`, `ignore`, `scan_depth`,
   `strip_prefix`, `name`. Each one, with its default: [docs/reference.md](docs/reference.md).
 - **Applying:** hl writes the change only if the result is valid, then says which command applies

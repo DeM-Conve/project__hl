@@ -45,7 +45,7 @@ release differs from earlier builds of `main`.
   (`http://<app>.localhost`) or `none` routing, per homelab or per app.
 - Every named volume kept as a plain folder under `data/<app>/<volume>`.
 - Apps run unmodified: hl layers a generated compose override on top (`hl show <app> --compose`).
-- Shared `env` for every app, per-app `env` and `env_files`, and `${HL_URL}`, `${HL_PREFIX}`,
+- Shared `env` for every app, per-app `env`, and `${HL_URL}`, `${HL_PREFIX}`,
   `${HL_HOST}`, `${HL_DATA}`, `${HL_APP}` for an app's settings.
 - Commands: `status`, `up`, `down`, `restart`, `rebuild`, `logs`,
   `open`, `shell`, `show`, `doctor`,
@@ -58,7 +58,7 @@ release differs from earlier builds of `main`.
   sidecar nothing depends on (say, a backup job with a long healthcheck interval) no longer fails
   `--wait`; for an app with routing `none` it waits for every service.
 - Apps get this machine's time zone as `TZ` (from `$TZ`, `/etc/localtime` or `/etc/timezone`)
-  unless the shared env, the app's env or its env files set one; `hl show` shows it
+  unless the shared env, the app's env or its `.env` set one; `hl show` shows it
   and where it came from. When the zone can't be told, no `TZ` is set.
 - `hl logs` with no app shows every app's logs at once, each line prefixed by its app; `-n`/`--tail`
   sets how many lines (default 200).
@@ -135,7 +135,7 @@ release differs from earlier builds of `main`.
   app names, so folder `project__blog` becomes app `blog` in `hl init`, `hl sync` and `hl add`.
 - `hl set` changes the homelab's own settings too: `projects`, `ignore`, `scan_depth`,
   `strip_prefix` and `name`. A list is replaced with `=`, and `+=` / `-=` add and remove entries
-  (`hl set projects+=~/src ignore-=old`, also for an app's `compose` and `env_files`);
+  (`hl set projects+=~/src ignore-=old`, also for an app's `compose`);
   `hl unset ignore` drops one. `name` is refused while any of the homelab's apps or its proxy
   runs. Nothing needs `hl edit` any more; it stays as a fallback.
 
@@ -151,6 +151,9 @@ release differs from earlier builds of `main`.
   network are `hl-proxy`, or `hl-<name>-proxy` for a homelab with a `name` (`hl set name=<x>`
   gives a second homelab its own). An `hl.yml` that still has one is refused with a message
   naming `hl unset proxy network` / `hl unset proxy project`; `hl show proxy` prints both names.
+- **Breaking:** the app key `env_files` is gone. Keep an app's secrets in its own `.env` (hl
+  reads it, as compose does) and anything else in its env (`hl set <app> env.NAME=value`). An
+  `hl.yml` that still has it is refused with a message naming `hl unset <app> env_files`.
 - **Breaking:** `hl init --no-env` and `hl sync --no-env` are gone, as on `hl add`: undo a
   mapped variable with `hl unset <app> env.NAME`, or all of them with `hl unset <app> env`.
 - **Breaking:** the proxy keys `config`, `dynamic`, `dashboard`, `dashboard_public`, `access_log`

@@ -40,9 +40,9 @@ and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/j
    generated files.
 3. **Build the app's compose project** (`cli.project`): the app folder (`path`, `~` and relative
    paths resolved against the homelab folder), its compose files (`compose:` or the first of
-   `compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`), its env files
-   (the app's `.env` first, because passing any `--env-file` stops compose reading `.env` itself;
-   then `env_files`), and extra process env (`config.AppEnv`).
+   `compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`), its env file
+   (the app's `.env`, passed as `--env-file` when it exists),
+   and extra process env (`config.AppEnv`).
 4. **Prepare it** (`cli.prepared`): run `docker compose config --format json` to get the resolved
    model, pick service and port if `hl.yml` doesn't pin them, write
    `<homelab>/.hl/<app>/override.yml` with `gen.Override`, create the `data/<app>/<volume>` folders
@@ -112,7 +112,9 @@ and, with `proxy.debug`, `accessLog` (format `common`). There is no `api` sectio
 no file provider and no way to use a file of one's own: `proxy.config`, `proxy.dynamic`,
 `proxy.dashboard`, `proxy.dashboard_public`, `proxy.access_log` and `proxy.log_level` were removed
 on 2026-10-27; `config.removedKeys` makes `Check` report each as removed, with the
-`hl unset proxy <key>` that drops it (`config.Edit` accepts unsetting them).
+`hl unset proxy <key>` that drops it (`config.Edit` accepts unsetting them). The same map holds
+`proxy.network`, `proxy.project` and the app key `env_files` (as `apps.*.env_files`; `Check`
+looks keys up by their pattern, `EditApp` accepts unsetting it).
 
 **`.hl/proxy/compose.yml`** (`gen.Proxy`): compose project `hl-proxy` (`hl-<name>-proxy`),
 one `traefik` service, `restart: unless-stopped`, no `command:` - Traefik reads its static config
@@ -150,7 +152,7 @@ Routing `none` needs neither.
 
 ## Environment layering
 
-Compose interpolation sees, lowest to highest priority: the app's `.env`, `env_files` in order,
+Compose interpolation sees, lowest to highest priority: the app's `.env`,
 the shell environment, then what hl adds to the process env: `HL_APP`, `HL_URL`, `HL_PREFIX`,
 `HL_HOST`, `HL_DATA`, the shared `env`, the app's `env`. Values in `env`/shared `env` are expanded
 by hl (`os.Expand`) against the `HL_*` values first, then the shell environment; they can't refer
@@ -158,7 +160,7 @@ to each other. `HL_URL` has no trailing slash; `HL_PREFIX` is empty unless routi
 `HL_HOST` is the domain unless routing is `host`.
 
 `TZ` (`config.hostTZ`, `internal/config/timezone.go`): when neither the shared `env`, the app's
-`env`, nor a `TZ=`/`export TZ=` line in the app's `.env` or `env_files` sets it (hl reads those
+`env`, nor a `TZ=`/`export TZ=` line in the app's `.env` sets it (hl reads those
 lines because the process env would otherwise win over them), hl adds the host's zone right
 after the `HL_*` values: `$TZ` (unless it names a file, `:...`), else the part after `zoneinfo/`
 of `/etc/localtime`'s symlink target (Linux and macOS), else `/etc/timezone`. If none tells,

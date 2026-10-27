@@ -65,20 +65,22 @@ func joinProblems(ps []Problem) string {
 
 func TestCheckSyntaxAndShape(t *testing.T) {
 	for body, has := range map[string]string{
-		"proxy:\n  bind: [\n":         "not valid YAML",
-		"- a\n- b\n":                  "at the top",
-		"apps:\n  my-app: [x]\n":      "expected settings",
-		"version: 2\n":                "update hl",
-		"env: [TZ=UTC]\n":             "expected a list of key: value",
-		"proxy:\n  port: [80]\n":      "single value",
-		"apps:\n  my-app: {}\n":       "path is required",
-		"apps:\n  my-app:\n":          "path is required",
-		"apps:\n  my-app: {pth: x}\n": `did you mean "path"?`,
-		"proxy: {log_level: debug}":   "removed from hl - `hl set proxy debug=true`",
-		"proxy: {dashboard: true}":    "removed from hl - the Traefik dashboard",
-		"proxy: {config: t.yml}":      "`hl unset proxy config`",
-		"proxy: {project: My_Proxy}":  "removed from hl",
-		"proxy: {debug: on}":          "not true or false",
+		"proxy:\n  bind: [\n":                         "not valid YAML",
+		"- a\n- b\n":                                  "at the top",
+		"apps:\n  my-app: [x]\n":                      "expected settings",
+		"version: 2\n":                                "update hl",
+		"env: [TZ=UTC]\n":                             "expected a list of key: value",
+		"proxy:\n  port: [80]\n":                      "single value",
+		"apps:\n  my-app: {}\n":                       "path is required",
+		"apps:\n  my-app:\n":                          "path is required",
+		"apps:\n  my-app: {pth: x}\n":                 `did you mean "path"?`,
+		"proxy: {log_level: debug}":                   "removed from hl - `hl set proxy debug=true`",
+		"proxy: {dashboard: true}":                    "removed from hl - the Traefik dashboard",
+		"proxy: {config: t.yml}":                      "`hl unset proxy config`",
+		"proxy: {project: My_Proxy}":                  "removed from hl",
+		"apps:\n  a: {path: x, env_files: [s.env]}\n": "apps.a.env_files: removed from hl - keep secrets in the app's own .env",
+		"apps:\n  b: {path: x, env_files: [s.env]}\n": "`hl unset b env_files`",
+		"proxy: {debug: on}":                          "not true or false",
 	} {
 		ps := Check([]byte(body))
 		if len(ps) == 0 || !strings.Contains(joinProblems(ps), has) {
@@ -100,7 +102,6 @@ apps:
   my-app.io:
     path: ~/code/my-app
     compose: [compose.yml, compose.prod.yml]
-    env_files: [my-app.env]
     env: {BASE: "${HL_PREFIX}"}
   db: {path: db, routing: none}
 `,

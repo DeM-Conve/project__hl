@@ -328,7 +328,11 @@ func walk(n *yaml.Node, t reflect.Type, path, pattern string, ps *[]Problem) {
 			}
 			seen[k.Value] = k.Line
 			ft, ok := fields[k.Value]
-			if why, gone := removedKeys[kp]; !ok && gone {
+			why, gone := removedKeys[join(pattern, k.Value)]
+			if gone && strings.HasPrefix(path, "apps.") {
+				why = strings.ReplaceAll(why, "<app>", strings.TrimPrefix(path, "apps."))
+			}
+			if !ok && gone {
 				*ps = append(*ps, Problem{Line: k.Line, Column: k.Column, Key: kp, Message: "removed from hl - " + why})
 				continue
 			}

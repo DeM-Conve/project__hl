@@ -61,7 +61,6 @@ those names.
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
 | `host` | `<name>.<domain>` | Host routing: the host name. |
 | `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). |
-| `env_files` | none | Extra env files, relative to the homelab folder, read after the app's own `.env`. Handy for secrets you keep outside the app's folder (a list). |
 | `env.NAME` | none | Variables for the app's compose file (`env.MY_APP_BASE_PATH='${HL_PREFIX}'`). Values can use the [variables hl provides](#variables-hl-provides) and your shell's variables. They are compose interpolation variables: they reach a container only through the app's compose file (`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`). |
 
 Applied by `hl up <app>`.
@@ -167,10 +166,10 @@ An app's `env` values (and its compose file, through them) can use these:
 | `HL_PREFIX` | the path prefix, e.g. `/my-app`; empty unless routing is `path` |
 | `HL_HOST` | the host name: `<app>.<domain>` for host routing, else `domain` |
 | `HL_DATA` | the app's data folder, `<homelab>/data/<app>` |
-| `TZ` | this machine's time zone (from `$TZ`, else what `/etc/localtime` points to, else `/etc/timezone`), so apps log in your local time - only when neither the shared env, the app's env nor the app's `.env`/`env_files` set `TZ`, and only when hl can tell the zone. `hl show` shows it and where it came from; `hl set env.TZ=UTC` picks another for every app. |
+| `TZ` | this machine's time zone (from `$TZ`, else what `/etc/localtime` points to, else `/etc/timezone`), so apps log in your local time - only when neither the shared env, the app's env nor the app's `.env` set `TZ`, and only when hl can tell the zone. `hl show` shows it and where it came from; `hl set env.TZ=UTC` picks another for every app. |
 
-**Order:** a variable's value comes from, later winning: the app's `.env`, the app's
-`env_files`, your shell, the shared env, the app's env. `hl show <app>` lists every variable the
+**Order:** a variable's value comes from, later winning: the app's `.env`,
+your shell, the shared env, the app's env. `hl show <app>` lists every variable the
 app's compose files can use with where its value comes from.
 
 ## Env hl fills in

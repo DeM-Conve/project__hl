@@ -115,7 +115,11 @@ func Edit(dir, scope string, changes []Change) error {
 
 // EditApp is Edit for one app.
 func EditApp(dir, name string, changes []Change) error {
-	return editScope(dir, changes, appFields(), func(root *yaml.Node) (*yaml.Node, error) {
+	fields := appFields()
+	for _, f := range removedAppKeys() {
+		fields[f] = reflect.TypeOf("") // only so hl unset can remove it; Check refuses it
+	}
+	return editScope(dir, changes, fields, func(root *yaml.Node) (*yaml.Node, error) {
 		apps := lookup(root, "apps")
 		var app *yaml.Node
 		var names []string

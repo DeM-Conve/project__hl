@@ -46,13 +46,6 @@ func project(cfg *config.Config, name string, a *config.App) (*compose.Project, 
 	if f := filepath.Join(dir, defaults.AppEnvFile); exists(f) {
 		envFiles = append(envFiles, f)
 	}
-	for _, f := range cfg.EnvFiles(a) {
-		if !exists(f) {
-			return nil, withHint(fmt.Errorf("%s: env file %s not found", name, f),
-				"create it, or fix the list: `hl set %s env_files=<file>[,<file>...]` (relative to the homelab folder) or `hl unset %s env_files`", name, name)
-		}
-		envFiles = append(envFiles, f)
-	}
 	return &compose.Project{
 		Name:     cfg.ProjectName(name),
 		Dir:      dir,

@@ -91,8 +91,6 @@ type App struct {
 	Prefix string `yaml:"prefix,omitempty"`
 	// Host routing: the host name. Default: <app>.<domain>.
 	Host string `yaml:"host,omitempty"`
-	// Extra env files, relative to the homelab folder; the app's own .env is always read first.
-	EnvFiles []string `yaml:"env_files,omitempty"`
 	// Settings passed to the app's compose file. Values may use ${HL_URL},
 	// ${HL_PREFIX}, ${HL_HOST}, ${HL_DATA} and ${HL_APP}.
 	Env map[string]string `yaml:"env,omitempty"`
@@ -416,19 +414,6 @@ func (c *Config) AppEnv(name string, a *App) []string {
 		}
 	}
 	return env
-}
-
-// EnvFiles are the app's extra env files as absolute paths.
-func (c *Config) EnvFiles(a *App) []string {
-	files := make([]string, 0, len(a.EnvFiles))
-	for _, f := range a.EnvFiles {
-		f = expandHome(f)
-		if !filepath.IsAbs(f) {
-			f = filepath.Join(c.Dir, f)
-		}
-		files = append(files, f)
-	}
-	return files
 }
 
 // AddApp appends an app to <dir>/hl.yml, keeping the file's comments and order.

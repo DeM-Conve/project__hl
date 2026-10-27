@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
@@ -20,6 +21,19 @@ var removedKeys = map[string]string{
 	"proxy.dashboard_public": "the Traefik dashboard is gone; remove it: `hl unset proxy dashboard_public`",
 	"proxy.access_log":       "`hl set proxy debug=true` turns on Traefik's access log and INFO log; remove it: `hl unset proxy access_log`",
 	"proxy.log_level":        "`hl set proxy debug=true` turns on Traefik's INFO log and access log; remove it: `hl unset proxy log_level`",
+	"apps.*.env_files": "keep secrets in the app's own " + defaults.AppEnvFile + " (hl reads it) and the rest in its env " +
+		"(`hl set <app> env.NAME=value`); remove it: `hl unset <app> env_files`",
+}
+
+// removedAppKeys are the removedKeys of an app, without the "apps.*." in front.
+func removedAppKeys() []string {
+	var out []string
+	for k := range removedKeys {
+		if f, ok := strings.CutPrefix(k, "apps.*."); ok {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // HomePath resolves a path from hl.yml: absolute, ~, or relative to the homelab folder.

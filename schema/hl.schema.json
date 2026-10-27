@@ -246,15 +246,6 @@
             "my-app.example.com"
           ]
         },
-        "env_files": {
-          "description": "Extra env files, relative to the homelab folder, read after the app's own .env.",
-          "$ref": "#/definitions/files",
-          "examples": [
-            [
-              "my-app.env"
-            ]
-          ]
-        },
         "env": {
           "description": "Settings passed to the app's compose file. Values can use ${HL_URL}, ${HL_PREFIX}, ${HL_HOST}, ${HL_DATA} and ${HL_APP}.",
           "$ref": "#/definitions/env"

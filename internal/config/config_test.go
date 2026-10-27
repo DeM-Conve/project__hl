@@ -71,14 +71,6 @@ func TestHostTZOnlyWhenNothingSetsIt(t *testing.T) {
 		t.Errorf(".env sets TZ, hl added %q", v)
 	}
 	_ = os.Remove(filepath.Join(app, ".env"))
-	if err := os.WriteFile(filepath.Join(dir, "extra.env"), []byte("export TZ=Asia/Tokyo\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	c.Apps["a"].EnvFiles = []string{"extra.env"}
-	if v, _ := tz(); v != "" {
-		t.Errorf("env_files set TZ, hl added %q", v)
-	}
-	c.Apps["a"].EnvFiles = nil
 
 	HostTimeZone = func() (string, string) { return "", "" }
 	if env := strings.Join(c.AppEnv("a", c.Apps["a"]), "\n"); strings.Contains(env, "TZ=") {
