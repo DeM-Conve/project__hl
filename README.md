@@ -67,7 +67,9 @@ hl open my-app            # http://localhost/my-app/
 
 `hl init ~/homelab --projects ~/work --yes` uses other folders and doesn't ask; `hl add
 ~/code/my-app` adds one app at a time. Folders named like `project__blog` become app `blog`
-(`--strip-prefix none` keeps whole names). No app of your own to try? Use the two in
+(`--strip-prefix none` keeps whole names). Run again on an existing homelab, `hl init` adds the
+apps that are new in its projects folders and changes nothing else that its plan doesn't list.
+No app of your own to try? Use the two in
 [examples/](examples/).
 
 If an app's page loads but its links, styles or redirects are broken, it needs its base path: see

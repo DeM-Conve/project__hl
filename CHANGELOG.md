@@ -209,6 +209,11 @@ release differs from earlier builds of `main`.
   layout.
 - `hl set <app> path=<folder>` takes a relative folder from the current folder, like `hl add`
   and `hl set projects+=`; it used to write it as given, so hl read it relative to the homelab.
+- `hl init` on an existing homelab changes only what its plan lists. It used to add the
+  auto-detected `projects:` (`~/code`, ...) to an `hl.yml` without one while the plan said
+  "hl.yml kept", and to put back a deleted `.gitignore`. Now the plan names the folders and the
+  `hl init --projects` command that saves one, a saved setting is a `+ ... (hl.yml updated)`
+  line, and the first line says `existing homelab <folder>`.
 - `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
   into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl

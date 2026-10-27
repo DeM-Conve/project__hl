@@ -450,8 +450,11 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   (`config.WriteNew`, `O_EXCL`, so it never overwrites), `projects`, `strip_prefix` and a
   `proxy` block with the port when it isn't the default; projects
   folders are stored relative inside the homelab, with `~` inside the user's home, else
-  absolute. On an existing hl.yml init only saves `projects`/`strip_prefix` if there are none
-  and adds the new apps.
+  absolute. On an existing hl.yml init only saves `projects`/`strip_prefix` when the flag is
+  given and hl.yml has none (`initWhy.saveProjects`/`saveStrip`, a `+ ... (hl.yml updated)` plan
+  line) and adds the new apps; the usual projects folders (`candidateProjects`) are only named in
+  the plan, and the `.gitignore` is written for a new homelab only. The plan's first line says
+  `existing homelab <dir>`; a change of the default homelab is asked about like a write.
 
 ## Tests of the CLI
 

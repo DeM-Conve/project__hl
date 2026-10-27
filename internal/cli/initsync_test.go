@@ -677,11 +677,49 @@ func TestInitDefaultFolder(t *testing.T) {
 		t.Errorf("the plan should say the default changes:\n%s", out)
 	}
 	chdir(t, second)
-	if out, err = runHL(t, "", "init", "--yes"); err != nil || !strings.Contains(out, "homelab    "+second+" (hl.yml kept)") {
+	if out, err = runHL(t, "", "init", "--yes"); err != nil || !strings.Contains(out, "homelab    existing homelab "+second+" (hl.yml kept)") {
 		t.Errorf("%v\n%s", err, out)
 	}
 	chdir(t, other)
 	if out, err = runHL(t, "", "init", ".", "--yes"); err != nil || !exists(filepath.Join(other, config.FileName)) {
 		t.Errorf("hl init . sets up the current folder: %v\n%s", err, out)
+	}
+}
+
+// On an existing hl.yml, init changes only what its plan lists: the usual projects folders
+// are named, not written, unless --projects asks for them.
+func TestInitExistingHomelabIsHonest(t *testing.T) {
+	home := initSyncEnv(t)
+	fakeApp(t, filepath.Join(home, "code", "blog"), webModel)
+	lab := filepath.Join(home, "lab")
+	if err := os.MkdirAll(lab, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "version: 1\n\n# my apps\napps: {}\n"
+	if err := os.WriteFile(filepath.Join(lab, config.FileName), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HL_HOME", lab)
+	out, err := runHL(t, "", "init", "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	contains(t, "plan", out, "homelab    existing homelab "+lab+" (hl.yml kept)",
+		"projects   none - to look for apps in ~/code: hl init --projects ~/code")
+	if got := readFile(t, filepath.Join(lab, config.FileName)); got != body {
+		t.Errorf("hl.yml changed although the plan kept it:\n%s", got)
+	}
+	if exists(filepath.Join(lab, ".gitignore")) {
+		t.Error("init wrote a .gitignore into an existing homelab")
+	}
+
+	out, err = runHL(t, "", "init", "--yes", "--projects", "~/code")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	contains(t, "plan", out, "existing homelab "+lab+" (hl.yml updated as below)", "projects   + ~/code (hl.yml updated)",
+		"+ add", "blog", "projects folders saved")
+	if cfg, err := config.Load(lab); err != nil || strings.Join(cfg.Projects, ",") != "~/code" || cfg.Apps["blog"] == nil {
+		t.Errorf("after --projects: %v %+v", err, cfg)
 	}
 }

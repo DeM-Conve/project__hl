@@ -51,8 +51,10 @@ Change it afterwards with hl set proxy (bind=0.0.0.0, port=8080, routing=host).
 To leave out an app init adds, hl remove <app> afterwards (hl sync won't add it
 back).
 
-On an existing homelab hl.yml is kept; init adds the apps that are new in the
-projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
+On an existing homelab hl.yml is kept; init adds the apps that are new in its
+projects folders, and saves --projects or --strip-prefix if hl.yml has none.
+Nothing else is written into it: the usual projects folders are only named in
+the plan (hl init --projects ~/code saves one).`,
 		Example: `  hl init                                   # plan for ~/homelab, then ask
   hl init ~/homelab --projects ~/code --yes # no question
   hl init --projects ~/code --strip-prefix project__
@@ -102,7 +104,9 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		if len(cfg.Projects) > 0 && o.projects != nil {
 			note("--projects is ignored: %s already lists projects folders - change them with hl set projects+=<folder>", config.FileName)
 		}
-		if len(cfg.Projects) == 0 {
+		// An existing hl.yml changes only as the flags say: the usual projects folders are
+		// not written into it unasked (the plan names them instead).
+		if len(cfg.Projects) == 0 && o.projects != nil {
 			if cfg.Projects, err = initProjects(dir, o.projects); err != nil {
 				return err
 			}
@@ -115,6 +119,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		default:
 			cfg.StripPrefix, saveStrip = o.strip, true
 		}
+		why.saveProjects, why.saveStrip = saveProjects, saveStrip
 	} else {
 		pd := config.ProxyDefaults()
 		s = config.InitSettings{Routing: pd.Routing, Bind: pd.Bind, Port: pd.Port, StripPrefix: o.strip}
@@ -156,8 +161,10 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		}
 	}
 
-	// Ask once, when there is something to write.
-	if !existing || saveProjects || saveStrip || toAdd > 0 {
+	// Ask once, when there is something to write (or the default homelab changes).
+	old := config.DefaultHome()
+	newDefault := old != "" && !samePath(old, dir)
+	if !existing || saveProjects || saveStrip || toAdd > 0 || newDefault {
 		switch {
 		case o.yes:
 		case !stdinTerminal(in):
@@ -189,13 +196,14 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 			return err
 		}
 		say("wrote %s", filepath.Join(dir, config.FileName))
+		// Only for a new homelab: one removed on purpose isn't put back.
+		gi := filepath.Join(dir, ".gitignore")
+		if _, err := os.Stat(gi); err != nil {
+			_ = os.WriteFile(gi, []byte("# App data (databases, uploads) and files hl generates.\n"+defaults.DataDir+"/\n"+defaults.StateDir+"/\n"), defaults.FileMode)
+		}
 	}
 	if err := os.MkdirAll(filepath.Join(dir, defaults.DataDir), defaults.DataDirMode); err != nil {
 		return err
-	}
-	gi := filepath.Join(dir, ".gitignore")
-	if _, err := os.Stat(gi); err != nil {
-		_ = os.WriteFile(gi, []byte("# App data (databases, uploads) and files hl generates.\n"+defaults.DataDir+"/\n"+defaults.StateDir+"/\n"), defaults.FileMode)
 	}
 	if err := config.SetDefaultHome(dir); err != nil {
 		return err
@@ -228,23 +236,39 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 		fmt.Fprintf(out, "  %-10s %s\n", label, fmt.Sprintf(format, a...))
 	}
 	fmt.Fprintf(out, "\n%shl init plan%s\n", bold, reset)
-	if exists(cfg.File()) {
-		w("homelab", "%s (hl.yml kept)", cfg.Dir)
+	existing := exists(cfg.File())
+	if existing {
+		kept := "hl.yml kept"
+		if why.saveProjects || why.saveStrip {
+			kept = "hl.yml updated as below"
+		}
+		w("homelab", "existing homelab %s (%s)", cfg.Dir, kept)
 	} else {
 		w("homelab", "%s (new hl.yml, data/)", cfg.Dir)
 	}
 	if old := config.DefaultHome(); old != "" && !samePath(old, cfg.Dir) {
 		w("default", "this homelab becomes the default, instead of %s (hl --home %q ... still reaches that one)", old, old)
 	}
-	if len(cfg.Projects) == 0 {
-		w("projects", "none - pass --projects <folder>, or later hl set projects+=<folder>")
-	} else {
+	switch {
+	case why.saveProjects:
+		w("projects", "+ %s (hl.yml updated)", strings.Join(cfg.Projects, ", "))
+	case len(cfg.Projects) > 0:
 		w("projects", "%s", strings.Join(cfg.Projects, ", "))
+	case existing && len(candidateProjects()) > 0:
+		// Not written into an existing hl.yml unasked.
+		w("projects", "none - to look for apps in %[1]s: hl init --projects %[1]s", strings.Join(candidateProjects(), ","))
+	default:
+		w("projects", "none - pass --projects <folder>, or later hl set projects+=<folder>")
 	}
 	if len(cfg.StripPrefix) > 0 {
-		if why.strip {
+		switch {
+		case why.saveStrip:
+			w("app names", "+ strip_prefix %s (hl.yml updated)", strings.Join(cfg.StripPrefix, ", "))
+		case existing:
+			w("app names", "without %s (strip_prefix)", strings.Join(cfg.StripPrefix, ", "))
+		case why.strip:
 			w("app names", "without %s - the folders share it (--strip-prefix none keeps whole names)", strings.Join(cfg.StripPrefix, ", "))
-		} else {
+		default:
 			w("app names", "without %s", strings.Join(cfg.StripPrefix, ", "))
 		}
 	}
@@ -322,6 +346,9 @@ type initWhy struct {
 	busyPort int    // the default proxy port, in use, so another one was picked
 	name     string // why the homelab got a name: who uses the default Docker names
 	strip    bool   // strip_prefix was worked out from the folder names, not given
+
+	// An existing hl.yml: what the flags add to it.
+	saveProjects, saveStrip bool
 }
 
 // initName picks a name for a new homelab when another homelab on this Docker already uses the
