@@ -211,7 +211,7 @@ app's data (data/<app>/).
 		upCmd(), downCmd(), restartCmd(), rebuildCmd(),
 		logsCmd(), openCmd(), shellCmd(),
 		doctorCmd(), versionCmd(), syncCmd(),
-		setCmd(), unsetCmd(), editCmd(), showCmd())
+		setCmd(), unsetCmd(), showCmd())
 	c.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return &usageError{err: err, cmd: cmd.CommandPath()}
 	})
@@ -254,7 +254,13 @@ func load() (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return config.Load(home)
+	cfg, err := config.Load(home)
+	var pe *config.ProblemsError
+	if errors.As(err, &pe) {
+		// hl only writes hl.yml through checked changes, so these come from editing it by hand.
+		return nil, withHint(err, "fix those lines in %s with any editor (or `hl unset` a key that shouldn't be there); `hl doctor` checks it again", config.FileName)
+	}
+	return cfg, err
 }
 
 // targets are the apps named on the command line, or all of them.

@@ -107,11 +107,9 @@ release differs from earlier builds of `main`.
 - The Traefik image is pinned to the tested version (`traefik:v3.6.25`); `hl doctor` warns when
   `proxy.image` is older.
 - Reserved app name: `proxy` (its compose project would be the proxy's, and `hl up proxy` and
-  the like mean the proxy). `hl add`, `hl.yml`, `hl init`, `hl sync` and the schema refuse it.
+  the like mean the proxy). `hl add`, `hl.yml`, `hl init` and `hl sync` refuse it.
 - `hl.yml` is versioned (`version: 1`). Older files without it keep working and get the line,
   with a message, the first time hl edits them; a newer file asks you to update hl.
-- A JSON Schema for `hl.yml` (`schema/hl.schema.json`), for editors of those who edit it by
-  hand (`hl edit`); hl doesn't point new files at it.
 - `hl set <app> key=value` and `hl unset <app> key` change an app's settings, keeping `hl.yml`'s
   comments and writing only a valid result. `hl set proxy port=8080 bind=0.0.0.0` changes the
   proxy and `hl set env.TZ=UTC` (no app) the env every app gets; `hl unset proxy port` and
@@ -123,8 +121,6 @@ release differs from earlier builds of `main`.
 - `hl doctor` warns when hl is older than the latest release on GitHub (a 3-second request,
   silently skipped offline and for development builds) and tells a `go install` build of a
   commit how to install a release. It is the only network request hl makes.
-- `hl edit` opens `hl.yml` in your editor, checks it on save and reopens it on a problem;
-  `hl.yml` is never left broken.
 - Windows gets a short "not supported" error suggesting WSL 2; `hl version` and `hl completion`
   still work there.
 - Release archives for Linux and macOS (amd64, arm64) with `checksums.txt` and an SPDX SBOM per
@@ -146,12 +142,16 @@ release differs from earlier builds of `main`.
   `strip_prefix` and `name`. A list is replaced with `=`, and `+=` / `-=` add and remove entries
   (`hl set projects+=~/src ignore-=old`, also for an app's `compose`);
   `hl unset ignore` drops one. `name` is refused while any of the homelab's apps or its proxy
-  runs. Nothing needs `hl edit` any more; it stays as a fallback.
+  runs. Every setting is reachable from the command line.
 
 ### Changed
 
 - **Breaking:** `hl sync --dry-run` is gone: answering n, or running without a terminal, already
   shows the plan and writes nothing.
+- **Breaking:** `hl edit` is gone. Every key can be changed with `hl set`/`hl unset`, so a
+  broken `hl.yml` can only come from editing it by hand; every command then lists the problem
+  lines (`hl.yml:3:5: ...`) with a hint to fix them in any editor, and `hl doctor` checks the
+  file again. `.hl/edit/` (its draft copy) is no longer used and can be deleted.
 - **Breaking:** the command aliases `start` (`hl up`), `stop` (`hl down`) and `ls` (`hl status`),
   the `-v`/`--version` flag and `hl version --short` are gone; `hl version` prints the version.
 - **Breaking:** `hl init` no longer takes `--bind`, `--port`, `--routing` or `--apps`. It sets up
@@ -164,8 +164,10 @@ release differs from earlier builds of `main`.
   naming `hl unset proxy network` / `hl unset proxy project`; `hl show proxy` prints both names.
 - The guides and examples give `hl set`/`hl unset` commands instead of `hl.yml` snippets, and
   say where `hl add` already maps a base path by itself.
-- A new `hl.yml` no longer starts with a `# yaml-language-server: $schema=...` line; the
-  schema stays in `schema/hl.schema.json` for anyone who edits the file by hand.
+- **Breaking:** the JSON Schema `schema/hl.schema.json` is gone, and a new `hl.yml` no longer
+  starts with a `# yaml-language-server: $schema=...` line. It only served editing the file by
+  hand; hl checks `hl.yml` itself on every command. Remove that line from an existing `hl.yml`
+  if you added it (it is a comment, so it does no harm, but the URL no longer resolves).
 - **Breaking:** the app key `env_files` is gone. Keep an app's secrets in its own `.env` (hl
   reads it, as compose does) and anything else in its env (`hl set <app> env.NAME=value`). An
   `hl.yml` that still has it is refused with a message naming `hl unset <app> env_files`.
@@ -207,7 +209,7 @@ release differs from earlier builds of `main`.
   so. It still asks for `service=` when none has such a name.
 - `hl restart` starts the proxy first, like `hl up` and `hl rebuild`.
 - Error hints name the command that fixes a setting (`hl set proxy port=8000`, `hl unset proxy subnet`,
-  `hl set my-app service=...`) instead of the `hl.yml` key to edit; `hl edit` stays as the fallback.
+  `hl set my-app service=...`) instead of the `hl.yml` key to edit.
 
 ### Fixed
 
@@ -235,6 +237,22 @@ release differs from earlier builds of `main`.
   instead of an `hl set` for an app that isn't added yet; `hl add <folder>/compose.yml` says it
   takes the folder. docs/reference.md no longer calls `hl-proxy` a reserved app name: only
   `proxy` is.
+- `hl status` shows the proxy where it really listens: after `hl set proxy port=8088` without
+  `hl up proxy`, it used to print hl.yml's address and URLs on a port nothing served. It now
+  shows the running address, the app URLs on that port, and a note: "hl.yml says ...:8088 -
+  apply it: hl up proxy, then hl up".
+- `hl up --wait` (and `rebuild --wait`) returns only once the app's URL answers through the
+  proxy: a request right after it used to get Traefik's "404 page not found" for about a second,
+  until the proxy had loaded the new route. Any answer of the app counts, its own 404 too; a
+  route that doesn't show up within `--wait-timeout` fails with a hint. Apps with routing `none`
+  aren't asked.
+- `hl show` lists the apps in aligned columns (name, URL, folder), and `hl show <app>` no
+  longer ends its `project` and `url` rows with an empty source.
+- No more silent no-ops: `hl restart <app>` of an app that isn't running says "`<app>` isn't
+  running - start it with: `hl up <app>`" (exit 0) instead of printing an empty `==> <app>`
+  section; `hl logs` with no app shows only the running apps' logs and says so when none runs;
+  `hl shell` on a stopped service prints one error with the `hl up` hint, not docker's error
+  line as well.
 - `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
   into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl
@@ -260,8 +278,6 @@ release differs from earlier builds of `main`.
 - `hl logs proxy` printing nothing (Traefik logs only errors by default) now says how to see more:
   `hl set proxy debug=true`. `hl logs <app> <service>` with a service the app doesn't have lists
   its services instead of compose's error.
-- `hl edit` without a terminal (a script, a pipe) launched `vi` anyway; it now refuses, like
-  `hl init` and `hl sync`, and points to `hl set`/`hl unset`.
 - `hl set proxy port=...` said to apply it with `hl up proxy` only, but the port is in every
   app's `HL_URL`; it now says `hl up proxy, then hl up`, like `domain` and `routing`.
 

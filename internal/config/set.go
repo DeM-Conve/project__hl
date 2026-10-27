@@ -355,7 +355,7 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 		}
 		v = b
 	default:
-		return fmt.Errorf("%s can't be set from the command line - use hl edit", c.Key)
+		return fmt.Errorf("%s can't be set with hl set", c.Key)
 	}
 	var val yaml.Node
 	if err := val.Encode(v); err != nil {

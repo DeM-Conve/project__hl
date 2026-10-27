@@ -59,7 +59,7 @@ folder with that name.
 | `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `port=<port>`). `hl add` writes it. |
 | `routing` | `proxy.routing` | `path`, `host` or `none` (not behind the proxy). |
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
-| `host` | `<name>.<domain>` | Host routing: the host name. |
+| `host` | `<name>.<domain>` | Host routing: the host name. Use it to give one app its own host name (say `photos.example.com`) instead of `<name>.<domain>`. |
 | `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). `compose+=compose.dev.yml` on an app that names none starts from the file compose picks, so it adds an override instead of replacing it. |
 | `env.NAME` | none | Variables for the app's compose file (`env.MY_APP_BASE_PATH='${HL_PREFIX}'`). Values can use the [variables hl provides](#variables-hl-provides) and your shell's variables. They are compose interpolation variables: they reach a container only through the app's compose file (`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`). |
 
@@ -83,7 +83,7 @@ behind its settings.
 | `routing` | `path` | Default routing for apps that don't set one: `path` or `host`. |
 | `domain` | `localhost` | Host name in app URLs: `<domain>/<app>/` for path routing, `<app>.<domain>` for host routing. |
 | `subnet` | none (Docker picks) | Fixed subnet for the proxy network, e.g. `172.31.0.0/16`. See below. |
-| `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. |
+| `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. Use it as the escape hatch when a Docker update needs a newer Traefik than this hl pins yet. |
 | `debug` | `false` | Traefik's INFO log and its access log (one line per request), in `hl logs proxy`. Off, Traefik logs errors only. Turn it on to see why a URL gives 404 or which app a request reached. |
 
 hl runs Traefik with one static config file, `.hl/proxy/traefik.yml`, generated from these
@@ -262,12 +262,10 @@ apps:
 - **`version: 1`** is the format. A file without it keeps working; the first time hl changes the
   file it adds `version: 1` and says so. A file with a newer version than your hl understands is
   refused with a message to update hl.
-- **Schema.** [schema/hl.schema.json](../schema/hl.schema.json) describes the file for editors
-  with a YAML language server, if you edit it by hand; hl doesn't point the file at it (add
-  `# yaml-language-server: $schema=<its raw GitHub URL>` yourself). hl's own check doesn't need it.
-- **`hl edit`** is the fallback for editing by hand: it opens a copy (`.hl/edit/hl.yml`) in
-  `$VISUAL`, then `$EDITOR`, else `vi`, checks it when the editor closes and saves it only if it
-  has no problems, else lists them and offers to reopen the editor. It works on a broken `hl.yml`, and needs a terminal.
+- **Broken by hand.** `hl set`/`hl unset` write only a valid result, so a broken `hl.yml` comes
+  from editing it by hand. Every command then refuses with each problem's `hl.yml:line:column`
+  and what is wrong; fix those lines in any editor (or `hl unset` a key that shouldn't be
+  there), and `hl doctor` checks the file again.
 - **Written whole.** `hl.yml`, the default-homelab note and every generated file are written to a
   temporary file and renamed into place, so a crash or Ctrl-C never leaves half a file. An
   existing file keeps its permissions, and a symlinked `hl.yml` stays a symlink.
@@ -293,6 +291,7 @@ and not settings (some have a command-line flag):
 | `200` | lines shown by `hl logs` and `hl logs proxy` (change with `--tail`) |
 | `2m` | how long `--wait` waits for each app (change with `--wait-timeout`) |
 | `20` | log lines `--wait` shows for each service that didn't become healthy |
+| every `250ms`, `2s` each | how often `--wait` asks the proxy for a healthy app's URL until the app answers (anything but Traefik's own `404 page not found`), and how long one request may take |
 | `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use or another homelab's proxy is set to it (and error hints suggest) |
 | `code`, `projects`, `src` | projects folders `hl init` suggests, under your home folder, when they exist |
 | `homelab` | the folder `hl init` uses under your home folder when you name none |
@@ -305,7 +304,7 @@ and not settings (some have a command-line flag):
 | GitHub releases API, `3s` | what `hl doctor` asks for the latest release, and how long it waits |
 
 **Environment variables hl reads:** `HL_HOME` (the homelab folder), `NO_COLOR` (no colours;
-colours are also off when output isn't a terminal), and `VISUAL`/`EDITOR` for `hl edit`.
+colours are also off when output isn't a terminal).
 
 ## Errors and exit codes
 

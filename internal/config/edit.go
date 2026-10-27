@@ -133,16 +133,6 @@ func editFile(dir string, edit func(root *yaml.Node) error) error {
 	return writeKeepMode(path, out)
 }
 
-// Replace writes b as <dir>/hl.yml, keeping the file's permissions, if b has no problems;
-// otherwise it returns a *ProblemsError and leaves hl.yml as it was.
-func Replace(dir string, b []byte) error {
-	path := filepath.Join(dir, FileName)
-	if err := problemsErr(path, Check(b)); err != nil {
-		return err
-	}
-	return writeKeepMode(path, b)
-}
-
 // writeKeepMode replaces path's content, keeping its permissions.
 func writeKeepMode(path string, b []byte) error {
 	// Atomic, keeping an existing file's permissions (and a symlink).

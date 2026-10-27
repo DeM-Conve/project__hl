@@ -200,6 +200,14 @@ const (
 	FailLogTail = 20
 	// WaitTimeout is how long `--wait` waits for an app (--wait-timeout).
 	WaitTimeout = 2 * time.Minute
+	// RouteWaitInterval is how often `--wait`, once an app's containers are healthy, asks the
+	// proxy for the app's URL until the route answers (within --wait-timeout).
+	RouteWaitInterval = 250 * time.Millisecond
+	// RouteProbeTimeout is how long one of those requests may take.
+	RouteProbeTimeout = 2 * time.Second
+	// ProxyNotFound is the body Traefik answers with when no route matches a request: until the
+	// app's route is loaded its URL gets this 404; any other answer comes from the app.
+	ProxyNotFound = "404 page not found"
 	// ComposeMinMajor and ComposeMinMinor: the override uses `!reset`, new in compose v2.24.
 	ComposeMinMajor = 2
 	ComposeMinMinor = 24
@@ -247,20 +255,6 @@ var DefaultIgnore = []string{".*", "node_modules", "vendor", "__pycache__", "ven
 // the user's home, when they exist. Only a suggestion: the user is asked.
 var CandidateProjects = []string{"code", "projects", "src"}
 
-// The config commands (version, schema, edit; folded in from internal/config).
-const (
-	// ConfigVersion is the hl.yml format this hl writes and reads. Files without a `version:` line
-	// are the older, unversioned format (0) and are upgraded the next time hl edits them.
-	ConfigVersion = 1
-
-	// SchemaURL is where the JSON Schema for hl.yml is published (its $id). hl writes no
-	// reference to it; it is for editors of people who edit hl.yml by hand (hl edit).
-	SchemaURL = "https://raw.githubusercontent.com/DeM-Conve/project__hl/main/schema/hl.schema.json"
-
-	// DefaultEditor is what `hl edit` runs when neither $VISUAL nor $EDITOR is set.
-	DefaultEditor = "vi"
-
-	// EditDraft is the copy of hl.yml that `hl edit` opens, relative to the homelab folder.
-	// hl.yml itself is only replaced once the draft is valid.
-	EditDraft = StateDir + "/edit/" + ConfigFile
-)
+// ConfigVersion is the hl.yml format this hl writes and reads. Files without a `version:` line
+// are the older, unversioned format (0) and are upgraded the next time hl edits them.
+const ConfigVersion = 1

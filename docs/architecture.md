@@ -25,7 +25,7 @@ internal/version        version, commit, build date (ldflags, else Go build info
 
 Dependencies point one way: `cli` -> `gen` -> `compose`, `config` -> `defaults`. `gen` and `config`
 do no Docker calls; `cli` is tested against a fake `docker` (below). Third-party deps are `cobra`, `yaml.v3`
-and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/jsonschema`.
+and `golang.org/x/term` (is stdin a terminal).
 
 ## What every command does first
 
@@ -74,8 +74,7 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
 - Reserved names: one list in `internal/config/reserved.go` (`IsReserved`, `ReservedAppNames`),
   compared by ID. It holds only `proxy` (`defaults.ReservedAppName`): its project would be the
   proxy's default `hl-proxy`, and commands take `proxy` to mean the proxy. `ValidName` (so
-  `Load` and `hl add`) and `scan` (init/sync skip such folders) use it; a cli test checks the
-  schema's `apps.propertyNames.not.enum` lists the same names. `Validate` also rejects an app whose
+  `Load` and `hl add`) and `scan` (init/sync skip such folders) use it. `Validate` also rejects an app whose
   `hl-<id>` equals the proxy's project.
 - `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>` (two apps
   with the same ID are a config error),
@@ -236,7 +235,13 @@ warns. Kept apps are never re-mapped.
   app with routing `none` (no service matters more) passes `--wait --wait-timeout <s>` to the
   command itself, waiting for everything. When an app doesn't come up, hl lists the
   waited-for services that aren't running or healthy and prints their last
-  `defaults.FailLogTail` log lines.
+  `defaults.FailLogTail` log lines. Once a routed app's services are healthy, `waitRoute` asks
+  the proxy for the app's URL (sent to the address the proxy really publishes, `publishedAddr`,
+  with the URL's `Host` header) every `defaults.RouteWaitInterval` until the answer is anything
+  but Traefik's own 404 for an unknown route (`defaults.ProxyNotFound`; the app's own 404
+  counts as an answer). Traefik loads a new route a moment after the container is up, so a
+  request right after `--wait` used to get that 404. Past the `--wait-timeout` (counted from
+  the start of the wait) it fails with a hint. Tests replace `routeReady`.
 - `down`/`stop` with no app stops every app that has containers, then the proxy; apps and a proxy
   that aren't there are skipped, so it is safe to repeat. An app hl can no longer prepare (folder
   gone) is stopped by project name alone (`downByName`). `remove` does the same for the app
@@ -252,13 +257,20 @@ warns. Kept apps are never re-mapped.
   `healthy` (every healthcheck passes), `starting: <services>`, `unhealthy: <services>` (also
   restarting or exited ones), `-` without healthchecks. Without Docker it still prints hl.yml's
   apps, states `?`, and a warning with the hint.
+  A running proxy that publishes another address than hl.yml's (`publishedAddr`, from `docker ps
+  --format {{.Ports}}`, the same check `hl up proxy` uses before replacing it) is shown with that
+  address, the URLs use its port, and a note says how to apply hl.yml's.
 - `logs <app>` (and `logs proxy`) first checks the inventory: a project with no containers at
   all gets "isn't running" and exit 0 instead of compose's empty output (`notRunning`; without
   Docker compose runs and says what is wrong). Services named after the app must be in its model
   (else a usage error listing them). `logs proxy` counts what compose printed (`countWriter`):
   nothing, without `-f` and `proxy.debug`, gets a note naming `hl set proxy debug=true`.
-- `logs` with no app runs `docker compose logs` for every app at once, each line prefixed by its
-  app; `--tail` (default `defaults.LogTail`) and `-f` apply to all.
+- `logs` with no app runs `docker compose logs` for every app that has containers at once, each
+  line prefixed by its app; `--tail` (default `defaults.LogTail`) and `-f` apply to all. With
+  none, it says nothing is running (exit 0).
+- `restart` leaves out apps with no containers (`runningApps`: "`<app>` isn't running - start it
+  with: `hl up <app>`", exit 0, like `logs`): compose's restart would do nothing for them, and
+  the proxy isn't started when no named app runs.
 - `show` (`internal/cli/show.go`) reads `hl.yml` and, only for an app whose `service` or `port`
   isn't pinned, the compose model (`docker compose config`, as `prepared` would; nothing is
   written or started). The env list comes from `config.EnvVars`: `AppEnv` with one entry per
@@ -269,13 +281,17 @@ warns. Kept apps are never re-mapped.
   are missing), `ignore` with the built-in patterns, `scan_depth`, `strip_prefix`, and the apps.
   `--compose` runs `docker compose config` on the prepared app (or the proxy's project) instead:
   the whole config as hl runs it. Only the key column is aligned (the source follows the value
-  after two spaces, so one long path doesn't push every row), and paths inside the user's home
+  after two spaces, so one long path doesn't push every row; values hl works out itself, an
+  app's `project` and `url`, have no source), except the homelab's app list, which is in
+  columns (name, URL, folder), and paths inside the user's home
   folder print as `~/...` (`tilde`, also in `hl status` and `hl show proxy`).
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.
 - `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the
   service name is validated so it can't pass as a flag). Without a service it uses the pinned or
-  detected one. It exits with the shell's own status.
+  detected one. It exits with the shell's own status. It checks the inventory first: a service
+  with no running container fails with one hl error (and the `hl up` hint) before `docker
+  exec` can print its own.
 - `doctor` prints hl's version, Go version and platform, compares it with the latest release
   (`checkLatest`: `version.Kind` skips `dev` builds, tells a Go pseudo-version how to install a
   release, and for a release asks `defaults.LatestReleaseURL` with `defaults.UpdateCheckTimeout`;
@@ -355,10 +371,9 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   `routing` or `port` changed (they are in the apps' routes or `HL_URL`; `bind` is not), `hl sync`
   for the projects settings, or `hl down` then `hl up` when the proxy's network, subnet or
   project changed).
-- `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
-  `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
-  checks out. It finds the homelab with `config.Home`, not `Load`, so it works on a file that
-  doesn't load. Without a terminal (`stdinTerminal`) it refuses before starting an editor.
+- There is no editor command: every key is reachable with `hl set`/`hl unset`. A file broken by
+  hand fails `config.Load` with a `*config.ProblemsError` (each problem with file:line:column);
+  `cli.load` adds the hint to fix those lines in an editor and re-check with `hl doctor`.
 
 **Checking** (`config.Check`, `internal/config/validate.go`): walks the node tree against the
 `Config` type by reflection (yaml tags give the known keys, so a new field needs no checker
@@ -376,10 +391,8 @@ the format before versions (0), which loads as before. `config.Upgrade` adds the
 after any header comment) and the CLI prints a note; it runs before `add`/`remove` and after
 `set`/`unset`. `Validate` refuses a version above `defaults.ConfigVersion`.
 
-**Schema**: `schema/hl.schema.json` (draft-07), published at `defaults.SchemaURL` (its `$id`) for
-people who edit hl.yml by hand; new files no longer reference it (2026-10-27), and `Check` doesn't
-use it (it walks the Go types). `internal/config/schema_test.go` keeps it in step with the code: same keys
-as the Go types, same enums, patterns and defaults, and it accepts the yaml examples in the README and docs/reference.md.
+There is no JSON Schema for hl.yml (removed 2026-10-27): `Check` walks the Go types, and
+nobody is meant to open the file.
 
 **Settings listing** (`config.Settings`, used by `hl show` and `hl show proxy`): the
 homelab-wide fields of `Config` by reflection, the default taken by running `defaults()` on an

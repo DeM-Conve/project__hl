@@ -26,7 +26,7 @@ func Settings(dir string) ([]Setting, error) {
 	}
 	var raw Config
 	if err := yaml.Unmarshal(b, &raw); err != nil {
-		return nil, fmt.Errorf("%s: %w - run hl edit to fix it", filepath.Join(dir, FileName), err)
+		return nil, fmt.Errorf("%s: %w - fix that line in an editor (hl doctor lists every problem)", filepath.Join(dir, FileName), err)
 	}
 	var def Config
 	def.defaults()

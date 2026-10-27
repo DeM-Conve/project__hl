@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os/exec"
 	"slices"
 	"sort"
@@ -148,6 +150,7 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 		}
 	}
 	if waitFor != nil {
+		deadline := time.Now().Add(w.timeout)
 		say("%swaiting for %s%s", dim, strings.Join(waitFor, ", "), reset)
 		if err := p.Run(ctx, append(w.args("up", "--detach"), waitFor...)...); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
@@ -155,8 +158,68 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 			}
 			return unhealthy(ctx, p, name, err, waitFor)
 		}
+		// Healthy containers aren't enough: the proxy picks the route up a moment later.
+		return waitRoute(ctx, cfg, name, deadline)
 	}
 	return nil
+}
+
+// waitRoute asks the proxy for the app's URL until something other than the proxy's own 404
+// answers (any answer of the app counts, its own 404 too), or fails at the deadline.
+func waitRoute(ctx context.Context, cfg *config.Config, name string, deadline time.Time) error {
+	u, err := url.Parse(cfg.URL(name, cfg.Apps[name]) + "/")
+	if err != nil || u.Host == "" {
+		return nil
+	}
+	// Where the proxy really listens (it keeps its address until `hl up proxy`).
+	host, port := cfg.Proxy.Bind, cfg.Proxy.Port
+	if h, p, ok := publishedAddr(ctx, cfg.ProxyProject()); ok {
+		host, port = h, p
+	}
+	if unspecified(host) {
+		host = "localhost"
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	say("%swaiting for the route %s%s", dim, u, reset)
+	for !routeReady(ctx, addr, u.Host, u.Path) {
+		if time.Now().After(deadline) {
+			return withHint(fmt.Errorf("%s: the proxy has no route to %s yet", name, u),
+				"see `hl logs proxy` (`hl set proxy debug=true`, then `hl up proxy`, logs each request); a slow app may need a longer --wait-timeout")
+		}
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-time.After(defaults.RouteWaitInterval):
+		}
+	}
+	return nil
+}
+
+// routeReady is probeRoute; tests replace it.
+var routeReady = probeRoute
+
+// probeRoute sends one request for path with this Host header to the proxy at addr and reports
+// whether the app answered: any response but the proxy's own 404 for an unknown route.
+func probeRoute(ctx context.Context, addr, host, path string) bool {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+path, nil)
+	if err != nil {
+		return false
+	}
+	req.Host = host
+	client := &http.Client{
+		Timeout:       defaults.RouteProbeTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNotFound {
+		return true
+	}
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+	return strings.TrimSpace(string(b)) != defaults.ProxyNotFound
 }
 
 // unhealthy explains an app that didn't come up under --wait: which of the services waited
@@ -291,8 +354,32 @@ func restartCmd() *cobra.Command {
 		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
 			return proxyThenApps(withProxy, names,
 				func() error { return restartProxy(ctx, cfg) },
-				func() error { return eachApp(ctx, cfg, names, true, nil, "restart") })
+				func() error {
+					if names = runningApps(ctx, cfg, names); len(names) == 0 {
+						return nil
+					}
+					return eachApp(ctx, cfg, names, true, nil, "restart")
+				})
 		})
+}
+
+// runningApps leaves out the apps that have no containers at all (compose restart would do
+// nothing for them) and says so for each; without Docker it keeps them all and lets compose
+// say what is wrong.
+func runningApps(ctx context.Context, cfg *config.Config, names []string) []string {
+	inv, err := containers(ctx)
+	if err != nil {
+		return names
+	}
+	var out []string
+	for _, n := range names {
+		if len(inv.of(cfg.ProjectName(n))) == 0 {
+			say("%s isn't running - start it with: hl up %s", n, n)
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // proxyRunning takes the inventory and returns the proxy's project, refusing a proxy another
@@ -339,9 +426,16 @@ func upProxy(ctx context.Context, cfg *config.Config, args ...string) error {
 // address, where the old one doesn't hold the new one too), so that the new address must be
 // checked before compose replaces it. False when Docker can't tell.
 func moved(ctx context.Context, cfg *config.Config, project string) bool {
+	host, port, ok := publishedAddr(ctx, project)
+	return ok && addrDiffers(cfg, host, port)
+}
+
+// publishedAddr is the host address and port the running proxy publishes, as Docker reports
+// them; ok is false when Docker can't tell or nothing is published.
+func publishedAddr(ctx context.Context, project string) (host string, port int, ok bool) {
 	out, err := docker(ctx, "ps", "--filter", "label="+composeProjectLabel+"="+project, "--format", "{{.Ports}}")
 	if err != nil {
-		return false
+		return "", 0, false
 	}
 	suffix := fmt.Sprintf("->%d/tcp", defaults.ProxyContainerPort)
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
@@ -350,18 +444,25 @@ func moved(ctx context.Context, cfg *config.Config, project string) bool {
 			if !ok {
 				continue
 			}
-			host, port, err := net.SplitHostPort(hostPort)
+			h, p, err := net.SplitHostPort(hostPort)
 			if err != nil {
 				continue
 			}
-			if port != strconv.Itoa(cfg.Proxy.Port) {
-				return true
+			if n, err := strconv.Atoi(p); err == nil {
+				return h, n, true
 			}
-			// Same port: a wildcard address on either side is the proxy's own.
-			return host != cfg.Proxy.Bind && !unspecified(host) && !unspecified(cfg.Proxy.Bind)
 		}
 	}
-	return false
+	return "", 0, false
+}
+
+// addrDiffers reports whether a proxy published on host:port isn't where cfg says it listens.
+func addrDiffers(cfg *config.Config, host string, port int) bool {
+	if port != cfg.Proxy.Port {
+		return true
+	}
+	// Same port: a wildcard address on either side is the proxy's own.
+	return host != cfg.Proxy.Bind && !unspecified(host) && !unspecified(cfg.Proxy.Bind)
 }
 
 func unspecified(host string) bool {
@@ -615,6 +716,14 @@ func logsCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				// Only the apps that have containers: the others have no logs.
+				if inv, err := containers(ctx); err == nil {
+					names = slices.DeleteFunc(names, func(n string) bool { return len(inv.of(cfg.ProjectName(n))) == 0 })
+					if len(names) == 0 {
+						say("no app is running, so there are no logs - start them with: hl up")
+						return nil
+					}
+				}
 				return logsAll(ctx, cfg, names, a)
 			}
 			if _, err := targets(cfg, args[:1]); err != nil {
@@ -643,6 +752,16 @@ func logsCmd() *cobra.Command {
 	c.Flags().BoolVarP(&follow, "follow", "f", false, "keep following")
 	c.Flags().IntVarP(&tail, "tail", "n", defaults.LogTail, "lines to show from the end of each log")
 	return c
+}
+
+// serviceRunning reports whether one of the containers runs service.
+func serviceRunning(cs []container, service string) bool {
+	for _, c := range cs {
+		if c.service == service && c.state == "running" {
+			return true
+		}
+	}
+	return false
 }
 
 // countWriter counts what passes through it.
@@ -783,11 +902,17 @@ func shellCmd() *cobra.Command {
 					return &usageError{err: errNoService, cmd: "hl shell"}
 				}
 			}
+			stopped := withHint(fmt.Errorf("%s: service %s isn't running", args[0], svc), "start it with `hl up %s`", args[0])
+			// Ask Docker first, so a stopped service gets this one message rather than
+			// docker's own error line followed by it.
+			if inv, err := containers(ctx); err == nil && !serviceRunning(inv.of(p.Name), svc) {
+				return stopped
+			}
 			err = p.Run(ctx, "exec", svc, "sh", "-c", defaults.Shell)
 			var ce *compose.Error
 			if errors.As(err, &ce) && ce.Code > 0 {
 				if strings.Contains(ce.Stderr, "is not running") || strings.Contains(ce.Stderr, "no container") {
-					return withHint(fmt.Errorf("%s: service %s is not running", args[0], svc), "start it with `hl up %s`", args[0])
+					return stopped
 				}
 				// The shell's own exit status, as `docker exec` does.
 				return &exitStatus{code: ce.Code}

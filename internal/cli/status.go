@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -43,7 +45,7 @@ func printStatus(ctx context.Context, cfg *config.Config) error {
 			fmt.Fprintf(stderr, "%shint:%s %s\n", yellow, reset, h)
 		}
 	}
-	proxyState := red + "stopped" + reset
+	proxyState, note := red+"stopped"+reset, ""
 	switch {
 	case inv == nil:
 		proxyState = "unknown"
@@ -54,9 +56,22 @@ func printStatus(ctx context.Context, cfg *config.Config) error {
 		proxyState = ""
 	case inv.running(cfg.ProxyProject()):
 		proxyState = green + "running" + reset
+		// The proxy keeps the address it was started with until `hl up proxy`: show that one,
+		// and the app URLs on the port that actually serves them.
+		if host, port, ok := publishedAddr(ctx, cfg.ProxyProject()); ok && addrDiffers(cfg, host, port) {
+			note = fmt.Sprintf("%s says %s - apply it: hl up proxy, then hl up", config.FileName,
+				net.JoinHostPort(cfg.Proxy.Bind, strconv.Itoa(cfg.Proxy.Port)))
+			live := *cfg
+			live.Proxy.Bind, live.Proxy.Port = host, port
+			cfg = &live
+		}
 	}
 	if proxyState != "" {
-		say("%sproxy%s %s  %s%s:%d%s  %shome %s%s", bold, reset, proxyState, dim, cfg.Proxy.Bind, cfg.Proxy.Port, reset, dim, tilde(cfg.Dir), reset)
+		say("%sproxy%s %s  %s%s%s  %shome %s%s", bold, reset, proxyState, dim,
+			net.JoinHostPort(cfg.Proxy.Bind, strconv.Itoa(cfg.Proxy.Port)), reset, dim, tilde(cfg.Dir), reset)
+	}
+	if note != "" {
+		say("%snote:%s %s", yellow, reset, note)
 	}
 	fmt.Fprintln(stdout)
 	if len(cfg.Apps) == 0 {

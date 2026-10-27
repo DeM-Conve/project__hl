@@ -11,8 +11,9 @@ here changes (a release, a pending item done, a question answered). Last reviewe
 - **CLI first** (2026-10-27): the goal is that a user never has to open `hl.yml`. `hl set`/`hl unset`
   cover every app key, every `proxy.*` key (`hl set proxy port=8080`) and the shared env
   (`hl set env.TZ=UTC`), the homelab's own settings (`hl set projects+=~/src`, `scan_depth`,
-  `name` - refused while anything runs); `hl show [app|proxy]` reads it back; `hl edit` stays as
-  a fallback that nothing needs. Error hints name
+  `name` - refused while anything runs); `hl show [app|proxy]` reads it back; `hl edit` was cut
+  (round 3 of the review): a file broken by hand gets its problem lines and a hint to fix them
+  in any editor. Error hints name
   the `hl set`/`hl unset` command instead of the `hl.yml` key. Left on purpose: the "edit
   hl.yml, not this file" header of generated files (changing it would change the static
   config's hash and recreate every running proxy once). `hl add`'s base-path note, `hl sync`
@@ -34,9 +35,17 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   renames an app with its data; `hl set proxy port=` says to `hl up` the apps too; `hl add`
   warns about a non-web service, and init/sync's base-path note is one line like add's;
   `hl set`/`hl unset` mistakes exit 2 and name the right scope, bad paths and services are
-  refused; `hl edit` needs a terminal; `hl rebuild --pull` rebuilds a folder it can't pull;
+  refused; `hl rebuild --pull` rebuilds a folder it can't pull;
   `hl logs` hints and service checks; `~/` paths and unpadded rows in `status`/`show`; init's
   plan says when the default homelab changes.
+- **Config, sync and init fixes from review round 3** (2026-10-27): hl.yml keeps its blank
+  lines on every edit; `hl set <app> path=` is relative to the current folder; `hl init` on an
+  existing homelab writes only what its plan lists (no auto-detected `projects`, no `.gitignore`)
+  and says `existing homelab <dir>`; a new homelab skips other homelabs' proxy ports even when
+  stopped; `hl sync` follows a moved/renamed app folder (`~ moved`, rule in
+  [requirements.md](requirements.md)) and has no `--dry-run`; `hl set` value errors name the key
+  with the fix as hint and exit 2; `env.FOO` without a value, `scan_depth=0` and `hl add` of a
+  file or a folder without compose file give specific hints.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install
@@ -118,8 +127,11 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     on an existing `hl.yml` without `strip_prefix` (or one clashing with another homelab) changes
     nothing and leaves that to `hl set`/`hl doctor`. Should it offer them there too (renaming
     apps or projects that may already run)?
-16. **Keep `schema/hl.schema.json`?** (2026-10-27): `hl init` no longer writes the
-    `yaml-language-server` header, so the schema only serves people who edit hl.yml by hand and
-    add the header themselves. hl's own check doesn't use it; its tests (schema_test.go, the
-    reserved-names test) only keep it in step with the Go types. Kept for now; delete it (and
-    those tests) if `hl edit` users don't need editor completion.
+16. ~~Keep `schema/hl.schema.json`?~~ - decided 2026-10-27 (review round 3): deleted with its
+    tests, together with `hl edit`; it only served editing hl.yml by hand
+    ([requirements.md](requirements.md)).
+17. **`--wait` and an app whose root is a plain 404** (2026-10-27): `--wait` tells "route not
+    loaded yet" from Traefik's own body `404 page not found`. An app that answers its root URL
+    with exactly that body (Go's default `http.NotFound`) waits until `--wait-timeout` and
+    fails. Rare for a web app's root; if it bites, the alternative is a response header the
+    override adds to each app's route (which recreates every app's containers once).

@@ -321,12 +321,48 @@ func TestStatusShowsHealth(t *testing.T) {
 	contains(t, "status without docker", r.out, "proxy unknown", "a    ?")
 }
 
+// After `hl set proxy port=` without `hl up proxy`, status shows where the proxy really
+// listens, the URLs on that port, and how to apply hl.yml's.
+func TestStatusShowsTheRunningProxyAddress(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "proxy: {port: 8088}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(
+		ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
+		ctr("hl-a", "web", "running", "Up", filepath.Join(lab, ".hl", "a", "override.yml")),
+	)
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Ports}}"}, Stdout: "127.0.0.1:8080->80/tcp\n"})
+	r := f.must("status")
+	contains(t, "status", r.out, "proxy running  127.0.0.1:8080",
+		"note: hl.yml says 127.0.0.1:8088 - apply it: hl up proxy, then hl up", "http://localhost:8080/a/")
+	lacks(t, "status", r.out, "localhost:8088")
+
+	// Applied: no note, hl.yml's port.
+	f = newFake(t)
+	lab = f.lab("lab", "proxy: {port: 8088}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"--format {{.Ports}}"}, Stdout: "0.0.0.0:8088->80/tcp, [::]:8088->80/tcp\n"})
+	r = f.must("status")
+	contains(t, "status", r.out, "proxy running  127.0.0.1:8088", "http://localhost:8088/a/")
+	lacks(t, "status", r.out, "note:")
+}
+
 func TestUpRestartRebuild(t *testing.T) {
 	f := newFake(t)
 	a, b := f.app("a", webModel2), f.app("b", apiModel)
 	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n  b: {path: '"+b+"'}\n")
 	proxyFile := filepath.Join(lab, ".hl", "proxy", "compose.yml")
 
+	// A stopped app isn't restarted (compose would do nothing): hl says so and starts nothing.
+	r := f.must("restart", "b")
+	contains(t, "restart of a stopped app", r.out, "b isn't running - start it with: hl up b")
+	lacks(t, "restart of a stopped app", r.out, "==> b")
+	if calls := f.find("docker compose"); len(calls) != 0 {
+		t.Errorf("restart of a stopped app ran compose: %v", calls)
+	}
+
+	f.containers(ctr("hl-b", "api", "running", "Up", filepath.Join(lab, ".hl", "b", "override.yml")))
+	f.reset()
 	f.must("restart", "b")
 	calls := f.find("docker compose --project-name")
 	if len(calls) < 2 || !strings.Contains(calls[0].String(), "hl-proxy") || !strings.Contains(calls[len(calls)-1].String(), "--project-name hl-b") ||
@@ -335,6 +371,7 @@ func TestUpRestartRebuild(t *testing.T) {
 	}
 
 	// With the proxy running, it is left alone; rebuild builds.
+	f.rules = nil
 	f.containers(ctr("hl-proxy", "traefik", "running", "Up", proxyFile))
 	f.reset()
 	f.must("rebuild", "a", "a")
@@ -348,7 +385,7 @@ func TestUpRestartRebuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.reset()
-	r := f.hl("up")
+	r = f.hl("up")
 	if r.code != 1 {
 		t.Fatalf("want a failure: %s", r)
 	}
@@ -497,6 +534,62 @@ func TestUpWaitSkipsSidecars(t *testing.T) {
 	}
 }
 
+// --wait returns once the app's route answers through the proxy: Traefik's own 404 means the
+// route isn't loaded yet; any answer of the app (its own 404 too) means it is.
+func TestUpWaitWaitsForTheRoute(t *testing.T) {
+	answers := []struct {
+		code int
+		body string
+	}{{404, "404 page not found\n"}, {404, "404 page not found\n"}, {404, "no such page"}}
+	var n atomic.Int32
+	var never atomic.Bool // the route never shows up
+	var host, path atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host.Store(r.Host)
+		path.Store(r.URL.Path)
+		a := answers[min(int(n.Add(1))-1, len(answers)-1)]
+		if never.Load() {
+			a = answers[0]
+		}
+		w.WriteHeader(a.code)
+		fmt.Fprint(w, a.body)
+	}))
+	defer srv.Close()
+	_, port, _ := strings.Cut(srv.Listener.Addr().String(), ":")
+
+	f := newFake(t)
+	routeReady = probeRoute
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "proxy: {port: 8095}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	// The proxy really listens on the test server's port.
+	f.on(rule{Match: []string{"--format {{.Ports}}"}, Stdout: "127.0.0.1:" + port + "->80/tcp\n"})
+	r := f.must("up", "a", "--wait")
+	contains(t, "up --wait", r.out, "waiting for the route http://localhost:8095/a/")
+	if got := n.Load(); got != 3 {
+		t.Errorf("want 3 requests (two proxy 404s, then the app's own 404), got %d", got)
+	}
+	if host.Load() != "localhost:8095" || path.Load() != "/a/" {
+		t.Errorf("asked for %v%v", host.Load(), path.Load())
+	}
+
+	// A route that never shows up fails at the timeout, with what to check.
+	never.Store(true)
+	r = f.hl("up", "a", "--wait", "--wait-timeout", "1s")
+	if r.code != 1 {
+		t.Fatalf("want a failure: %s", r)
+	}
+	contains(t, "up --wait", r.errOut, "a: the proxy has no route to http://localhost:8095/a/ yet", "hl logs proxy")
+
+	// Not behind the proxy: nothing to ask.
+	f.lab("lab2", "apps:\n  a: {path: '"+a+"', routing: none}\n")
+	n.Store(0)
+	f.must("up", "a", "--wait")
+	if n.Load() != 0 {
+		t.Errorf("routing none asked the proxy")
+	}
+}
+
 func TestShow(t *testing.T) {
 	f := newFake(t)
 	a, b := f.app("a", webModel2), f.app("b", apiModel)
@@ -506,11 +599,13 @@ func TestShow(t *testing.T) {
 
 	r := f.must("show")
 	contains(t, "show", r.out, "homelab", "folder  ~/lab  env ($HL_HOME)", "port", "8082", "hl.yml", "listen", "http://127.0.0.1:8082", "hl show proxy",
-		"TZ=UTC", "LANG=C", "http://localhost:8082/a/", "http://b.localhost:8082/")
+		"TZ=UTC", "LANG=C",
+		// The apps in columns: name, URL, folder.
+		"  a  http://localhost:8082/a/  ~/my code/a\n", "  b  http://b.localhost:8082/  ~/my code/b\n")
 	lacks(t, "show", r.out, "bind", "dashboard_public") // settings left at their default are in hl show proxy
 
 	r = f.must("show", "a")
-	contains(t, "show a", r.out, "folder   ~/my code/a  hl.yml\n", "project", "hl-a", "compose.yml", "found in the folder",
+	contains(t, "show a", r.out, "folder   ~/my code/a  hl.yml\n", "  project  hl-a\n", "  url      http://localhost:8082/a/\n", "compose.yml", "found in the folder",
 		"service", "web", "detected", "port", "80", "routing", "default (proxy.routing)", "http://localhost:8082/a/",
 		"prefix", "/a", filepath.Join(lab, "data", "a"),
 		"HL_URL=http://localhost:8082/a", "A_BASE=/a", "apps.a.env: ${HL_PREFIX}",
@@ -664,6 +759,8 @@ func TestLogs(t *testing.T) {
 	contains(t, "logs of a stopped app", r.out, "a isn't running", "hl up a")
 	r = f.must("logs", "proxy")
 	contains(t, "logs of a stopped proxy", r.out, "proxy isn't running", "hl up proxy")
+	r = f.must("logs")
+	contains(t, "logs with nothing running", r.out, "no app is running", "hl up")
 	if l := f.find("logs --tail"); len(l) != 0 {
 		t.Errorf("compose logs ran for nothing: %v", l)
 	}
@@ -675,6 +772,17 @@ func TestLogs(t *testing.T) {
 	}
 	contains(t, "logs a", r.out, "web-1  | GET /about")
 
+	// Every app's logs: only the apps that have containers.
+	f.reset()
+	r = f.must("logs")
+	contains(t, "all logs", r.out, "a | web-1  | GET /")
+	if l := f.find("logs --tail 200 --no-color"); len(l) != 1 {
+		t.Errorf("only a's logs: %v", f.calls())
+	}
+	f.rules = f.rules[:2] // the logs rules; a new inventory
+	f.containers(ctr("hl-a", "web", "exited", "Exited (0) 1 minute ago", filepath.Join(lab, ".hl", "a", "override.yml")),
+		ctr("hl-bb", "api", "running", "Up", filepath.Join(lab, ".hl", "bb", "override.yml")))
+	f.reset()
 	r = f.must("logs")
 	contains(t, "all logs", r.out, "a  | web-1  | GET /", "bb | api-1  | ready")
 	if l := f.find("logs --tail 200 --no-color"); len(l) != 2 {
@@ -713,6 +821,8 @@ func TestShellOpenCompose(t *testing.T) {
 	f.containers(
 		ctr("hl-proxy", "traefik", "running", "Up 1 hour", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
 		ctr("hl-a", "web", "running", "Up 1 hour", filepath.Join(lab, ".hl", "a", "override.yml")),
+		ctr("hl-a", "db", "running", "Up 1 hour", filepath.Join(lab, ".hl", "a", "override.yml")),
+		ctr("hl-a", "api", "exited", "Exited (0) 1 hour ago", filepath.Join(lab, ".hl", "a", "override.yml")),
 		ctr("other", "x", "running", "Up", "/elsewhere/compose.yml"),
 	)
 	f.must("shell", "a")
@@ -725,7 +835,14 @@ func TestShellOpenCompose(t *testing.T) {
 	}
 	f.on(rule{Match: []string{"exec api"}, Stderr: "service \"api\" is not running\n", Exit: 1})
 	r := f.hl("shell", "a", "api")
-	contains(t, "shell not running", r.errOut, "service api is not running", "hl up a")
+	// A stopped service: one message from hl, not docker's error line too.
+	if r.code != 1 || strings.Count(r.errOut, "not running")+strings.Count(r.errOut, "isn't running") != 1 {
+		t.Errorf("shell of a stopped service: %s", r)
+	}
+	contains(t, "shell not running", r.errOut, "a: service api isn't running", "hl up a")
+	if s := f.find("exec api"); len(s) != 0 {
+		t.Errorf("docker exec ran for a stopped service: %v", s)
+	}
 	if r := f.hl("shell", "db"); r.code != 2 || !strings.Contains(r.errOut, "which service") {
 		t.Errorf("routing none needs a service: %s", r)
 	}
@@ -890,6 +1007,24 @@ func TestDoctor(t *testing.T) {
 	f.lab("lab3", "proxy: {port: x}\n")
 	r = f.hl("doctor")
 	contains(t, "doctor bad hl.yml", r.out, "hl.yml:1:15: proxy.port", "is not a whole number")
+}
+
+// hl.yml broken by hand (hl itself never writes a broken one): every command names the lines
+// and says how to fix them, since there is no hl edit.
+func TestHandBrokenHlYml(t *testing.T) {
+	f := newFake(t)
+	f.lab("lab", "proxy: {port: x}\napps: {}\n")
+	r := f.hl("status")
+	if r.code != 1 {
+		t.Fatalf("want a failure: %s", r)
+	}
+	contains(t, "broken hl.yml", r.errOut, "hl.yml:1:15: proxy.port", "hint: fix those lines in hl.yml with any editor", "hl doctor")
+	f.lab("lab2", "apps: [\n")
+	r = f.hl("status")
+	contains(t, "unparsable hl.yml", r.errOut, "hl.yml", "hint: fix those lines")
+	if r := f.hl("edit"); r.code != 2 {
+		t.Errorf("hl edit is gone: %s", r)
+	}
 }
 
 func TestDoctorChecksTheLatestRelease(t *testing.T) {

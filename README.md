@@ -105,12 +105,12 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | --- | --- |
 | `hl init [folder]` | Set up a homelab folder (default `~/homelab`), find your apps, make it the default. Shows a plan and asks once; `--yes` doesn't ask. Flags: `--projects`, `--strip-prefix`; it picks the proxy itself (a free port), change it later with `hl set proxy`. |
 | `hl add <folder> [key=value...]` | Add an app: any folder with a compose file. Takes the [settings](#changing-settings) `hl set <app>` takes, plus `name=`. |
-| `hl up [app...]` | Start apps, the proxy first; builds missing images, and rebuilds an image whose build args changed (a base path from `${HL_PREFIX}`, say). `--wait` waits until they're healthy and shows the logs of any that aren't. Ends with `hl status`. |
+| `hl up [app...]` | Start apps, the proxy first; builds missing images, and rebuilds an image whose build args changed (a base path from `${HL_PREFIX}`, say). `--wait` waits until they're healthy and their URL answers through the proxy, and shows the logs of any that aren't. Ends with `hl status`. |
 | `hl down [app...]` | Stop and remove containers; with no app, also the proxy. Data stays. |
-| `hl restart [app...]` | Restart containers without rebuilding. |
+| `hl restart [app...]` | Restart containers without rebuilding. An app that isn't running is left alone, with a note to `hl up` it. |
 | `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (a folder with uncommitted changes, or not a git repo, is rebuilt without a pull); for the proxy it pulls the image. |
-| `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every app's, prefixed by its name. |
-| `hl status` | The proxy, then each app's state, health, URL and folder. Says when `hl sync` has something to do. |
+| `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every running app's, prefixed by its name. Says so when nothing is running. |
+| `hl status` | The proxy, then each app's state, health, URL and folder. When the running proxy still listens where it was started (after `hl set proxy port=` without `hl up proxy`), it shows that address, URLs on the port that serves them, and a note on applying hl.yml's. Says when `hl sync` has something to do. |
 | `hl open <app>` | Print the app's URL and open it in the browser. |
 | `hl shell <app> [service]` | A shell in a running container (default: the service behind the proxy). |
 | `hl show [app\|proxy]` | Settings in effect and where each comes from; `--compose` prints the compose config as hl runs it. |
@@ -118,7 +118,6 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl sync` | Make the homelab follow your projects folders: add new apps, remove ones whose folder is gone, follow a moved or renamed folder (the app keeps its name and data). Shows a plan and asks (n, or no terminal, only shows it); `--yes` applies it. |
 | `hl remove <app>` | Stop the app and forget it. Its data stays; `hl sync` won't add its folder back. |
 | `hl doctor` | Check Docker, compose, the settings, the proxy and every app; warns about an old Traefik or hl. |
-| `hl edit` | Fallback: open `hl.yml` in your editor; saved only if it checks out. |
 | `hl version` | Version, commit and platform, for bug reports. |
 | `hl completion <shell>` | Shell completion script. |
 
@@ -239,6 +238,9 @@ Start with `hl doctor`. Every error says what failed and, on a `hint:` line, wha
   its base path: map `${HL_PREFIX}` ([Routing](#routing)) or `hl set <app> routing=host`.
 - **404 from the proxy.** Check `hl status` and the URL (`/my-app/`). `hl set proxy debug=true`,
   `hl up proxy`, then `hl logs proxy -f` shows each request Traefik gets.
+- **`hl.yml has 1 problem`** after editing it by hand. The error lists each problem as
+  `hl.yml:line:column`; fix those lines in any editor (or `hl unset` a key that shouldn't be
+  there), then `hl doctor` checks it again. `hl set`/`hl unset` never write a broken file.
 - **`hl add` can't tell which service to route to.** Pass `service=<name>` (and `port=<port>`).
 - **`... belongs to another homelab`.** Two homelabs on one Docker: give one a
   [`name`](docs/reference.md#several-homelabs-on-one-docker-name), or stop the other.

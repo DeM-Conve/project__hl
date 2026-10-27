@@ -255,7 +255,7 @@ func TestEditLists(t *testing.T) {
 	}
 }
 
-// A key removed from hl can still be unset, so hl.yml can be fixed without hl edit.
+// A key removed from hl can still be unset, so hl.yml can be fixed without opening it.
 func TestUnsetRemovedProxyKey(t *testing.T) {
 	dir := write(t, "proxy:\n  port: 8080\n  dashboard: true\n  log_level: debug\napps: {}\n")
 	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "removed from hl") {
