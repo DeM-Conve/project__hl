@@ -52,6 +52,12 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   `hl rebuild --pull` prints one `==> <app>` header per app; `--wait-timeout` is gone (`--wait`
   waits a fixed 2 minutes per app). The README keeps a short "Changing settings" and "Routing";
   the detail is in docs/reference.md ("How `hl set` works", "Routing").
+- **Config, sync and init fixes from review round 4** (2026-10-27): hl.yml edits never add
+  blank lines (set then unset gives the file back byte for byte); `hl sync` recognises a moved
+  app whose `${HL_DATA}` env (`BACKUP_LOCATION`, `DATA_LOCATION`) puts folders in its data
+  folder; `hl unset` removes any key the file has at that scope, setting or not; `hl init` with
+  nothing to change exits 0 without a terminal, and avoids port 80 when another homelab's
+  proxy port can't be read; the app key `prefix` and `scan_depth` are cut (removed keys).
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install
