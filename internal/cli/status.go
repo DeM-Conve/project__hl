@@ -54,9 +54,6 @@ func printStatus(ctx context.Context, cfg *config.Config) error {
 		proxyState = green + "running" + reset
 	}
 	say("%sproxy%s %s  %s%s:%d%s  %shome %s%s", bold, reset, proxyState, dim, cfg.Proxy.Bind, cfg.Proxy.Port, reset, dim, cfg.Dir, reset)
-	if u := cfg.DashboardURL(); u != "" {
-		say("%sdashboard %s%s", dim, u, reset)
-	}
 	fmt.Fprintln(stdout)
 	if len(cfg.Apps) == 0 {
 		say("no apps yet - add one with `hl add <folder>`")

@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -32,7 +31,7 @@ func proxyProject(cfg *config.Config) (*compose.Project, error) {
 	if err := proxyClash(cfg); err != nil {
 		return nil, err
 	}
-	files, _, err := proxyFiles(cfg)
+	files, err := proxyFiles(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -43,43 +42,15 @@ func proxyProject(cfg *config.Config) (*compose.Project, error) {
 	return &compose.Project{Name: cfg.Proxy.Project, Dir: cfg.ProxyDir(), Files: []string{f}}, nil
 }
 
-// proxyFiles writes the generated Traefik static config, or checks the
-// user's own (proxy.config), and returns what the proxy mounts. warnings are
-// things in the user's file that don't stop the proxy from working.
-func proxyFiles(cfg *config.Config) (gen.ProxyFiles, []string, error) {
-	var files gen.ProxyFiles
-	if err := os.MkdirAll(cfg.ProxyDir(), defaults.DataDirMode); err != nil {
-		return files, nil, err
+// proxyFiles writes the generated Traefik static config and returns what the proxy mounts.
+func proxyFiles(cfg *config.Config) (gen.ProxyFiles, error) {
+	files := gen.ProxyFiles{Static: cfg.ProxyStaticFile()}
+	text := gen.Traefik(cfg.Proxy)
+	if err := writeGenerated(files.Static, text); err != nil {
+		return files, err
 	}
-	if d := cfg.ProxyDynamicFile(); d != "" {
-		st, err := os.Stat(d)
-		if err != nil || st.IsDir() {
-			return files, nil, fmt.Errorf("proxy.dynamic: %s is not a file - create it, or stop using one: `hl unset proxy dynamic`", d)
-		}
-		files.Dynamic = d
-	}
-	generated := filepath.Join(cfg.ProxyDir(), defaults.TraefikStaticFile)
-	files.Static = cfg.ProxyStaticFile()
-	if cfg.Proxy.Config == "" {
-		text := gen.Traefik(cfg.Proxy, files.Dynamic)
-		if err := writeGenerated(generated, text); err != nil {
-			return files, nil, err
-		}
-		files.Hash, files.Ping = gen.Hash([]byte(text)), true
-		return files, nil, nil
-	}
-	b, err := os.ReadFile(files.Static)
-	if err != nil {
-		return files, nil, fmt.Errorf("proxy.config: can't read %s - create it, or use the generated one: `hl unset proxy config`", files.Static)
-	}
-	ping, problems, warnings := gen.CheckTraefik(b, cfg.Proxy, files.Dynamic)
-	if len(problems) > 0 {
-		return files, warnings, fmt.Errorf("proxy.config %s can't run hl's apps:\n  - %s", files.Static, strings.Join(problems, "\n  - "))
-	}
-	// Not used while proxy.config is set; don't leave a file that looks in effect.
-	_ = os.Remove(generated)
-	files.Hash, files.Ping = gen.Hash(b), ping
-	return files, warnings, nil
+	files.Hash = gen.Hash([]byte(text))
+	return files, nil
 }
 
 // proxyClash is an error when the proxy's compose project or network already
@@ -128,7 +99,7 @@ func samePath(a, b string) bool {
 func showProxy(cfg *config.Config) error {
 	p := cfg.Proxy
 	clash := proxyClash(cfg)
-	files, warnings, ferr := proxyFiles(cfg)
+	files, ferr := proxyFiles(cfg)
 	settings, err := config.Settings(cfg.Dir)
 	if err != nil {
 		return err
@@ -173,19 +144,9 @@ func showProxy(cfg *config.Config) error {
 		}
 		fmt.Fprintf(w, "  %s\t%s\t%s\n", key, v, from(st.Source))
 	}
-	source := "generated from " + config.FileName
-	if p.Config != "" {
-		source = "proxy.config"
-	}
-	fmt.Fprintf(w, "  traefik config\t%s\t%s\n", files.Static, from(source))
-	if u := cfg.DashboardURL(); u != "" {
-		fmt.Fprintf(w, "  dashboard url\t%s\t\n", u)
-	}
+	fmt.Fprintf(w, "  traefik config\t%s\t%s\n", files.Static, from("generated from "+config.FileName))
 	_ = w.Flush()
 
-	for _, msg := range warnings {
-		warn("%s", msg)
-	}
 	if clash != nil {
 		say("%s✗%s %v", red, reset, clash)
 	}
@@ -231,14 +192,11 @@ func imageAdvice(image string, known bool) string {
 	return fmt.Sprintf("proxy.image %s is older than %s, the version hl is tested with - use it: `hl unset proxy image`", image, tested)
 }
 
-// doctorProxy checks the proxy's config files, that its project and network
+// doctorProxy checks the proxy's config file, that its project and network
 // are this homelab's, and its image version.
 func doctorProxy(cfg *config.Config, check func(ok bool, what, fix string)) {
-	files, warnings, err := proxyFiles(cfg)
+	files, err := proxyFiles(cfg)
 	check(err == nil, "proxy config "+files.Static, fmt.Sprint(err))
-	for _, w := range warnings {
-		warn("%s", w)
-	}
 	err = proxyClash(cfg)
 	check(err == nil, "proxy project "+cfg.Proxy.Project+" and network "+cfg.Proxy.Network+" are this homelab's", fmt.Sprint(err))
 	if older, known := gen.ImageOlder(cfg.Proxy.Image, defaults.TestedTraefikVersion); older || !known {

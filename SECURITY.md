@@ -28,9 +28,7 @@ as it's ready. You'll be credited in the advisory unless you'd rather not be.
 - The proxy listens on `127.0.0.1` by default. `proxy.bind: 0.0.0.0` (or any non-loopback
   address) exposes every app to your network over plain HTTP, with no authentication added by hl.
   That is a deliberate setting, not a vulnerability in hl.
-- The Traefik dashboard is **off by default** (`proxy.dashboard: false`). It has no login; hl
-  refuses to start the proxy with it on a non-loopback bind unless `proxy.dashboard_public: true`
-  is also set.
+- hl doesn't run the Traefik dashboard: it has no login.
 - The proxy container mounts the Docker socket read-only to discover apps. Read access to the
   socket still reveals every container's configuration, including environment variables.
 - hl has no TLS in v0.1. To reach apps over an untrusted network, put hl behind your own HTTPS

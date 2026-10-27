@@ -100,7 +100,13 @@ func Edit(dir, scope string, changes []Change) error {
 	case HomelabScope:
 		return editScope(dir, changes, homelabFields(), func(root *yaml.Node) (*yaml.Node, error) { return root, nil })
 	case ProxyScope:
-		return editScope(dir, changes, proxyFields(), func(root *yaml.Node) (*yaml.Node, error) {
+		fields := proxyFields()
+		for k := range removedKeys {
+			if f, ok := strings.CutPrefix(k, "proxy."); ok {
+				fields[f] = reflect.TypeOf("") // only so hl unset can remove it; Check refuses it
+			}
+		}
+		return editScope(dir, changes, fields, func(root *yaml.Node) (*yaml.Node, error) {
 			return section(root, "proxy"), nil
 		})
 	}

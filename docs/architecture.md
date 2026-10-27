@@ -106,34 +106,23 @@ this file". `hl init` writes a `.gitignore` with `data/` and `.hl/`.
 no inline literals (every name, path and value is a constant in `internal/defaults` or an `hl.yml`
 setting): entrypoint `web` on `:80` (every app router uses it), entrypoint `traefik`
 on `:8080` for `ping` only (not published), the Docker provider with `exposedByDefault: false` on
-`proxy.network`, the file provider reading `proxy.dynamic` when set (`watch: true`), `api.dashboard`
-when the dashboard is on (`gen.Dashboard`, i.e. `proxy.dashboard`, off by default; the single
-switch for the `api` section and the dashboard router labels; `Validate` refuses it on a
-non-loopback `proxy.bind` unless `proxy.dashboard_public` is set), `log.level` (`proxy.log_level`, default `ERROR`, Traefik's own default),
-and `accessLog` (format `common`) when `proxy.access_log` is on. With `proxy.config` set, hl writes
-no `traefik.yml` (and removes a stale one); it reads the user's file and `gen.CheckTraefik` reports
-problems (no `entryPoints.web` on port 80, no `providers.docker`, `providers.docker.network` not
-`proxy.network`, `proxy.dynamic` set but no `providers.file` reading it) that stop every proxy
-command, and warnings (`exposedByDefault` not false, no `api.dashboard` while the dashboard is on,
-no `ping`, so no healthcheck) shown by `hl show proxy` and `hl doctor`. Keys
-are matched case-insensitively, like Traefik does. `proxy.access_log` and `proxy.log_level` are
-config errors together with `proxy.config`.
+`proxy.network`, `ping`, `log.level` `ERROR` (Traefik's own default; `INFO` with `proxy.debug`)
+and, with `proxy.debug`, `accessLog` (format `common`). There is no `api` section (no dashboard),
+no file provider and no way to use a file of one's own: `proxy.config`, `proxy.dynamic`,
+`proxy.dashboard`, `proxy.dashboard_public`, `proxy.access_log` and `proxy.log_level` were removed
+on 2026-10-27; `config.removedKeys` makes `Check` report each as removed, with the
+`hl unset proxy <key>` that drops it (`config.Edit` accepts unsetting them).
 
 **`.hl/proxy/compose.yml`** (`gen.Proxy`): compose project `proxy.project` (default `hl-proxy`),
 one `traefik` service, `restart: unless-stopped`, no `command:` - Traefik reads its static config
-from `/etc/traefik/traefik.yml`, where the generated file or `proxy.config` is mounted read-only.
-`web` is published at `<bind>:<port>` (an IPv6 bind in brackets). The Docker socket is mounted read-only; with
-`proxy.dynamic`, the folder holding that file is mounted read-only at `/etc/traefik/dynamic` (a
-folder, not the file, so Traefik's watch survives editors that replace the file). Because the whole folder is
-mounted, `Validate` requires `proxy.dynamic` in a subfolder of the homelab that is not the homelab
-folder itself, `data/` or `.hl/`. When the static
-config has `ping`, the service gets a healthcheck (`traefik healthcheck --ping`). A label
+from `/etc/traefik/traefik.yml`, where the generated file is mounted read-only.
+`web` is published at `<bind>:<port>` (an IPv6 bind in brackets). The Docker socket is mounted
+read-only. The service gets a healthcheck (`traefik healthcheck --ping`). A label
 `hl.static-config: <hash of the static config>` makes compose recreate the container on
-`hl up proxy` when only the file changed (Traefik doesn't reload static config). The dashboard
-router labels (``Host(`traefik.<domain>`)``, `api@internal`) are there when the dashboard is on.
+`hl up proxy` when only the file changed (Traefik doesn't reload static config).
 The `networks:` section (name, and `ipam` subnet when `proxy.subnet` is set) is byte-for-byte what
 earlier versions wrote, so upgrading keeps the existing network and its subnet
-(`internal/gen/proxy_migration_test.go` compares the old flag-based setup with the new one). There
+(`internal/gen/proxy_migration_test.go` compares the old flag-based setup, less its dashboard, with the new one). There
 is no TLS entrypoint.
 
 **Upgrading from the flag-based proxy**: a running proxy keeps running until the next `hl up proxy`
@@ -205,7 +194,7 @@ warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-m
   take an app refuse it with a hint (`targets`). Completion offers `proxy` where it is accepted.
 - `show proxy` (`showProxy`): state and health of the proxy container, listen address, every
   `proxy.*` setting with its source (`config.Settings`) and the running image when it differs,
-  the static config file and its source, dashboard URL, the config warnings, a clash, an image
+  the static config file, a clash, an image
   older than `config.TestedTraefikVersion`, and whether the running container predates the config
   (compose's `config-hash` label vs `docker compose config --hash traefik`).
 - `doctor` also checks the proxy config (as above), the project/network ownership, and warns (not a
@@ -266,7 +255,7 @@ warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-m
   only network request hl makes. Then it checks docker on PATH (and its
   version), the daemon (`docker info`: version, OS, architecture), compose >= 2.24, that `hl.yml`
   loads (every problem with its line), the proxy (config, ownership, image), a non-loopback bind
-  or public dashboard (warnings), the port and subnet when the proxy isn't running, projects owned
+  (a warning), the port and subnet when the proxy isn't running, projects owned
   by another homelab, and that every app prepares. It ends "all good" or "n problem(s) found"
   (exit 1) with a note to paste it into bug reports.
 - Completion: commands taking one app complete only the first argument; multi-app commands leave
@@ -322,9 +311,9 @@ normalises indentation to two spaces).
 `Config` type by reflection (yaml tags give the known keys, so a new field needs no checker
 change), reporting syntax errors, unknown keys with a Levenshtein "did you mean", keys set twice,
 type mismatches, required keys, and per-key rules (`rules`, keyed by path with app names as `*`:
-routing values, ports, prefix, app names, `proxy.project`, `proxy.log_level`, version). If the walk
+routing values, ports, prefix, app names, `proxy.project`, version; removed keys). If the walk
 finds nothing it decodes and runs `Validate`, which collects every value problem and clash (bind
-is an IP, domain/host names, network, subnet, image, env names, the dashboard on a public bind,
+is an IP, domain/host names, network, subnet, image, env names,
 two apps with the same Docker project, URL prefix or host) as `Problem`s keyed by path; `check`
 gives them the line of their key. `Load` calls it, so every command reports unknown keys and bad
 values with their lines.

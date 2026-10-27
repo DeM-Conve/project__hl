@@ -26,16 +26,14 @@ func legacyProxy(p config.Proxy) string {
 		"--providers.docker.exposedbydefault=false",
 		"--providers.docker.network=" + p.Network,
 		"--entrypoints.web.address=:80",
-		"--api.dashboard=true",
+		// The legacy proxy also had --api.dashboard=true and the dashboard's router labels;
+		// the dashboard is gone (2026-10-27), so they are left out here.
 	} {
 		fmt.Fprintf(&b, "      - %s\n", quote(c))
 	}
 	fmt.Fprintf(&b, "    ports:\n      - %s\n", quote(fmt.Sprintf("%s:%d:80", p.Bind, p.Port)))
 	b.WriteString("    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n")
-	b.WriteString("    networks: [proxy]\n    labels:\n")
-	b.WriteString("      traefik.enable: 'true'\n")
-	fmt.Fprintf(&b, "      traefik.http.routers.hl-dashboard.rule: %s\n", quote("Host(`traefik."+p.Domain+"`)"))
-	b.WriteString("      traefik.http.routers.hl-dashboard.service: api@internal\n")
+	b.WriteString("    networks: [proxy]\n    labels: {}\n")
 	fmt.Fprintf(&b, "\nnetworks:\n  proxy:\n    name: %s\n", quote(p.Network))
 	if p.Subnet != "" {
 		fmt.Fprintf(&b, "    ipam:\n      config:\n        - subnet: %s\n", quote(p.Subnet))
@@ -74,7 +72,7 @@ func parse(t *testing.T, s string) map[string]any {
 
 // An existing homelab gets the same proxy after upgrading: the same network
 // (byte for byte, so compose keeps it and its subnet), port, restart policy,
-// dashboard router, and every Traefik setting the old flags made, with only
+// and every Traefik setting the old flags made (but the dashboard, now gone), with only
 // ping (healthcheck) and the explicit default log level added.
 func TestGeneratedProxyEquivalentToLegacy(t *testing.T) {
 	for _, p := range []config.Proxy{
@@ -82,10 +80,8 @@ func TestGeneratedProxyEquivalentToLegacy(t *testing.T) {
 		{Bind: "0.0.0.0", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Subnet: "10.123.0.0/16", Image: "traefik:v3.6", Project: defaults.DefaultProxyProject},
 		{Bind: "127.0.0.1", Port: 80, Domain: "localhost", Network: "my-net", Image: "traefik:v3.6", Project: defaults.DefaultProxyProject},
 	} {
-		// The legacy proxy always had the dashboard; it is now proxy.dashboard.
-		p.Dashboard = true
-		static := Traefik(p, "")
-		newC := Proxy(p, ProxyFiles{Static: "/lab/.hl/proxy/traefik.yml", Hash: Hash([]byte(static)), Ping: true})
+		static := Traefik(p)
+		newC := Proxy(p, ProxyFiles{Static: "/lab/.hl/proxy/traefik.yml", Hash: Hash([]byte(static))})
 		oldC := legacyProxy(p)
 
 		// Networks: the exact same text, so compose sees the same network config.

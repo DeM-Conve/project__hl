@@ -74,9 +74,11 @@ func TestCheckSyntaxAndShape(t *testing.T) {
 		"apps:\n  my-app: {}\n":       "path is required",
 		"apps:\n  my-app:\n":          "path is required",
 		"apps:\n  my-app: {pth: x}\n": `did you mean "path"?`,
-		"proxy: {log_level: debg}":    `did you mean "DEBUG"?`,
+		"proxy: {log_level: debug}":   "removed from hl - `hl set proxy debug=true`",
+		"proxy: {dashboard: true}":    "removed from hl - the Traefik dashboard",
+		"proxy: {config: t.yml}":      "`hl unset proxy config`",
 		"proxy: {project: My_Proxy}":  "lowercase",
-		"proxy: {access_log: on}":     "not true or false",
+		"proxy: {debug: on}":          "not true or false",
 	} {
 		ps := Check([]byte(body))
 		if len(ps) == 0 || !strings.Contains(joinProblems(ps), has) {

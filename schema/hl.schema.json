@@ -82,51 +82,8 @@
           "pattern": "^[a-z0-9][a-z0-9_-]*$",
           "default": "hl-proxy"
         },
-        "config": {
-          "description": "Your own Traefik static config file instead of the generated one, relative to the homelab folder.",
-          "type": "string",
-          "examples": [
-            "traefik.yml"
-          ]
-        },
-        "dynamic": {
-          "description": "A Traefik dynamic config file (file provider) for routes that aren't hl apps, relative to the homelab folder.",
-          "type": "string",
-          "examples": [
-            "dynamic.yml"
-          ]
-        },
-        "access_log": {
-          "description": "Traefik's access log, on the proxy's output (hl proxy logs). Not with proxy.config.",
-          "type": "boolean",
-          "default": false
-        },
-        "log_level": {
-          "description": "Traefik's log level (default ERROR). Not with proxy.config.",
-          "enum": [
-            "TRACE",
-            "DEBUG",
-            "INFO",
-            "WARN",
-            "ERROR",
-            "FATAL",
-            "PANIC",
-            "trace",
-            "debug",
-            "info",
-            "warn",
-            "error",
-            "fatal",
-            "panic"
-          ]
-        },
-        "dashboard": {
-          "description": "Traefik's dashboard at http://traefik.<domain>, without a password. Off by default; on a bind other than loopback it also needs dashboard_public.",
-          "type": "boolean",
-          "default": false
-        },
-        "dashboard_public": {
-          "description": "Confirms the dashboard may be reachable from your network (proxy.bind not loopback), without a password.",
+        "debug": {
+          "description": "Traefik's INFO log and its access log, on the proxy's output (hl logs proxy). Off: errors only.",
           "type": "boolean",
           "default": false
         }

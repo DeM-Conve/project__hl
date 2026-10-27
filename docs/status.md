@@ -23,7 +23,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   (`hl show <app> --compose`, `hl show`, `hl status`); `hl update` is `hl rebuild --pull`;
   `hl projects`/`hl ignore`/`hl strip-prefix` are `hl set key+=`/`-=`, and `hl set` also takes
   `scan_depth` and `name`; `hl add` takes `key=value` settings like `hl set` instead of flags;
-  `hl remove` ignores an app's folder so `hl sync` doesn't re-add it.
+  `hl remove` ignores an app's folder so `hl sync` doesn't re-add it; the proxy keys are down to
+  `bind port routing domain subnet image network project debug`.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install
@@ -70,9 +71,9 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    maintainer's other repos.
 3. ~~HTTPS~~ - decided: out of scope for v0.1; documented as putting hl behind your own TLS proxy
    ([guide](guides/behind-https.md)). Built-in HTTPS is P2 in the product plan.
-4. ~~Dashboard exposure~~ - decided 2026-10-23 (maintainer's call via Claude, revisit if wrong):
-   off by default, `proxy.dashboard: true` turns it on, refused on a non-loopback bind unless
-   `proxy.dashboard_public: true` ([requirements.md](requirements.md)).
+4. ~~Dashboard exposure~~ - decided 2026-10-23, then superseded 2026-10-27: the dashboard is
+   gone altogether, with `proxy.config`, `proxy.dynamic` and the log keys (`proxy.debug`
+   replaces those) ([requirements.md](requirements.md)).
 5. ~~`hl restart` and the proxy~~ - decided 2026-10-23 (same): `restart` starts the proxy first,
    like `up` and `rebuild`.
 6. ~~Windows~~ - decided 2026-10-23 (same): not supported; hl says so and suggests WSL 2.

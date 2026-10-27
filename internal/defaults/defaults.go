@@ -19,8 +19,6 @@ const (
 	Domain = "localhost"
 	// Routing is proxy.routing, the routing of apps that don't set their own.
 	Routing = "path"
-	// Dashboard is proxy.dashboard: the Traefik dashboard is off.
-	Dashboard = false
 )
 
 // Names hl gives Docker objects.
@@ -61,8 +59,10 @@ const (
 	// DefaultProxyNetwork is the network the proxy shares with apps - hl.yml: proxy.network.
 	// A homelab with a `name` defaults to hl-<name>-proxy instead.
 	DefaultProxyNetwork = "hl-proxy"
-	// DefaultProxyLogLevel is Traefik's own default - hl.yml: proxy.log_level.
-	DefaultProxyLogLevel = "ERROR"
+	// ProxyLogLevel is Traefik's log level (its own default); DebugProxyLogLevel is the one
+	// proxy.debug turns on, together with the access log.
+	ProxyLogLevel      = "ERROR"
+	DebugProxyLogLevel = "INFO"
 
 	// ProxyStateDir is the proxy's folder under the homelab's generated folder.
 	ProxyStateDir = "proxy"
@@ -88,7 +88,6 @@ const (
 	// Paths inside the proxy container.
 	DockerSocket      = "/var/run/docker.sock"
 	TraefikStaticPath = "/etc/traefik/traefik.yml" // Traefik reads it without flags
-	TraefikDynamicDir = "/etc/traefik/dynamic"     // the folder of proxy.dynamic, read-only
 
 	// Healthcheck of the proxy container (traefik healthcheck --ping).
 	ProxyHealthInterval    = "10s"
@@ -96,26 +95,17 @@ const (
 	ProxyHealthRetries     = 3
 	ProxyHealthStartPeriod = "5s"
 
-	// AccessLogFormat is Traefik's access log format when proxy.access_log is on.
+	// AccessLogFormat is Traefik's access log format when proxy.debug is on.
 	AccessLogFormat = "common"
-
-	// The dashboard: router name and host name prefix (traefik.<domain>).
-	DashboardRouter     = "hl-dashboard"
-	DashboardHostPrefix = "traefik."
 
 	// ReservedAppName can't be an app's name (nor a name whose ID becomes it):
 	// its compose project would be the proxy's default one.
 	ReservedAppName = "proxy"
-	// ExampleDynamicFile is where error messages suggest putting proxy.dynamic.
-	ExampleDynamicFile = "proxy/dynamic.yml"
 
 	// StaticConfigLabel holds a hash of the static config on the proxy
 	// container, so a changed file recreates the container on `hl up proxy`.
 	StaticConfigLabel = "hl.static-config"
 )
-
-// ProxyLogLevels are the values proxy.log_level accepts.
-var ProxyLogLevels = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "PANIC"}
 
 // Files and folders.
 const (

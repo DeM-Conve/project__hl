@@ -63,12 +63,6 @@ If the page doesn't load from the phone but does on the machine, a firewall is b
 (or your `proxy.port`). For example with ufw: `sudo ufw allow from 192.168.1.0/24 to any port 80
 proto tcp`. On macOS, allow incoming connections for Docker when asked.
 
-## The Traefik dashboard
-
-It stays off unless `proxy.dashboard: true`. With a non-loopback `bind`, hl refuses to start the
-proxy with the dashboard on unless you also set `proxy.dashboard_public: true` - the dashboard
-has no login and shows every route and service.
-
 ## Going back
 
 Set `bind: 127.0.0.1` (or remove the line), then `hl down proxy && hl up`.

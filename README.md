@@ -270,12 +270,7 @@ proxy:
   # subnet: 172.31.0.0/16  # fixed subnet, so apps can trust the proxy by address
   # image: traefik:v3.6.25  # default: the Traefik version hl is tested with
   # project: hl-proxy      # the proxy's compose project (hl-<name>-proxy with name)
-  # access_log: false      # Traefik's access log, shown by hl logs proxy
-  # log_level: ERROR       # Traefik's log level
-  # config: traefik.yml    # your own Traefik static config instead of the generated one
-  # dynamic: proxy/dynamic.yml  # Traefik dynamic config (file provider) for routes that aren't hl apps
-  # dashboard: false       # Traefik dashboard at http://traefik.<domain>, no password
-  # dashboard_public: false  # required with dashboard when bind isn't loopback
+  # debug: false          # Traefik's INFO log and access log, in hl logs proxy
 
 env:                       # passed to every app; an app's own env wins
   TZ: UTC
@@ -331,17 +326,11 @@ changes its project names: run `hl down` before adding it, then `hl up`.
 | `subnet` | none (Docker picks) | Fixed subnet for that network, e.g. `172.31.0.0/16`, so an app can trust `X-Forwarded-For` from the proxy's address range. Before creating the network hl checks it doesn't overlap another Docker network or one of this machine's, and suggests a free one if it does. |
 | `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. |
 | `project` | `hl-proxy` (`hl-<name>-proxy` with `name`) | The proxy's compose project. Two homelabs on one machine need different projects, networks and ports: set [`name`](#name-several-homelabs-on-one-docker) and `port`, or all three of these. hl refuses to touch a proxy or network another homelab runs and says so. |
-| `access_log` | `false` | Traefik's access log, in `hl logs proxy`. Not allowed with `config` (set `accessLog` in your file). |
-| `log_level` | `ERROR` | Traefik's log level: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL` or `PANIC`. Not allowed with `config`. |
-| `config` | none (generated) | Your own Traefik static config file, relative to the homelab folder, used instead of the generated `.hl/proxy/traefik.yml`. hl checks it has the `web` entrypoint on `:80` and `providers.docker` with `network:` set to `proxy.network`, and says what is missing. |
-| `dynamic` | none | A Traefik dynamic config file (file provider) for routes that aren't hl apps: another machine, a NAS, redirects. It must be in a subfolder of the homelab (not the homelab folder itself, `data/` or `.hl/`), e.g. `proxy/dynamic.yml`: hl mounts that folder read-only into the proxy, and Traefik picks up edits without a restart. |
-| `dashboard` | `false` | Serve the Traefik dashboard at `http://traefik.<domain>`. It has no password and shows every route, so it is off unless you turn it on. |
-| `dashboard_public` | `false` | Required, in addition to `dashboard`, when `bind` isn't a loopback address (`127.0.0.1`). Without it, `dashboard: true` on such a bind is a problem in `hl.yml` and every command stops with it; with it, `hl doctor` warns that the dashboard is reachable from your network. |
+| `debug` | `false` | Traefik's INFO log and its access log (one line per request), in `hl logs proxy`. Off, Traefik logs errors only. Turn it on to see why a URL gives 404 or which app a request reached. |
 
 **The proxy's Traefik config.** hl runs Traefik with one static config file,
-`.hl/proxy/traefik.yml`, generated from these settings (entrypoints, the Docker provider, the
-dashboard, logs, `ping` for the proxy's healthcheck); `hl show proxy` names the file. With `config`
-set, your file is used instead. `hl set proxy key=value` and `hl unset proxy key` change these
+`.hl/proxy/traefik.yml`, generated from these settings (entrypoints, the Docker provider, logs,
+`ping` for the proxy's healthcheck); `hl show proxy` names the file. `hl set proxy key=value` and `hl unset proxy key` change these
 settings; after changing them, `hl up proxy` applies them;
 `hl show proxy` says when the running proxy is behind.
 
@@ -475,8 +464,8 @@ today and not `hl.yml` settings (some have a command-line flag):
 | `data/` | app data in the homelab: `data/<app>/<volume>` |
 | `web` | the Traefik entrypoint name (container port 80) |
 | `traefik` on `:8080` | Traefik's entrypoint for `/ping` (the proxy's healthcheck); not published |
-| `/etc/traefik/traefik.yml`, `/etc/traefik/dynamic/` | where the static config and the folder of `proxy.dynamic` are mounted in the proxy |
-| `traefik.<domain>` | the dashboard's host name, when `proxy.dashboard` is on |
+| `/etc/traefik/traefik.yml` | where the static config is mounted in the proxy |
+| `ERROR`, `INFO` | Traefik's log level, and the one with `proxy.debug` |
 | healthcheck every 10s, timeout 5s, 3 retries, start period 5s | the proxy container's healthcheck (`traefik healthcheck --ping`) |
 | `unless-stopped` | the proxy container's restart policy |
 | `200` | lines shown by `hl logs` and `hl logs proxy` (change with `--tail`) |
@@ -519,7 +508,7 @@ every app when none is named; `up`, `down`, `restart`, `rebuild`, `logs` and `sh
 | `hl unset [<app>\|proxy] key...` | Remove settings of an app, the proxy (`hl unset proxy port`) or the homelab (`hl unset env.TZ`, `hl unset ignore`) so their defaults apply again; `env.NAME` removes one variable, `env` all. |
 | `hl edit` | A fallback, rarely needed: `hl set`/`hl unset` change every setting. Opens `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
 | `hl remove <app>` | Stop the app and remove it from `hl.yml`. Its data in `data/<app>` stays. When its folder is in a `projects` folder, hl adds the folder's name to `ignore` and says so, so `hl sync` doesn't add it back (`hl set ignore-=<name>` undoes it); `hl add` of that folder later takes it out of `ignore` again. |
-| `hl status` (`ls`) | The proxy's state (and the dashboard's URL when it is on), then every app's STATE (`up 2/2`, `partial 1/2`, `down`, or `other homelab`), HEALTH (`healthy`, `starting: <services>`, `unhealthy: <services>`, or `-` when the app has no healthchecks), URL and folder. Says when `hl sync` has something to do. |
+| `hl status` (`ls`) | The proxy's state, then every app's STATE (`up 2/2`, `partial 1/2`, `down`, or `other homelab`), HEALTH (`healthy`, `starting: <services>`, `unhealthy: <services>`, or `-` when the app has no healthchecks), URL and folder. Says when `hl sync` has something to do. |
 | `hl up [app...]` (`start`) | Start apps, the proxy first; builds images that don't exist yet. Before starting the proxy it checks the port is free (naming the program or container that holds it) and that `proxy.subnet` doesn't overlap another network. `--wait` waits until the service behind the proxy and the services it depends on (`depends_on`) are running and healthy - not sidecars nothing depends on, which may take longer - and for an app that isn't, names those services and shows their last 20 log lines; for an app with routing `none` it waits for every service; `--wait-timeout` (default `2m`) is how long it waits for each app. Ends with the `hl status` table. |
 | `hl down [app...]` (`stop`) | Stop and remove the apps' containers; with no app, also the proxy. Data stays. Apps another homelab runs are left alone. |
 | `hl restart [app...]` | Restart containers without rebuilding, the proxy first (started if it isn't running), like `up`. |
@@ -580,8 +569,7 @@ Guide: [back up the homelab](docs/guides/backup.md).
 - The proxy listens on `127.0.0.1` unless you set `proxy.bind`. Binding to `0.0.0.0` exposes
   every app to your network, with no authentication added by hl; see
   [reach your apps from your phone](docs/guides/lan-access.md).
-- The Traefik dashboard is off by default, and refused on a non-loopback bind unless you also set
-  `proxy.dashboard_public: true`.
+- hl doesn't run the Traefik dashboard (it has no password).
 - hl makes one network request of its own, and only in `hl doctor`: it asks GitHub's API for the
   latest hl release (no data sent beyond the request itself), and says nothing if that fails.
 - The proxy mounts the Docker socket read-only to discover apps; like any Docker tool, hl runs
@@ -634,13 +622,15 @@ app's prefix.** The app doesn't know its base path. Set it from `${HL_PREFIX}`
 ([guide](docs/guides/base-path-app.md)), or use host routing for that app.
 
 **404 from the proxy.** Check the app is up (`hl status`) and the URL ends where it should
-(`/my-app/`). `hl logs proxy` shows Traefik's view; `hl show <app> --compose` shows the labels hl added.
+(`/my-app/`). `hl set proxy debug=true`, `hl up proxy`, then `hl logs proxy -f` shows each request Traefik gets; `hl show <app> --compose` shows the labels hl added.
 
 **`http://my-app.localhost` doesn't resolve.** Browsers resolve `*.localhost`; some other tools
 don't. Use the browser, `curl --resolve`, or add the name to `/etc/hosts`.
 
-**`http://traefik.localhost` gives 404.** The dashboard is off by default; set
-`proxy.dashboard: true` and run `hl up proxy`.
+**`hl.yml` says a `proxy` key was removed.** `proxy.config`, `proxy.dynamic`, `proxy.dashboard`,
+`proxy.dashboard_public`, `proxy.access_log` and `proxy.log_level` are gone; the error names the
+`hl unset proxy <key>` that removes each. For Traefik's logs and access log use
+`hl set proxy debug=true`.
 
 **Permission denied in `data/`.** Containers often change the owner of their data folders. Use
 `sudo` to read or copy them, or set the app's user id if it supports one (many images take

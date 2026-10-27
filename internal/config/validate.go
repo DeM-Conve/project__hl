@@ -199,14 +199,6 @@ var rules = map[string]rule{
 		}
 		return ""
 	},
-	"proxy.log_level": func(v string) string {
-		for _, l := range defaults.ProxyLogLevels {
-			if strings.EqualFold(v, l) {
-				return ""
-			}
-		}
-		return oneOf(defaults.ProxyLogLevels...)(strings.ToUpper(v))
-	},
 	"name": func(v string) string {
 		if v != "" && !labNameRE.MatchString(v) {
 			return fmt.Sprintf("%q - use lowercase letters, digits and '-'", v)
@@ -349,6 +341,10 @@ func walk(n *yaml.Node, t reflect.Type, path, pattern string, ps *[]Problem) {
 			}
 			seen[k.Value] = k.Line
 			ft, ok := fields[k.Value]
+			if why, gone := removedKeys[kp]; !ok && gone {
+				*ps = append(*ps, Problem{Line: k.Line, Column: k.Column, Key: kp, Message: "removed from hl - " + why})
+				continue
+			}
 			if !ok {
 				msg := "unknown key"
 				if s := suggest(k.Value, names); s != "" {

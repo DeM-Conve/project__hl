@@ -211,14 +211,12 @@ func TestValidateValuesAndClashes(t *testing.T) {
 		{"proxy: {subnet: 10.0.0.0}", "proxy.subnet"},
 		{"proxy: {network: '-x'}", "proxy.network"},
 		{"name: Lab_2", "name"},
-		{"proxy: {bind: 0.0.0.0, dashboard: true}", "proxy.dashboard: the Traefik dashboard has no password"},
 		{"apps: {a: {path: x, host: 'bad host'}}", "apps.a.host"},
 		{"apps: {a: {path: x, service: '-it'}}", "apps.a.service"},
 		{"apps: {a: {path: x, env: {'1BAD': v}}}", "apps.a.env.1BAD"},
 		{"apps: {a.b: {path: x}, a-b: {path: y}}", "runs as the same Docker project"},
 		{"apps: {a: {path: x, prefix: /p}, b: {path: y, prefix: /p}}", "same URL prefix /p"},
 		{"apps: {a: {path: x, routing: host, host: h.example}, b: {path: y, routing: host, host: h.example}}", "same host h.example"},
-		{"proxy: {dashboard: true}\napps: {traefik: {path: x, routing: host}}", "the Traefik dashboard"},
 	} {
 		_, err := Load(write(t, c.body))
 		if err == nil || !strings.Contains(err.Error(), c.want) {
@@ -226,8 +224,8 @@ func TestValidateValuesAndClashes(t *testing.T) {
 		}
 	}
 	for _, body := range []string{
-		"proxy: {bind: 0.0.0.0, dashboard: true, dashboard_public: true}",
-		"proxy: {bind: '::1', dashboard: true}",
+		"proxy: {bind: 0.0.0.0, debug: true}",
+		"proxy: {bind: '::1'}",
 		"name: lab-2\nproxy: {subnet: 172.30.0.0/16}",
 	} {
 		if _, err := Load(write(t, body)); err != nil {
@@ -235,8 +233,8 @@ func TestValidateValuesAndClashes(t *testing.T) {
 		}
 	}
 	// Validate's problems carry the line of their key.
-	_, err := Load(write(t, "proxy:\n  bind: 0.0.0.0\n  dashboard: true\n"))
-	if err == nil || !strings.Contains(err.Error(), "hl.yml:3:3: proxy.dashboard") {
+	_, err := Load(write(t, "proxy:\n  port: 80\n  bind: localhost\n"))
+	if err == nil || !strings.Contains(err.Error(), "hl.yml:3:9: proxy.bind") {
 		t.Errorf("line of a Validate problem: %v", err)
 	}
 	if _, err := Load(t.TempDir()); err == nil || !strings.Contains(err.Error(), "hl init") {
@@ -273,17 +271,6 @@ func TestNameFor(t *testing.T) {
 		if got := NameFor(in); got != want {
 			t.Errorf("NameFor(%q) = %q, want %q", in, got, want)
 		}
-	}
-}
-
-func TestDashboardURL(t *testing.T) {
-	c, _ := Load(write(t, "proxy: {port: 8080, dashboard: true, domain: lab.example}"))
-	if got := c.DashboardURL(); got != "http://traefik.lab.example:8080/" {
-		t.Errorf("DashboardURL = %q", got)
-	}
-	c, _ = Load(write(t, "proxy: {}"))
-	if c.DashboardURL() != "" {
-		t.Error("the dashboard is off by default")
 	}
 }
 

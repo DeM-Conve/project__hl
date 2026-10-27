@@ -123,21 +123,11 @@ func Proxy(p config.Proxy, f ProxyFiles) string {
 	b.WriteString("    volumes:\n")
 	fmt.Fprintf(&b, "      - %s:%s:ro\n", defaults.DockerSocket, defaults.DockerSocket)
 	fmt.Fprintf(&b, "      - %s\n", quote(f.Static+":"+defaults.TraefikStaticPath+":ro"))
-	if f.Dynamic != "" {
-		fmt.Fprintf(&b, "      - %s\n", quote(filepath.Dir(f.Dynamic)+":"+defaults.TraefikDynamicDir+":ro"))
-	}
-	if f.Ping {
-		b.WriteString("    healthcheck:\n      test: ['CMD', 'traefik', 'healthcheck', '--ping']\n")
-		fmt.Fprintf(&b, "      interval: %s\n      timeout: %s\n      retries: %d\n      start_period: %s\n",
-			defaults.ProxyHealthInterval, defaults.ProxyHealthTimeout, defaults.ProxyHealthRetries, defaults.ProxyHealthStartPeriod)
-	}
+	b.WriteString("    healthcheck:\n      test: ['CMD', 'traefik', 'healthcheck', '--ping']\n")
+	fmt.Fprintf(&b, "      interval: %s\n      timeout: %s\n      retries: %d\n      start_period: %s\n",
+		defaults.ProxyHealthInterval, defaults.ProxyHealthTimeout, defaults.ProxyHealthRetries, defaults.ProxyHealthStartPeriod)
 	fmt.Fprintf(&b, "    networks: [%s]\n    labels:\n", defaults.ProxyNetworkKey)
 	fmt.Fprintf(&b, "      %s: %s\n", defaults.StaticConfigLabel, quote(f.Hash))
-	if Dashboard(p) {
-		b.WriteString("      traefik.enable: 'true'\n")
-		fmt.Fprintf(&b, "      traefik.http.routers.%s.rule: %s\n", defaults.DashboardRouter, quote("Host(`"+defaults.DashboardHostPrefix+p.Domain+"`)"))
-		fmt.Fprintf(&b, "      traefik.http.routers.%s.service: api@internal\n", defaults.DashboardRouter)
-	}
 	fmt.Fprintf(&b, "\nnetworks:\n  %s:\n    name: %s\n", defaults.ProxyNetworkKey, quote(p.Network))
 	if p.Subnet != "" {
 		fmt.Fprintf(&b, "    ipam:\n      config:\n        - subnet: %s\n", quote(p.Subnet))

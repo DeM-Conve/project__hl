@@ -117,13 +117,6 @@ func doctor(ctx context.Context) error {
 		c.warn(fmt.Sprintf("the proxy listens on %s: apps are reachable from your network, without a password", p.Bind),
 			"if that isn't what you want: `hl set proxy bind="+defaults.Bind+"`")
 	}
-	if p.Dashboard {
-		if p.DashboardPublic {
-			c.warn("the Traefik dashboard is on and reachable from your network, without a password", "")
-		} else {
-			c.ok("Traefik dashboard at " + cfg.DashboardURL())
-		}
-	}
 	doctorProxy(cfg, func(ok bool, what, fix string) {
 		if ok {
 			c.ok(what)

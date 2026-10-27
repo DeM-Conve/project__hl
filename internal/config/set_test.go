@@ -110,7 +110,7 @@ func TestAppKeys(t *testing.T) {
 func TestEditProxyAndSharedEnv(t *testing.T) {
 	dir := write(t, commented)
 	if err := Edit(dir, ProxyScope, []Change{
-		{Key: "port", Value: "8082"}, {Key: "subnet", Value: "172.31.0.0/16"}, {Key: "bind", Value: "0.0.0.0"}, {Key: "access_log", Value: "true"},
+		{Key: "port", Value: "8082"}, {Key: "subnet", Value: "172.31.0.0/16"}, {Key: "bind", Value: "0.0.0.0"}, {Key: "debug", Value: "true"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestEditProxyAndSharedEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := read(t, dir)
-	for _, want := range []string{"bind: 0.0.0.0 # this machine only", "port: 8082", "subnet: 172.31.0.0/16", "access_log: true", "# the proxy"} {
+	for _, want := range []string{"bind: 0.0.0.0 # this machine only", "port: 8082", "subnet: 172.31.0.0/16", "debug: true", "# the proxy"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}
@@ -130,7 +130,7 @@ func TestEditProxyAndSharedEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Proxy.Port != 8082 || c.Proxy.Bind != "0.0.0.0" || !c.Proxy.AccessLog || c.Env["TZ"] != "Europe/Berlin" || c.Apps["my-app"].Env["TZ"] != "UTC" {
+	if c.Proxy.Port != 8082 || c.Proxy.Bind != "0.0.0.0" || !c.Proxy.Debug || c.Env["TZ"] != "Europe/Berlin" || c.Apps["my-app"].Env["TZ"] != "UTC" {
 		t.Errorf("after set: proxy %+v, env %v", c.Proxy, c.Env)
 	}
 
@@ -165,8 +165,8 @@ func TestEditProxyRefusesBadResults(t *testing.T) {
 		{ProxyScope, []Change{{Key: "port", Value: "70000"}}, "not a port"},
 		{ProxyScope, []Change{{Key: "subnet", Value: "nope"}}, "not a subnet"},
 		{ProxyScope, []Change{{Key: "bnd", Value: "0.0.0.0"}}, `did you mean "bind"?`},
-		{ProxyScope, []Change{{Key: "dashboard", Value: "yes please"}}, "not true or false"},
-		{ProxyScope, []Change{{Key: "bind", Value: "0.0.0.0"}, {Key: "dashboard", Value: "true"}}, "dashboard_public"},
+		{ProxyScope, []Change{{Key: "debug", Value: "yes please"}}, "not true or false"},
+		{ProxyScope, []Change{{Key: "dashboard", Value: "true"}}, "removed from hl"},
 		{HomelabScope, []Change{{Key: "env.1X", Value: "a"}}, "not a valid variable name"},
 		{HomelabScope, []Change{{Key: "name", Value: "Lab 2"}}, "lowercase"},
 		{HomelabScope, []Change{{Key: "name", Value: "x", Op: OpAdd}}, "not a list"},
@@ -188,7 +188,7 @@ func TestEditProxyRefusesBadResults(t *testing.T) {
 	if !IsHomelabKey("env.TZ") || !IsHomelabKey("env") || !IsHomelabKey("ignore") || IsHomelabKey("port") {
 		t.Error("IsHomelabKey")
 	}
-	if got := strings.Join(ProxyKeys(), " "); !strings.Contains(got, "port") || !strings.Contains(got, "dashboard_public") {
+	if got := strings.Join(ProxyKeys(), " "); !strings.Contains(got, "port") || !strings.Contains(got, "debug") || strings.Contains(got, "dashboard") {
 		t.Errorf("ProxyKeys() = %s", got)
 	}
 }
@@ -218,5 +218,19 @@ func TestEditLists(t *testing.T) {
 	}
 	if err := Edit(dir, "blog", []Change{{Key: "compose", Value: "b.yml", Op: OpAdd}}); err != nil || !strings.Contains(read(t, dir), "compose: [a.yml, b.yml]") {
 		t.Errorf("app list: %v\n%s", err, read(t, dir))
+	}
+}
+
+// A key removed from hl can still be unset, so hl.yml can be fixed without hl edit.
+func TestUnsetRemovedProxyKey(t *testing.T) {
+	dir := write(t, "proxy:\n  port: 8080\n  dashboard: true\n  log_level: debug\napps: {}\n")
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "removed from hl") {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := Edit(dir, ProxyScope, []Change{{Key: "dashboard", Unset: true}, {Key: "log_level", Unset: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir); err != nil {
+		t.Errorf("after unset: %v", err)
 	}
 }

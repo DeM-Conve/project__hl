@@ -92,12 +92,12 @@ func TestSchemaRejectsMistakes(t *testing.T) {
 		"apps: {my-app: {path: x, servce: web}}",
 		"apps: {my-app: {path: x, compose: compose.yml}}",
 		"projets: [x]",
-		"proxy: {log_level: loud}",
+		"proxy: {dashboard: true}",
 		"apps: {proxy: {path: x}}",
 		"scan_depth: -1",
 		"projects: ~/code",
 		"proxy: {project: My_Proxy}",
-		"proxy: {access_log: yes please}",
+		"proxy: {debug: yes please}",
 	} {
 		if err := s.Validate(asJSON(t, body)); err == nil {
 			t.Errorf("schema accepts %q", body)
@@ -175,13 +175,6 @@ func TestSchemaMatchesTypes(t *testing.T) {
 	}
 	if got := jsonString(root.Properties["proxy"].Properties["routing"].Enum); got != jsonString([]string{RoutingPath, RoutingHost}) {
 		t.Errorf("proxy.routing enum %s", got)
-	}
-	levels := append([]string(nil), defaults.ProxyLogLevels...)
-	for _, l := range defaults.ProxyLogLevels {
-		levels = append(levels, strings.ToLower(l))
-	}
-	if got := jsonString(root.Properties["proxy"].Properties["log_level"].Enum); got != jsonString(levels) {
-		t.Errorf("proxy.log_level enum %s, want %s", got, jsonString(levels))
 	}
 	if p := root.Properties["proxy"].Properties["project"].Pattern; p != projectRE.String() {
 		t.Errorf("proxy.project pattern %s, Go uses %s", p, projectRE)

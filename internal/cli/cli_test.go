@@ -273,7 +273,7 @@ func TestStatusShowsHealth(t *testing.T) {
 	f := newFake(t)
 	a, b := f.app("a", webModel2), f.app("b", apiModel)
 	c, d := f.app("c", apiModel), f.app("d", apiModel)
-	lab := f.lab("lab", "proxy: {dashboard: true, port: 8080}\napps:\n  a: {path: '"+a+"'}\n  b: {path: '"+b+"'}\n  c: {path: '"+c+"'}\n  d: {path: '"+d+"', routing: none}\n  e: {path: '"+d+"'}\n")
+	lab := f.lab("lab", "proxy: {port: 8080}\napps:\n  a: {path: '"+a+"'}\n  b: {path: '"+b+"'}\n  c: {path: '"+c+"'}\n  d: {path: '"+d+"', routing: none}\n  e: {path: '"+d+"'}\n")
 	cf := func(app string) string { return filepath.Join(lab, ".hl", app, "override.yml") }
 	f.containers(
 		ctr("hl-proxy", "traefik", "running", "Up 2 hours (healthy)", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
@@ -284,7 +284,7 @@ func TestStatusShowsHealth(t *testing.T) {
 		ctr("hl-d", "api", "exited", "Exited (1) 1 minute ago", cf("d")),
 	)
 	r := f.must("status")
-	contains(t, "status", r.out, "proxy running  127.0.0.1:8080", "dashboard http://traefik.localhost:8080/",
+	contains(t, "status", r.out, "proxy running  127.0.0.1:8080",
 		"APP  STATE", "HEALTH",
 		"a    up 2/2       unhealthy: db",
 		"b    up 1/1       starting: api",
@@ -742,7 +742,7 @@ func TestProxyIsAPseudoApp(t *testing.T) {
 func TestDoctor(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
-	f.lab("lab", "proxy: {bind: 0.0.0.0, dashboard: true, dashboard_public: true}\napps:\n  a: {path: '"+a+"'}\n  b: {path: /nowhere}\n")
+	f.lab("lab", "proxy: {bind: 0.0.0.0}\napps:\n  a: {path: '"+a+"'}\n  b: {path: /nowhere}\n")
 	r := f.hl("doctor")
 	if r.code != 1 {
 		t.Fatalf("app b is broken: %s", r)
@@ -839,9 +839,12 @@ func TestErrors(t *testing.T) {
 	}
 
 	// Hints name the command that fixes a setting, not the file to edit.
-	f.lab("hints", "proxy: {bind: 0.0.0.0, dashboard: true}\napps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', prefix: /x}\n  b: {path: '"+a+"', prefix: /x}\n")
+	f.lab("removed", "proxy: {dashboard: true}\napps: {}\n")
 	r = f.hl("status")
-	contains(t, "validation hints", r.errOut, "`hl set proxy dashboard_public=true`", "`hl set proxy bind=127.0.0.1`", "`hl set b prefix=/<path>`")
+	contains(t, "removed key", r.errOut, "proxy.dashboard: removed from hl", "`hl unset proxy dashboard`")
+	f.lab("hints", "proxy: {bind: 127.0.0.1}\napps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', prefix: /x}\n  b: {path: '"+a+"', prefix: /x}\n")
+	r = f.hl("status")
+	contains(t, "validation hints", r.errOut, "`hl set b prefix=/<path>`")
 	f.lab("hints2", "apps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', compose: [nope.yml]}\n")
 	r = f.hl("up")
 	contains(t, "app hints", r.errOut, "`hl set gone path=<folder>`", "`hl remove gone`", "`hl set a compose=<file>[,<file>...]`", "`hl unset a compose`")

@@ -88,6 +88,5 @@ Two things are still `http` from hl's point of view:
   own, or add authentication in the front proxy (basic auth, forward auth, an access policy of
   your tunnel).
 - Keep `proxy.bind: 127.0.0.1` so nothing reaches hl around the front proxy.
-- Leave the Traefik dashboard off.
 
 Built-in HTTPS (local CA or ACME) is on the [product plan](../product-plan.md) for after v0.1.

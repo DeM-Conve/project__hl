@@ -215,7 +215,8 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 	before := hlYML(t, home)
 	for _, args := range [][]string{
 		{"set", "proxy", "port=0"},
-		{"set", "proxy", "dashboard=maybe"},
+		{"set", "proxy", "debug=maybe"},
+		{"set", "proxy", "dashboard=true"},
 		{"set", "proxy"},
 		{"set", "env.TZ="},
 		{"set", "port=80"},

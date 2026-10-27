@@ -84,18 +84,13 @@ release differs from earlier builds of `main`.
 - `hl.yml`, the default-homelab note and every generated file are written atomically (an existing
   file keeps its mode, a symlink stays a symlink).
 - The proxy runs with one readable Traefik static config file, `.hl/proxy/traefik.yml`, generated
-  from `hl.yml`; `hl show proxy` names it. `proxy.config` uses your own
-  file instead, and hl says what it is missing for hl's apps.
-- `proxy.dynamic` for a Traefik dynamic config file (extra routes and middlewares), kept in a
-  subfolder of the homelab.
-- `proxy.access_log`, `proxy.log_level` and `proxy.project`; a healthcheck for the proxy.
+  from `hl.yml`; `hl show proxy` names it.
+- `proxy.debug` (Traefik's INFO log and access log, in `hl logs proxy`) and `proxy.project`; a
+  healthcheck for the proxy.
 - The proxy works like an app: `hl up proxy`, `hl down proxy`, `hl restart proxy`,
   `hl rebuild proxy` (recreates it), `hl logs proxy [-f]`, and `hl show proxy` for its state,
   health, listen address, every setting, and warnings (a running proxy behind `hl.yml`, an old
   image).
-- `proxy.dashboard` turns on the Traefik dashboard at `http://traefik.<domain>`; on a
-  `proxy.bind` that isn't loopback it also needs `proxy.dashboard_public: true`, and `hl doctor`
-  warns while it is reachable from the network.
 - The Traefik image is pinned to the tested version (`traefik:v3.6.25`); `hl doctor` warns when
   `proxy.image` is older.
 - Reserved app name: `proxy` (its compose project would be the proxy's, and `hl up proxy` and
@@ -142,6 +137,11 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- **Breaking:** the proxy keys `config`, `dynamic`, `dashboard`, `dashboard_public`, `access_log`
+  and `log_level` are gone; `proxy.debug: true` (`hl set proxy debug=true`) turns on Traefik's
+  INFO log and access log. An `hl.yml` that still has one is refused with a message naming the
+  `hl unset proxy <key>` that removes it. The generated `traefik.yml` changed, so the next
+  `hl up proxy` recreates the proxy container once.
 - **Breaking:** `hl add` takes `key=value` settings instead of flags: `--name x` is `name=x`,
   `--routing`, `--prefix`, `--host`, `--service`, `--port` and `--compose` are `routing=`,
   `prefix=`, `host=`, `service=`, `port=` and `compose=`, `--env K=V` is `env.K=V`, and
@@ -164,7 +164,7 @@ release differs from earlier builds of `main`.
 - `hl.yml` is checked strictly on every command: unknown keys,
   wrong types, bad values and clashes between apps (same Docker project, URL prefix or host) stop
   the command, all listed at once with their lines (`hl doctor` lists them too).
-- The Traefik dashboard is off unless `proxy.dashboard: true` is set.
+- The Traefik dashboard is gone (it had no password); earlier builds always ran it.
 - `hl init` and `hl sync` add only folders that look like web apps (a preferred service name or a
   common HTTP port); others, like a database on its own port, are listed with the `hl add`
   command to use (`routing=none` to run it without the proxy).

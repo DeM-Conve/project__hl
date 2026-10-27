@@ -72,18 +72,8 @@ type Proxy struct {
 	Image  string `yaml:"image,omitempty"`
 	// Compose project the proxy runs as; set it to run a second homelab's proxy beside the first.
 	Project string `yaml:"project,omitempty"`
-	// Your own Traefik static config file instead of the generated one (relative to the homelab).
-	Config string `yaml:"config,omitempty"`
-	// A Traefik dynamic config file (file provider) for routes that aren't hl apps.
-	Dynamic string `yaml:"dynamic,omitempty"`
-	// Traefik's access log, on the proxy's output (hl logs proxy).
-	AccessLog bool `yaml:"access_log,omitempty"`
-	// Traefik's log level (default ERROR).
-	LogLevel string `yaml:"log_level,omitempty"`
-	// Dashboard turns on Traefik's dashboard at traefik.<domain>. It has no
-	// password, so on a bind other than loopback it also needs DashboardPublic.
-	Dashboard       bool `yaml:"dashboard,omitempty"`
-	DashboardPublic bool `yaml:"dashboard_public,omitempty"`
+	// Debug turns on Traefik's INFO log and its access log, on the proxy's output (hl logs proxy).
+	Debug bool `yaml:"debug,omitempty"`
 }
 
 type App struct {
@@ -293,9 +283,6 @@ func (c *Config) Host(name string, a *App) string {
 	return c.Proxy.Domain
 }
 
-// DashboardHost is the host name of the Traefik dashboard.
-func (c *Config) DashboardHost() string { return defaults.DashboardHostPrefix + c.Proxy.Domain }
-
 // URL is where the app is opened in a browser, without a trailing slash;
 // "" when it isn't behind the proxy.
 func (c *Config) URL(name string, a *App) string {
@@ -303,14 +290,6 @@ func (c *Config) URL(name string, a *App) string {
 		return ""
 	}
 	return "http://" + c.hostPort(c.Host(name, a)) + c.Prefix(name, a)
-}
-
-// DashboardURL is where the Traefik dashboard is, "" when it is off.
-func (c *Config) DashboardURL() string {
-	if !c.Proxy.Dashboard {
-		return ""
-	}
-	return "http://" + c.hostPort(c.DashboardHost()) + "/"
 }
 
 func (c *Config) hostPort(host string) string {
@@ -608,16 +587,12 @@ func (c *Config) Validate() error {
 	if p.Image == "" || strings.ContainsAny(p.Image, " \t") {
 		ps.add("proxy.image", "%q is not an image name like %s", p.Image, defaults.DefaultProxyImage)
 	}
-	// validateProxy's and validateProjects' messages start with the key: "proxy.log_level: ...".
+	// validateProxy's and validateProjects' messages start with the key: "proxy.project: ...".
 	for _, check := range []func() error{c.validateProxy, c.validateProjects} {
 		if err := check(); err != nil {
 			key, msg, _ := strings.Cut(err.Error(), ": ")
 			ps.add(key, "%s", msg)
 		}
-	}
-	if p.Dashboard && ip != nil && !ip.IsLoopback() && !p.DashboardPublic {
-		ps.add("proxy.dashboard", "the Traefik dashboard has no password, and proxy.bind %s makes it reachable from your network - "+
-			"if that is what you want, `hl set proxy dashboard_public=true`; otherwise `hl set proxy bind=127.0.0.1`", p.Bind)
 	}
 	for k := range c.Env {
 		if !envKeyRE.MatchString(k) {
@@ -628,9 +603,6 @@ func (c *Config) Validate() error {
 	ids := map[string]string{}
 	prefixes := map[string]string{}
 	hosts := map[string]string{}
-	if p.Dashboard {
-		hosts[strings.ToLower(c.DashboardHost())] = "the Traefik dashboard"
-	}
 	for _, name := range c.Names() {
 		a := c.Apps[name]
 		key := "apps." + name

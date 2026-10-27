@@ -70,30 +70,18 @@ func TestOverrideHostAndNone(t *testing.T) {
 }
 
 func TestProxy(t *testing.T) {
-	out := Proxy(config.Proxy{Bind: "0.0.0.0", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Subnet: "10.123.0.0/16", Image: "traefik:v3.6", Project: "hl-proxy", Dashboard: true},
-		ProxyFiles{Static: "/lab/.hl/proxy/traefik.yml", Hash: "abc", Ping: true})
-	for _, want := range []string{"'0.0.0.0:8080:80'", "'/lab/.hl/proxy/traefik.yml:/etc/traefik/traefik.yml:ro'", "Host(`traefik.lab.example`)", "subnet: '10.123.0.0/16'", "healthcheck:", "hl.static-config: 'abc'"} {
+	out := Proxy(config.Proxy{Bind: "0.0.0.0", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Subnet: "10.123.0.0/16", Image: "traefik:v3.6", Project: "hl-proxy"},
+		ProxyFiles{Static: "/lab/.hl/proxy/traefik.yml", Hash: "abc"})
+	for _, want := range []string{"'0.0.0.0:8080:80'", "'/lab/.hl/proxy/traefik.yml:/etc/traefik/traefik.yml:ro'", "subnet: '10.123.0.0/16'", "healthcheck:", "hl.static-config: 'abc'"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("proxy is missing %q:\n%s", want, out)
 		}
 	}
-	if strings.Contains(out, "command:") {
+	if strings.Contains(out, "command:") || strings.Contains(out, "api@internal") {
 		t.Errorf("Traefik's settings belong in the static config file, not flags:\n%s", out)
 	}
 	p := config.Proxy{Bind: "::1", Port: 8080, Domain: "lab.example", Network: "hl-proxy", Image: "traefik:v3.6", Project: "hl-proxy"}
 	if out := Proxy(p, ProxyFiles{Static: "/lab/traefik.yml"}); !strings.Contains(out, "'[::1]:8080:80'") {
 		t.Errorf("IPv6 bind needs brackets:\n%s", out)
-	}
-}
-
-func TestDashboardOffByDefault(t *testing.T) {
-	p := config.Proxy{Bind: "127.0.0.1", Port: 80, Domain: "localhost", Network: "hl-proxy", Image: "traefik:v3.6", Project: "hl-proxy"}
-	f := ProxyFiles{Static: "/lab/traefik.yml"}
-	if out := Proxy(p, f) + Traefik(p, ""); strings.Contains(out, "api@internal") || strings.Contains(out, "dashboard: true") {
-		t.Errorf("dashboard should be off:\n%s", out)
-	}
-	p.Dashboard = true
-	if out := Proxy(p, f) + Traefik(p, ""); !strings.Contains(out, "api@internal") || !strings.Contains(out, "dashboard: true") {
-		t.Errorf("dashboard should be on:\n%s", out)
 	}
 }
