@@ -73,9 +73,8 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    something sets `TZ`. To keep an image's own default instead, a user can only set an explicit
    zone (`hl set env.TZ=UTC`). Is a way to say "no `TZ` at all" wanted (e.g. an empty
    `env.TZ`, which `hl set` refuses today), or is an explicit zone enough?
-9. **`hl init` without a terminal and without `--yes`** applies its plan (as before the plan
-   and single question came in), while `hl sync` refuses and asks for `--yes`. Keep the
-   difference, or make init require `--yes` too?
+9. ~~`hl init` without a terminal and without `--yes`~~ - decided 2026-10-27: init requires
+   `--yes` without a terminal, like `hl sync` (`echo n | hl init ...` used to write hl.yml).
 10. **Auto-mapped env vs. the app's own `.env`**: a mapped value (say `DATA_LOCATION:
    ${HL_DATA}`) is in `apps.<app>.env`, which wins over the app's `.env`. Should the mapping
    leave out variables the app's `.env` already sets?

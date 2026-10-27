@@ -108,7 +108,16 @@ func TestInitNonInteractive(t *testing.T) {
 	fakeApp(t, filepath.Join(code, "kv"), `{"services":{"kv":{"ports":[{"target":6380}]}}}`)
 	lab := filepath.Join(home, "homelab")
 
-	out, err := runHL(t, "", "init", lab, "--projects", code, "--routing", "host", "--bind", "0.0.0.0", "--port", "8081")
+	// Without a terminal, init shows the plan but writes only with --yes (like hl sync).
+	out, err := runHL(t, "n\n", "init", lab, "--projects", code)
+	if err == nil || !strings.Contains(err.Error(), "not a terminal") || !strings.Contains(out, "+ add") {
+		t.Errorf("init without a terminal or --yes must refuse after the plan: %v\n%s", err, out)
+	}
+	if exists(lab) || exists(filepath.Join(home, ".config", "hl", "home")) {
+		t.Error("init without --yes wrote something")
+	}
+
+	out, err = runHL(t, "", "init", "--yes", lab, "--projects", code, "--routing", "host", "--bind", "0.0.0.0", "--port", "8081")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -152,7 +161,7 @@ func TestInitNonInteractive(t *testing.T) {
 	}
 	fakeApp(t, filepath.Join(code, "notes"), webModel)
 	fakeApp(t, filepath.Join(code, "later"), webModel)
-	if out, err = runHL(t, "", "init", lab, "--apps", "notes"); err != nil {
+	if out, err = runHL(t, "", "init", "--yes", lab, "--apps", "notes"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	cfg, _ = config.Load(lab)
@@ -262,7 +271,7 @@ func TestInitWithoutDocker(t *testing.T) {
 	t.Setenv("PATH", filepath.Join(home, "empty"))
 	code := filepath.Join(home, "code")
 	fakeApp(t, filepath.Join(code, "blog"), webModel)
-	out, err := runHL(t, "", "init", filepath.Join(home, "lab"), "--projects", code)
+	out, err := runHL(t, "", "init", "--yes", filepath.Join(home, "lab"), "--projects", code)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -368,7 +377,7 @@ func TestStripPrefix(t *testing.T) {
 	lab := filepath.Join(home, "lab")
 	fakeApp(t, filepath.Join(code, "project__blog"), webModel)
 	fakeApp(t, filepath.Join(code, "plain"), webModel)
-	out, err := runHL(t, "", "init", lab, "--projects", code, "--strip-prefix", "project__")
+	out, err := runHL(t, "", "init", "--yes", lab, "--projects", code, "--strip-prefix", "project__")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -396,10 +405,10 @@ func TestStripPrefix(t *testing.T) {
 
 	// On an existing homelab --strip-prefix is saved only when none is set.
 	other := filepath.Join(home, "other")
-	if out, err = runHL(t, "", "init", other); err != nil {
+	if out, err = runHL(t, "", "init", "--yes", other); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if out, err = runHL(t, "", "init", other, "--strip-prefix", "x-,y-"); err != nil || !strings.Contains(out, "strip_prefix saved") {
+	if out, err = runHL(t, "", "init", "--yes", other, "--strip-prefix", "x-,y-"); err != nil || !strings.Contains(out, "strip_prefix saved") {
 		t.Errorf("%v\n%s", err, out)
 	}
 	if out, err = runHL(t, "", "init", other, "--strip-prefix", "z-"); err != nil || !strings.Contains(out, "--strip-prefix is ignored") {
@@ -413,7 +422,7 @@ func TestStripPrefix(t *testing.T) {
 func TestSyncWithoutProjects(t *testing.T) {
 	home := initSyncEnv(t)
 	lab := filepath.Join(home, "lab")
-	if out, err := runHL(t, "", "init", lab); err != nil {
+	if out, err := runHL(t, "", "init", "--yes", lab); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if _, err := runHL(t, "", "sync", "--home", lab); err == nil || !strings.Contains(err.Error(), "projects") {

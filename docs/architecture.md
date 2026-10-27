@@ -372,9 +372,9 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   and defaults only (`--projects`, else `defaults.CandidateProjects` that exist in the home folder;
   the default port, or `defaults.AltPort` when that is busy and free), `InitSettings.Config` makes
   the homelab in memory, `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,
-  env, skips; `--apps` narrows the adds) and prints the plan with `printPlan`. Then one
-  `confirm` (`prompt.go`, plain bufio, Enter = yes) when stdin is a terminal and `--yes` isn't
-  given, and only when there is something to write; "no" writes nothing. Pre-flight runs the
+  env, skips; `--apps` narrows the adds) and prints the plan with `printPlan`. Then, only when there is something to write and `--yes`
+  isn't given: without a terminal it stops ("pass --yes", like `hl sync`), else one `confirm`
+  (`prompt.go`, plain bufio, Enter = yes); "no" writes nothing. Pre-flight runs the
   doctor's docker checks; without a working docker it still writes hl.yml but leaves app
   detection to `hl sync`. Port check: `net.Listen` on bind:port; only "address in use" counts
   as busy (a normal user may not open port 80, Docker can). A new hl.yml is the short `Template`

@@ -20,7 +20,8 @@ release differs from earlier builds of `main`.
   `~/projects`, `~/src` when they exist), the proxy (port 8080 when 80 is busy), every web app
   found with its service, port and env, and the folders it skips and why - shows it and asks
   once; `--projects`, `--routing`, `--bind`, `--port`, `--apps`, `--strip-prefix` and `--no-env`
-  change the plan and `--yes` applies it without asking. It checks Docker and compose first, and
+  change the plan and `--yes` applies it without asking (required without a terminal, as for
+  `hl sync`). It checks Docker and compose first, and
   on an existing homelab never overwrites `hl.yml` but adds the new apps. The `hl.yml` it writes
   holds only the projects folders, the proxy settings that differ from the defaults, and the
   apps; every other setting is documented in the README.

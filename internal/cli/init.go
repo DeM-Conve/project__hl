@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -44,9 +45,9 @@ It never turns the current folder into a homelab unless you name it (hl init .).
 hl init works out a plan from its flags and defaults - the homelab folder, the
 projects folders (default: ` + strings.Join(defaults.CandidateProjects, ", ") + ` in your home, those that exist),
 the proxy, every app found with its service, port and env, and the folders it
-skips - shows it, and asks once before writing anything. --yes, or stdin that
-isn't a terminal, applies it without asking. To change the plan, run it again
-with other flags.
+skips - shows it, and asks once before writing anything. --yes applies it
+without asking; without a terminal (a script, a pipe) --yes is required, as
+for hl sync. To change the plan, run it again with other flags.
 
 On an existing homelab hl.yml is kept; init adds the apps that are new in the
 projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
@@ -166,7 +167,11 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 
 	// Ask once, when there is something to write.
 	if !existing || saveProjects || saveStrip || toAdd > 0 {
-		if !o.yes && stdinTerminal(in) && !newPrompter(in, out).confirm("Set it up like this?", true) {
+		switch {
+		case o.yes:
+		case !stdinTerminal(in):
+			return withHint(errors.New("not a terminal, so nothing was written"), "pass --yes to apply the plan")
+		case !newPrompter(in, out).confirm("Set it up like this?", true):
 			say("nothing written - run hl init again with other flags to change the plan (hl init --help)")
 			return nil
 		}
