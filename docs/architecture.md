@@ -364,8 +364,11 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   project name if it still runs (its files are gone), then `config.RemoveApp` and delete
   `.hl/<app>/` - `data/<app>/` is never touched; updates use `config.PinApp`. All edits keep
   hl.yml's comments.
-- **`hl status`** calls `syncHint`, which runs only `scan.Compare` (no Docker), and prints one line
-  when there are new folders or gone apps.
+- **`hl status`** calls `syncHint`: `scan.Compare`, then, for new folders only, `scan.PlanAdds`
+  (one `docker compose config` each, as sync does), and prints one line when sync would add an
+  app or remove a gone one. Folders sync only skips are left out, so the hint doesn't stay
+  forever. When another homelab runs the proxy project, the header says so instead of this
+  homelab's address.
 - **`hl init`** sets up the folder given, else the one `config.Home` finds (so a second run adds
   new apps to it), else `~/homelab` (`defaults.HomelabDir`) - never the current folder by itself
   (`initDir`). After recording the default it runs `config.Home` again and warns (`otherHome`)

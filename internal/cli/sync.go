@@ -209,8 +209,10 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 	return nil
 }
 
-// syncHint tells `hl status` readers when hl sync has something to do. It
-// only looks at the file system, so it is cheap and needs no Docker.
+// syncHint tells `hl status` readers when hl sync has something to do: new folders it would
+// add (each new folder's compose model is read, as sync does, so one sync skips - not a web
+// app, a compose error - isn't counted and the hint doesn't stay forever) and apps whose
+// folder is gone. Skipped folders aren't mentioned; hl sync lists them with the reason.
 func syncHint(out io.Writer, cfg *config.Config) {
 	if len(cfg.Projects) == 0 {
 		return
@@ -219,12 +221,23 @@ func syncHint(out io.Writer, cfg *config.Config) {
 	if err != nil || d.Changes() == 0 {
 		return
 	}
+	adds := 0
+	if len(d.New) > 0 {
+		for _, a := range scan.PlanAdds(cfg, d, modelFunc(cfg), nil) {
+			if a.Kind == scan.Add {
+				adds++
+			}
+		}
+	}
 	var parts []string
-	if n := len(d.New); n > 0 {
-		parts = append(parts, plural(n, "new app", "new apps")+" in "+strings.Join(cfg.Projects, ", "))
+	if adds > 0 {
+		parts = append(parts, plural(adds, "new app", "new apps")+" in "+strings.Join(cfg.Projects, ", "))
 	}
 	if n := len(d.Gone); n > 0 {
 		parts = append(parts, plural(n, "app's folder is", "apps' folders are")+" gone")
+	}
+	if len(parts) == 0 {
+		return
 	}
 	fmt.Fprintf(out, "\n%s%s - run hl sync%s\n", yellow, strings.Join(parts, ", "), reset)
 }

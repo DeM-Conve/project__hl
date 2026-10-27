@@ -49,11 +49,16 @@ func printStatus(ctx context.Context, cfg *config.Config) error {
 	case inv == nil:
 		proxyState = "unknown"
 	case inv.owner(cfg, cfg.ProxyProject()) != "":
-		proxyState = yellow + "used by the homelab in " + inv.owner(cfg, cfg.ProxyProject()) + reset
+		// Not this homelab's proxy: its address would only mislead.
+		say("%sproxy:%s %srun by another homelab (%s) - see hl doctor%s", bold, reset, yellow, inv.owner(cfg, cfg.ProxyProject()), reset)
+		say("%shome %s%s", dim, cfg.Dir, reset)
+		proxyState = ""
 	case inv.running(cfg.ProxyProject()):
 		proxyState = green + "running" + reset
 	}
-	say("%sproxy%s %s  %s%s:%d%s  %shome %s%s", bold, reset, proxyState, dim, cfg.Proxy.Bind, cfg.Proxy.Port, reset, dim, cfg.Dir, reset)
+	if proxyState != "" {
+		say("%sproxy%s %s  %s%s:%d%s  %shome %s%s", bold, reset, proxyState, dim, cfg.Proxy.Bind, cfg.Proxy.Port, reset, dim, cfg.Dir, reset)
+	}
 	if u := cfg.DashboardURL(); u != "" {
 		say("%sdashboard %s%s", dim, u, reset)
 	}

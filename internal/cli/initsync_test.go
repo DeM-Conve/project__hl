@@ -375,6 +375,36 @@ func TestSync(t *testing.T) {
 	if out, err = runHL(t, "", "sync", "--home", lab, "--yes"); err != nil || !strings.Contains(out, "in sync") {
 		t.Errorf("%v\n%s", err, out)
 	}
+
+	// A folder sync would only skip (not a web app) is no reason to run it.
+	fakeApp(t, filepath.Join(code, "cache"), `{"services":{"cache":{"ports":[{"target":6380}]}}}`)
+	if out, _ = runHL(t, "", "status", "--home", lab); strings.Contains(out, "hl sync") {
+		t.Errorf("status should not send you to hl sync for a folder it skips:\n%s", out)
+	}
+	fakeApp(t, filepath.Join(code, "wiki"), webModel)
+	if out, _ = runHL(t, "", "status", "--home", lab); !strings.Contains(out, "1 new app in ~/my code - run hl sync") {
+		t.Errorf("status hint missing:\n%s", out)
+	}
+}
+
+func TestStatusOtherHomelabsProxy(t *testing.T) {
+	home := initSyncEnv(t)
+	lab, other := filepath.Join(home, "lab"), filepath.Join(home, "other lab")
+	if out, err := runHL(t, "", "init", lab, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	ps := strings.Join([]string{"hl-proxy", "traefik", "running", "Up 1 hour",
+		filepath.Join(other, ".hl", "proxy", "compose.yml"), "hl-proxy-traefik-1"}, "\t") + "\n"
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), []byte(ps), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runHL(t, "", "status", "--home", lab)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !strings.Contains(out, "proxy: run by another homelab ("+other+") - see hl doctor\nhome "+lab) || strings.Contains(out, "127.0.0.1:80") {
+		t.Errorf("status header:\n%s", out)
+	}
 }
 
 func TestStripPrefix(t *testing.T) {
