@@ -422,11 +422,15 @@ func upProxy(ctx context.Context, cfg *config.Config, args ...string) error {
 		return startProxy(ctx, cfg, p, args...)
 	}
 	// Compose replaces a running proxy whose files changed; if the new address is taken, the
-	// old proxy is gone and the new one can't start. So check a new address first.
+	// old proxy is gone and the new one can't start. So check a new address first, and the
+	// network: compose can't change the subnet of a network the running proxy is attached to.
 	if moved(ctx, cfg, p.Name) {
 		if err := checkPort(ctx, cfg); err != nil {
 			return fmt.Errorf("%w - the running proxy is left as it is", err)
 		}
+	}
+	if err := checkNetwork(ctx, cfg); err != nil {
+		return fmt.Errorf("%w - the running proxy is left as it is", err)
 	}
 	step(proxyArg)
 	if err := p.Run(ctx, append([]string{"up", "--detach"}, args...)...); err != nil {

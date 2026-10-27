@@ -208,7 +208,9 @@ warns. Kept apps are never re-mapped.
   running container's published address (`docker ps --format {{.Ports}}`); when the port
   differs from `proxy.port` (or the bind does and neither is a wildcard address), `checkPort`
   runs first and a busy address is refused with the running proxy left alone - compose would
-  remove it and then fail to bind the new one. `statusAfter` prints a command's error before
+  remove it and then fail to bind the new one. `checkNetwork` runs too, so a new `proxy.subnet`
+  is refused the same way (compose would remove the proxy, then fail to change a network that
+  still has endpoints). `statusAfter` prints a command's error before
   the status table and exits 1. `rebuild proxy` adds
   `--force-recreate`; `restart proxy` restarts its container (starting it when it isn't running);
   `down proxy` is `downProxy`; `logs proxy` runs `docker compose logs` on it. Other commands that

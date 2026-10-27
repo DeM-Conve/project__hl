@@ -1034,6 +1034,33 @@ func TestProxyIsAPseudoApp(t *testing.T) {
 	lacks(t, "complete logs proxy", out, "traefik")
 }
 
+// A new proxy.subnet while the proxy runs: `hl up` refuses before compose touches the running
+// proxy (compose would remove it, then fail to change the network it is attached to).
+func TestUpRefusesNewSubnetOfRunningProxy(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "proxy: {subnet: 10.200.0.0/16}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"network ls"}, Stdout: "n1\nn2\n"})
+	f.on(rule{Match: []string{"network inspect", "n1"}, Stdout: "bridge\t172.17.0.0/16 \nhl-proxy\t172.30.0.0/16 \n"})
+	for _, args := range [][]string{{"up"}, {"up", "proxy"}} {
+		f.reset()
+		r := f.hl(args...)
+		if r.code != 1 || len(f.find("compose", "up")) != 0 {
+			t.Fatalf("hl %v: want a refusal and no compose up: %s\n%v", args, r, f.calls())
+		}
+		contains(t, "new subnet", r.errOut, "network hl-proxy exists with subnet 172.30.0.0/16, but proxy.subnet is 10.200.0.0/16",
+			"the running proxy is left as it is", "`hl down`", "`hl set proxy subnet=172.30.0.0/16`")
+	}
+	// The network's own subnet: compose up runs.
+	f.lab("lab", "proxy: {subnet: 172.30.0.0/16}\napps:\n  a: {path: '"+a+"'}\n")
+	f.reset()
+	f.must("up", "proxy")
+	if len(f.find("--project-name hl-proxy", "up --detach")) != 1 {
+		t.Errorf("same subnet: compose up expected: %v", f.calls())
+	}
+}
+
 func TestDoctor(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)

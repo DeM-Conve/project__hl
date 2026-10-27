@@ -241,6 +241,9 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl up` (or `hl up proxy`) after `hl set proxy subnet=` while the proxy runs refuses with
+  the fix (`hl down`, then `hl up`) and leaves the running proxy up. Compose used to remove the
+  proxy, then fail to change the network ("has active endpoints"), so every app lost its route.
 - `hl init` on an existing homelab with nothing to change says `nothing to change in hl.yml`
   and exits 0 without a terminal; when it isn't the default homelab, it used to fail with "not
   a terminal, so nothing was written" - now the default stays as it is and hl says how to
