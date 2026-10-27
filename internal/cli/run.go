@@ -283,7 +283,7 @@ func rebuildCmd() *cobra.Command {
 			return statusAfter(ctx, cfg, err)
 		})
 	w.add(c)
-	c.Flags().BoolVar(&pull, "pull", false, "first git pull each app's folder (fast-forward only; skips folders that aren't git repos or have uncommitted changes); for the proxy, pull its image")
+	c.Flags().BoolVar(&pull, "pull", false, "first git pull each app's folder (fast-forward only; a folder that isn't a git repo or has uncommitted changes is rebuilt without a pull); for the proxy, pull its image")
 	return c
 }
 
@@ -498,8 +498,8 @@ func downProxy(ctx context.Context, cfg *config.Config, inv *inventory) error {
 }
 
 // pullAndRebuild is rebuild --pull for apps: git pull --ff-only in each app's folder, then
-// rebuild it. A folder that isn't a git repo or has uncommitted changes is skipped (neither
-// pulled nor rebuilt), and the summary says why.
+// rebuild it. A folder that isn't a git repo or has uncommitted changes isn't pulled but is
+// still rebuilt from the code it has; the summary says which and why.
 func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *waitFlags) error {
 	if _, err := exec.LookPath("git"); err != nil {
 		return withHint(errors.New("git not found on PATH"), "install git: --pull pulls each app's folder with it, or rebuild without --pull")
@@ -511,26 +511,25 @@ func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *
 	if err := ensureProxy(ctx, cfg, inv); err != nil {
 		return err
 	}
-	var updated, skipped []string
+	var pulled, local []string
 	f := &failures{total: len(names)}
 	for _, n := range names {
 		dir := cfg.AppDir(cfg.Apps[n])
 		step(n + " " + dim + "(" + dir + ")" + reset)
-		if why := dirty(ctx, dir); why != "" {
-			say("%sskipped:%s %s", yellow, reset, why)
-			skipped = append(skipped, n+" ("+why+")")
-			continue
-		}
-		pull := exec.Command("git", "-C", dir, "pull", "--ff-only")
-		pull.Stdout, pull.Stderr = stdout, stderr
-		if err := compose.Exec(ctx, pull); err != nil {
-			if errors.Is(err, interrupt.ErrInterrupted) {
-				return err
+		why := dirty(ctx, dir)
+		if why == "" {
+			pull := exec.Command("git", "-C", dir, "pull", "--ff-only")
+			pull.Stdout, pull.Stderr = stdout, stderr
+			if err := compose.Exec(ctx, pull); err != nil {
+				if errors.Is(err, interrupt.ErrInterrupted) {
+					return err
+				}
+				f.add(n, withHint(fmt.Errorf("%s: git pull --ff-only failed; the folder is left as it was", n),
+					"the branch may have diverged or have no upstream - sort it out in %s, then `hl rebuild %s --pull`", dir, n))
+				continue
 			}
-			f.add(n, withHint(fmt.Errorf("%s: git pull --ff-only failed; the folder is left as it was", n),
-				"the branch may have diverged or have no upstream - sort it out in %s, then `hl rebuild %s --pull`", dir, n))
-			continue
 		}
+		// A folder hl may not pull is still rebuilt from the code it has.
 		if err := runApp(ctx, cfg, inv, n, w, "up", "--detach", "--build"); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
@@ -538,14 +537,18 @@ func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *
 			f.add(n, err)
 			continue
 		}
-		updated = append(updated, n)
+		if why == "" {
+			pulled = append(pulled, n)
+		} else {
+			local = append(local, n+" ("+why+")")
+		}
 	}
 	fmt.Fprintln(stdout)
-	if len(updated) > 0 {
-		say("pulled and rebuilt: %s", strings.Join(updated, ", "))
+	if len(pulled) > 0 {
+		say("pulled and rebuilt: %s", strings.Join(pulled, ", "))
 	}
-	if len(skipped) > 0 {
-		say("%sskipped:%s %s", yellow, reset, strings.Join(skipped, "; "))
+	if len(local) > 0 {
+		say("%spull skipped%s, rebuilt from the code in the folder: %s", yellow, reset, strings.Join(local, "; "))
 	}
 	return f.err()
 }
@@ -560,7 +563,7 @@ func dirty(ctx context.Context, dir string) string {
 		return "git status failed: " + err.Error()
 	}
 	if n := len(strings.Split(strings.TrimSpace(out), "\n")); strings.TrimSpace(out) != "" {
-		return fmt.Sprintf("uncommitted changes in %d file(s) - commit or stash them first", n)
+		return "uncommitted changes in " + plural(n, "file", "files")
 	}
 	return ""
 }

@@ -66,8 +66,8 @@ release differs from earlier builds of `main`.
   and where it came from. When the zone can't be told, no `TZ` is set.
 - `hl logs` with no app shows every app's logs at once, each line prefixed by its app; `-n`/`--tail`
   sets how many lines (default 200).
-- `hl rebuild --pull` runs `git pull --ff-only` in each app's folder before rebuilding it, skips
-  folders that aren't git repos or have uncommitted changes, and says which it skipped and why;
+- `hl rebuild --pull` runs `git pull --ff-only` in each app's folder before rebuilding it; a folder
+  that isn't a git repo or has uncommitted changes is rebuilt from its own code without a pull, and the summary says which and why;
   `hl rebuild proxy --pull` pulls the proxy's image.
 - `hl shell` opens the service behind the proxy by default, also when hl detected it rather than
   `hl.yml` pinning it, and exits with the shell's own status.
@@ -158,8 +158,8 @@ release differs from earlier builds of `main`.
 - **Breaking:** `hl projects`, `hl ignore` and `hl strip-prefix` are gone: `hl set projects+=<folder>`,
   `hl set ignore-=<pattern>`, `hl set strip_prefix=<prefix>` and `hl unset <key>` do what their
   `add`/`remove` did, and `hl show` lists them.
-- **Breaking:** `hl update` is `hl rebuild --pull` (same skips: folders that aren't git repos or
-  have uncommitted changes are neither pulled nor rebuilt).
+- **Breaking:** `hl update` is `hl rebuild --pull`; a folder that isn't a git repo or has
+  uncommitted changes is no longer skipped altogether but rebuilt without a pull.
 - **Breaking:** `hl config`, `hl ps`, `hl path` and `--wait-all` are gone. `hl config <app>` is
   `hl show <app> --compose`; `hl config check` is what every command (and `hl doctor`) does
   already; what `hl config defaults` showed that matters is in `hl show` (the `TZ` apps get, the

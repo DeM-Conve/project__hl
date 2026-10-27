@@ -100,9 +100,9 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     are `hl set projects+=...` and the like.
 13. **Picking apps on a terminal**: `hl init` used to offer the apps found as a checklist; now it
     shows the plan and asks once, and `--apps a,b` picks. Is that enough?
-14. **`hl rebuild --pull` and a folder with uncommitted changes** (2026-10-27): like `hl update`
-    before it, such an app is skipped altogether (neither pulled nor rebuilt). Should it still be
-    rebuilt from its local code, with only the pull skipped?
+14. ~~`hl rebuild --pull` and a folder with uncommitted changes~~ - decided 2026-10-27 (review
+    fixes): such an app, and one whose folder isn't a git repo, is rebuilt from its local code with
+    only the pull skipped ([requirements.md](requirements.md)).
 15. **Shared prefix and clash names on an existing homelab** (2026-10-27): `hl init` strips a
     shared folder-name prefix and picks a `name`/free port only for a new homelab. Re-running it
     on an existing `hl.yml` without `strip_prefix` (or one clashing with another homelab) changes

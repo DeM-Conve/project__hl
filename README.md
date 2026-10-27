@@ -106,7 +106,7 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl up [app...]` | Start apps, the proxy first; builds missing images, and rebuilds an image whose build args changed (a base path from `${HL_PREFIX}`, say). `--wait` waits until they're healthy and shows the logs of any that aren't. Ends with `hl status`. |
 | `hl down [app...]` | Stop and remove containers; with no app, also the proxy. Data stays. |
 | `hl restart [app...]` | Restart containers without rebuilding. |
-| `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (skips ones with uncommitted changes); for the proxy it pulls the image. |
+| `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (a folder with uncommitted changes, or not a git repo, is rebuilt without a pull); for the proxy it pulls the image. |
 | `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every app's, prefixed by its name. |
 | `hl status` (`ls`) | The proxy, then each app's state, health, URL and folder. Says when `hl sync` has something to do. |
 | `hl open <app>` | Print the app's URL and open it in the browser. |

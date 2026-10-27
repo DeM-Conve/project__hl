@@ -74,7 +74,7 @@ func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry, noEnv bo
 		if !stdinTerminal(in) {
 			return errors.New("not a terminal - pass --yes to apply the plan, or --dry-run to only show it")
 		}
-		if !newPrompter(in, out).confirm(fmt.Sprintf("apply %d change(s) to %s?", changes, config.FileName), false) {
+		if !newPrompter(in, out).confirm(fmt.Sprintf("apply %s to %s?", plural(changes, "change", "changes"), config.FileName), false) {
 			fmt.Fprintln(out, "nothing changed")
 			return nil
 		}

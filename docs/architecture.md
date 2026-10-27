@@ -243,9 +243,9 @@ warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-m
   characters escaped, to `ignore`; `hl add` removes an `ignore` entry that is exactly the
   folder's name),
   deletes it from `hl.yml` and `.hl/<app>/`, and keeps `data/<app>/`.
-- `rebuild --pull` per app (`pullAndRebuild`): skip if `git status --porcelain` fails (not a repo) or shows changes; otherwise
+- `rebuild --pull` per app (`pullAndRebuild`): no pull if `git status --porcelain` fails (not a repo) or shows changes; otherwise
   `git pull --ff-only` (a failed pull is a failure for that app; the folder is left as it was),
-  then `up --detach --build`. It ends with the updated and the skipped apps and why.
+  then `up --detach --build` either way. It ends with the pulled apps and the ones rebuilt without a pull, and why.
 - `status`: STATE `down`, `up n/m` or `partial n/m`; HEALTH from the containers' status:
   `healthy` (every healthcheck passes), `starting: <services>`, `unhealthy: <services>` (also
   restarting or exited ones), `-` without healthchecks. Without Docker it still prints hl.yml's
@@ -278,7 +278,7 @@ warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-m
   version), the daemon (`docker info`: version, OS, architecture), compose >= 2.24, that `hl.yml`
   loads (every problem with its line), the proxy (config, ownership, image), a non-loopback bind
   (a warning), the port and subnet when the proxy isn't running, projects owned
-  by another homelab, and that every app prepares. It ends "all good" or "n problem(s) found"
+  by another homelab, and that every app prepares. It ends "all good" or "n problems found"
   (exit 1) with a note to paste it into bug reports.
 - Completion: commands taking one app complete only the first argument; multi-app commands leave
   out apps already typed; `logs` and `shell` complete the app's services after the app name.

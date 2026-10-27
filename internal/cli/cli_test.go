@@ -608,11 +608,20 @@ func TestRebuildPull(t *testing.T) {
 	if r.code != 1 {
 		t.Fatalf("a failed pull fails the command: %s", r)
 	}
-	contains(t, "rebuild --pull", r.out, "skipped: uncommitted changes in 2 file(s)", "skipped: not a git repository",
-		"pulled and rebuilt: clean", "skipped: dirty (uncommitted changes in 2 file(s) - commit or stash them first); plain (not a git repository)")
+	// A folder hl may not pull is rebuilt from its own code; the reason is said once.
+	contains(t, "rebuild --pull", r.out, "pulled and rebuilt: clean",
+		"pull skipped, rebuilt from the code in the folder: dirty (uncommitted changes in 2 files); plain (not a git repository)")
+	if n := strings.Count(r.out, "not a git repository"); n != 1 {
+		t.Errorf("the reason is said %d times:\n%s", n, r.out)
+	}
 	contains(t, "rebuild --pull", r.errOut, "diverged: git pull --ff-only failed", "hl rebuild diverged --pull", "1 of 4 apps failed: diverged")
 	if p := f.find("-C "+dirty, "pull"); len(p) != 0 {
 		t.Errorf("pulled over uncommitted work: %v", p)
+	}
+	for _, n := range []string{"dirty", "plain"} {
+		if u := f.find("--project-name hl-"+n, "up --detach --build"); len(u) != 1 {
+			t.Errorf("%s not rebuilt: %v", n, u)
+		}
 	}
 	if p := f.find("-C "+clean, "pull --ff-only"); len(p) != 1 {
 		t.Errorf("clean app not pulled: %v", f.calls())
@@ -851,7 +860,7 @@ func TestDoctor(t *testing.T) {
 	}
 	contains(t, "doctor", r.out, "hl ", "go1.", "docker 27.3.1", "docker daemon 27.3.1 on Fake Linux", "docker compose 2.29.1",
 		"homelab ", "(2 apps)", "reachable from your network", "✓ app a", "✗ app b", "proxy port 0.0.0.0:80 is free")
-	contains(t, "doctor", r.errOut, "1 problem(s) found", "bug report")
+	contains(t, "doctor", r.errOut, "1 problem found", "bug report")
 
 	f.lab("lab2", "apps: {}\n")
 	r = f.must("doctor")
@@ -888,7 +897,7 @@ func TestDoctorChecksTheLatestRelease(t *testing.T) {
 
 	version.Version = "v0.1.0"
 	r := f.must("doctor")
-	contains(t, "out of date", r.out, "! hl v0.1.0 is out of date: v0.2.0 is the latest release", "update: curl -fsSL", "/releases", "all good (1 warning(s))")
+	contains(t, "out of date", r.out, "! hl v0.1.0 is out of date: v0.2.0 is the latest release", "update: curl -fsSL", "/releases", "all good (1 warning)")
 
 	latest.Store(`{"tag_name": "v0.1.0"}`)
 	r = f.must("doctor")
