@@ -87,7 +87,8 @@ in hl may assume the maintainer's setup.
 - [x] **`hl add` asks when it has to guess**: several services publishing ports, or several ports
   -> pick from a list (flags still win; non-terminal -> clear error naming the flag to pass).
 - [x] **`hl set <app> key=value` / `hl unset`** (routing, prefix, host, port, service, env.X) -
-  edits hl.yml keeping its comments, validates first.
+  edits hl.yml keeping its comments, validates first. Also `hl set proxy key=value` and
+  `hl set env.X=value` (the shared env), so hl.yml never has to be opened.
 - [x] **`hl config check`** (or `hl doctor`): validates hl.yml with line numbers and a fix for
   each problem; unknown keys are errors with a "did you mean".
 - [x] **`hl edit`**: opens hl.yml in `$EDITOR`, validates on save, re-opens on error.

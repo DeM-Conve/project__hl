@@ -106,3 +106,86 @@ func TestAppKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestEditProxyAndSharedEnv(t *testing.T) {
+	dir := write(t, commented)
+	if err := Edit(dir, ProxyScope, []Change{
+		{Key: "port", Value: "8082"}, {Key: "subnet", Value: "172.31.0.0/16"}, {Key: "bind", Value: "0.0.0.0"}, {Key: "access_log", Value: "true"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Edit(dir, HomelabScope, []Change{{Key: "env.TZ", Value: "Europe/Berlin"}}); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, dir)
+	for _, want := range []string{"bind: 0.0.0.0 # this machine only", "port: 8082", "subnet: 172.31.0.0/16", "access_log: true", "# the proxy"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Index(got, "TZ: Europe/Berlin") > strings.Index(got, "apps:") {
+		t.Errorf("the shared env should come before apps:\n%s", got)
+	}
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Proxy.Port != 8082 || c.Proxy.Bind != "0.0.0.0" || !c.Proxy.AccessLog || c.Env["TZ"] != "Europe/Berlin" || c.Apps["my-app"].Env["TZ"] != "UTC" {
+		t.Errorf("after set: proxy %+v, env %v", c.Proxy, c.Env)
+	}
+
+	if err := Edit(dir, ProxyScope, []Change{{Key: "port", Unset: true}, {Key: "subnet", Unset: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Edit(dir, HomelabScope, []Change{{Key: "env.TZ", Unset: true}}); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = Load(dir)
+	if c.Proxy.Port != 80 || c.Proxy.Subnet != "" || c.Env != nil {
+		t.Errorf("after unset: proxy %+v, env %v", c.Proxy, c.Env)
+	}
+
+	// No proxy: section yet.
+	dir = write(t, "apps: {}\n")
+	if err := Edit(dir, ProxyScope, []Change{{Key: "port", Value: "8080"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, dir); !strings.HasPrefix(got, "proxy:\n  port: 8080\n") {
+		t.Errorf("new proxy section:\n%s", got)
+	}
+}
+
+func TestEditProxyRefusesBadResults(t *testing.T) {
+	dir := write(t, commented)
+	for _, tc := range []struct {
+		scope   string
+		changes []Change
+		has     string
+	}{
+		{ProxyScope, []Change{{Key: "port", Value: "70000"}}, "not a port"},
+		{ProxyScope, []Change{{Key: "subnet", Value: "nope"}}, "not a subnet"},
+		{ProxyScope, []Change{{Key: "bnd", Value: "0.0.0.0"}}, `did you mean "bind"?`},
+		{ProxyScope, []Change{{Key: "dashboard", Value: "yes please"}}, "not true or false"},
+		{ProxyScope, []Change{{Key: "bind", Value: "0.0.0.0"}, {Key: "dashboard", Value: "true"}}, "dashboard_public"},
+		{HomelabScope, []Change{{Key: "env.1X", Value: "a"}}, "not a valid variable name"},
+		{HomelabScope, []Change{{Key: "name", Value: "lab2"}}, "use one of: env."},
+		{HomelabScope, []Change{{Key: "apps", Value: "x"}}, "unknown setting"},
+	} {
+		err := Edit(dir, tc.scope, tc.changes)
+		if err == nil || !strings.Contains(err.Error(), tc.has) {
+			t.Errorf("%q %+v: err = %v, want %q", tc.scope, tc.changes, err, tc.has)
+		}
+		if read(t, dir) != commented {
+			t.Fatalf("%+v: hl.yml changed although the result was refused", tc.changes)
+		}
+	}
+	if !HasApp(dir, "blog") || HasApp(dir, "nope") {
+		t.Error("HasApp")
+	}
+	if !IsHomelabKey("env.TZ") || !IsHomelabKey("env") || IsHomelabKey("port") {
+		t.Error("IsHomelabKey")
+	}
+	if got := strings.Join(ProxyKeys(), " "); !strings.Contains(got, "port") || !strings.Contains(got, "dashboard_public") {
+		t.Errorf("ProxyKeys() = %s", got)
+	}
+}

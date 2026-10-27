@@ -187,6 +187,92 @@ func TestSetAndUnset(t *testing.T) {
 	}
 }
 
+func TestSetProxyAndSharedEnv(t *testing.T) {
+	home, _ := homelab(t, "version: 1\n# the proxy\nproxy:\n  bind: 127.0.0.1  # loopback\napps:\n  my-app:\n    path: ~/code/my-app\n")
+	out, err := run(t, "", "set", "proxy", "port=8082", "subnet=172.31.0.0/16", "bind=0.0.0.0")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, want := range []string{"set proxy.port = 8082", "set proxy.subnet = 172.31.0.0/16", "apply it: hl down, then hl up"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	out, err = run(t, "", "set", "env.TZ=Europe/Berlin", "env.LANG=C.UTF-8")
+	if err != nil || !strings.Contains(out, "set env.TZ = Europe/Berlin") || !strings.Contains(out, "apply it: hl up (") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	got := hlYML(t, home)
+	for _, want := range []string{"# the proxy", "bind: 0.0.0.0 # loopback", "port: 8082", "subnet: 172.31.0.0/16", "TZ: Europe/Berlin", "LANG: C.UTF-8"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q:\n%s", want, got)
+		}
+	}
+
+	if out, err := run(t, "", "unset", "proxy", "port"); err != nil || !strings.Contains(out, "unset proxy.port") || !strings.Contains(out, "apply it: hl proxy up\n") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if out, err := run(t, "", "unset", "env.TZ"); err != nil || !strings.Contains(out, "unset env.TZ") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if out, err := run(t, "", "unset", "env"); err != nil || !strings.Contains(out, "unset env") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	got = hlYML(t, home)
+	if strings.Contains(got, "port:") || strings.Contains(got, "TZ") || strings.Contains(got, "LANG") || !strings.Contains(got, "subnet:") {
+		t.Errorf("after unset:\n%s", got)
+	}
+
+	before := hlYML(t, home)
+	for _, args := range [][]string{
+		{"set", "proxy", "port=0"},
+		{"set", "proxy", "dashboard=maybe"},
+		{"set", "proxy"},
+		{"set", "env.TZ="},
+		{"set", "port=80"},
+		{"set", "my-app"},
+		{"unset", "proxy"},
+		{"unset", "port"},
+	} {
+		if out, err := run(t, "", args...); err == nil {
+			t.Errorf("%v: expected an error\n%s", args, out)
+		}
+	}
+	if hlYML(t, home) != before {
+		t.Error("a refused change was written")
+	}
+
+	// Completion: the first argument offers apps, proxy and the shared keys; then the scope's keys.
+	out, _ = run(t, "", "__complete", "set", "")
+	for _, want := range []string{"my-app\n", "proxy\n", "env.\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("complete set: missing %q:\n%s", want, out)
+		}
+	}
+	out, _ = run(t, "", "__complete", "set", "proxy", "")
+	if !strings.Contains(out, "subnet=\n") || strings.Contains(out, "prefix=") {
+		t.Errorf("complete set proxy:\n%s", out)
+	}
+	out, _ = run(t, "", "__complete", "unset", "my-app", "")
+	if !strings.Contains(out, "prefix\n") || strings.Contains(out, "subnet") {
+		t.Errorf("complete unset my-app:\n%s", out)
+	}
+	out, _ = run(t, "", "__complete", "set", "env.TZ=UTC", "")
+	if !strings.Contains(out, "env.\n") || strings.Contains(out, "port") {
+		t.Errorf("complete set env.TZ=UTC:\n%s", out)
+	}
+}
+
+func TestUnsetAppNamedLikeASharedKey(t *testing.T) {
+	home, _ := homelab(t, "version: 1\nenv:\n  TZ: UTC\napps:\n  env.tz:\n    path: ~/code/my-app\n    prefix: /x\n")
+	if out, err := run(t, "", "unset", "env.tz", "prefix"); err != nil || !strings.Contains(out, "unset apps.env.tz.prefix") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := hlYML(t, home); !strings.Contains(got, "TZ: UTC") || strings.Contains(got, "prefix") {
+		t.Errorf("after unset:\n%s", got)
+	}
+}
+
 // fakeEditor sets $EDITOR to a script that, on its n-th run, replaces the file with
 // versions[n] (the last one repeats), and counts its runs in the returned file.
 func fakeEditor(t *testing.T, versions ...string) (runs string) {

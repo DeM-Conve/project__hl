@@ -92,7 +92,10 @@ release differs from earlier builds of `main`.
 - `hl config check` lists every problem in `hl.yml` with its line number and a fix, including
   unknown keys with a "did you mean".
 - `hl set <app> key=value` and `hl unset <app> key` change an app's settings, keeping `hl.yml`'s
-  comments and writing only a valid result.
+  comments and writing only a valid result. `hl set proxy port=8080 bind=0.0.0.0` changes the
+  proxy and `hl set env.TZ=UTC` (no app) the env every app gets; `hl unset proxy port` and
+  `hl unset env.TZ` remove them. hl says which command applies the change, and shell completion
+  offers the keys.
 - `hl edit` opens `hl.yml` in your editor, checks it on save and reopens it on a problem;
   `hl.yml` is never left broken.
 - `hl config defaults` shows every default, the value in effect and where it comes from, and the

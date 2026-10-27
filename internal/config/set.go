@@ -9,19 +9,59 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
-// Change is one edit to an app's settings: Key=Value, or with Unset the key removed.
-// Keys are App's hl.yml keys (port, routing, ...); a map setting takes a name: env.TZ.
+// Change is one edit to a group of settings: Key=Value, or with Unset the key removed.
+// Keys are hl.yml keys of that group (port, routing, ...); a map setting takes a name: env.TZ.
 type Change struct {
 	Key, Value string
 	Unset      bool
 }
 
-// AppKeys are the keys `hl set` accepts, sorted; map settings end in "." (env.).
-func AppKeys() []string {
-	var keys []string
-	for k, t := range yamlFields(reflect.TypeOf(App{})) {
+// The scopes `hl set`/`hl unset` change besides an app: the settings shared by every app
+// (HomelabScope) and the proxy section. ProxyScope is the reserved app name, so no app has it.
+const (
+	HomelabScope = ""
+	ProxyScope   = defaults.ReservedAppName
+)
+
+// homelabKeys are the top-level settings `hl set` changes. The others stay with hl edit or
+// commands of their own: name renames every Docker object, projects/ignore/scan_depth
+// belong to hl init and hl sync.
+var homelabKeys = []string{"env"}
+
+// AppKeys are the keys `hl set <app>` accepts, sorted; map settings end in "." (env.).
+func AppKeys() []string { return keysOf(appFields()) }
+
+// ProxyKeys are the keys `hl set proxy` accepts, sorted.
+func ProxyKeys() []string { return keysOf(proxyFields()) }
+
+// HomelabKeys are the keys `hl set` accepts without an app (the shared env.), sorted.
+func HomelabKeys() []string { return keysOf(homelabFields()) }
+
+// IsHomelabKey reports whether key (env, env.TZ) is a setting shared by every app.
+func IsHomelabKey(key string) bool {
+	field, _, _ := strings.Cut(key, ".")
+	_, ok := homelabFields()[field]
+	return ok
+}
+
+func appFields() map[string]reflect.Type   { return yamlFields(reflect.TypeOf(App{})) }
+func proxyFields() map[string]reflect.Type { return yamlFields(reflect.TypeOf(Proxy{})) }
+func homelabFields() map[string]reflect.Type {
+	all := yamlFields(reflect.TypeOf(Config{}))
+	out := map[string]reflect.Type{}
+	for _, k := range homelabKeys {
+		out[k] = all[k]
+	}
+	return out
+}
+
+func keysOf(fields map[string]reflect.Type) []string {
+	keys := make([]string, 0, len(fields))
+	for k, t := range fields {
 		if t.Kind() == reflect.Map {
 			k += "."
 		}
@@ -31,12 +71,36 @@ func AppKeys() []string {
 	return keys
 }
 
-// EditApp applies changes to one app in <dir>/hl.yml, keeping the file's comments and order.
-// The result is checked first: if it has any problem, hl.yml is left as it was and the error
-// lists them.
+// HasApp reports whether <dir>/hl.yml has an app called name (false when it can't be read).
+func HasApp(dir, name string) bool {
+	found := false
+	_, _ = edited(filepath.Join(dir, FileName), func(root *yaml.Node) error {
+		if apps := lookup(root, "apps"); apps != nil && apps.Kind == yaml.MappingNode {
+			found = lookup(apps, name) != nil
+		}
+		return nil
+	})
+	return found
+}
+
+// Edit applies changes to scope in <dir>/hl.yml - HomelabScope (the shared env), ProxyScope
+// (proxy:) or an app's name - keeping the file's comments and order. The result is checked
+// first: if it has any problem, hl.yml is left as it was and the error lists them.
+func Edit(dir, scope string, changes []Change) error {
+	switch scope {
+	case HomelabScope:
+		return editScope(dir, changes, homelabFields(), func(root *yaml.Node) (*yaml.Node, error) { return root, nil })
+	case ProxyScope:
+		return editScope(dir, changes, proxyFields(), func(root *yaml.Node) (*yaml.Node, error) {
+			return section(root, "proxy"), nil
+		})
+	}
+	return EditApp(dir, scope, changes)
+}
+
+// EditApp is Edit for one app.
 func EditApp(dir, name string, changes []Change) error {
-	path := filepath.Join(dir, FileName)
-	out, err := edited(path, func(root *yaml.Node) error {
+	return editScope(dir, changes, appFields(), func(root *yaml.Node) (*yaml.Node, error) {
 		apps := lookup(root, "apps")
 		var app *yaml.Node
 		var names []string
@@ -48,16 +112,49 @@ func EditApp(dir, name string, changes []Change) error {
 		}
 		if app == nil {
 			if s := suggest(name, names); s != "" {
-				return fmt.Errorf("no app %q in %s - did you mean %q?", name, FileName, s)
+				return nil, fmt.Errorf("no app %q in %s - did you mean %q?", name, FileName, s)
 			}
-			return fmt.Errorf("no app %q in %s (apps: %s)", name, FileName, strings.Join(names, ", "))
+			return nil, fmt.Errorf("no app %q in %s (apps: %s)", name, FileName, strings.Join(names, ", "))
 		}
-		if app.Kind != yaml.MappingNode {
-			*app = yaml.Node{Kind: yaml.MappingNode, LineComment: app.LineComment, HeadComment: app.HeadComment}
+		return app, nil
+	})
+}
+
+// section is the mapping under key in m, added before apps: when missing.
+func section(m *yaml.Node, key string) *yaml.Node {
+	if n := lookup(m, key); n != nil {
+		return n
+	}
+	n := &yaml.Node{Kind: yaml.MappingNode}
+	at := len(m.Content)
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == "apps" {
+			at = i
+			break
 		}
-		fields := yamlFields(reflect.TypeOf(App{}))
+	}
+	kv := []*yaml.Node{{Kind: yaml.ScalarNode, Value: key}, n}
+	m.Content = append(m.Content[:at], append(kv, m.Content[at:]...)...)
+	return n
+}
+
+// editScope applies changes to the mapping find returns, checks the result and writes it.
+func editScope(dir string, changes []Change, fields map[string]reflect.Type, find func(root *yaml.Node) (*yaml.Node, error)) error {
+	path := filepath.Join(dir, FileName)
+	out, err := edited(path, func(root *yaml.Node) error {
+		target, err := find(root)
+		if err != nil {
+			return err
+		}
+		if target.Kind != yaml.MappingNode {
+			// `proxy:` or an app with nothing under it.
+			*target = yaml.Node{Kind: yaml.MappingNode, LineComment: target.LineComment, HeadComment: target.HeadComment}
+		}
+		if len(target.Content) == 0 {
+			target.Style = 0 // `{}` becomes a block mapping
+		}
 		for _, c := range changes {
-			if err := applyChange(app, fields, c); err != nil {
+			if err := applyChange(target, fields, c); err != nil {
 				return err
 			}
 		}
@@ -85,7 +182,7 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 		if s := suggest(field, names); s != "" {
 			return fmt.Errorf("%s - did you mean %q?", msg, s)
 		}
-		return fmt.Errorf("%s - use one of: %s", msg, strings.Join(AppKeys(), ", "))
+		return fmt.Errorf("%s - use one of: %s", msg, strings.Join(keysOf(fields), ", "))
 	}
 	isMap := t.Kind() == reflect.Map
 	switch {
@@ -105,8 +202,7 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 				return nil
 			}
 			if m == nil {
-				m = &yaml.Node{Kind: yaml.MappingNode}
-				app.Content = append(app.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: field}, m)
+				m = section(app, field) // the shared env goes above apps:
 			} else {
 				*m = yaml.Node{Kind: yaml.MappingNode, LineComment: m.LineComment, HeadComment: m.HeadComment}
 			}
@@ -142,6 +238,12 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 		v = items
 	case reflect.String:
 		v = c.Value
+	case reflect.Bool:
+		b, err := strconv.ParseBool(c.Value)
+		if err != nil {
+			return fmt.Errorf("%s: %q is not true or false", c.Key, c.Value)
+		}
+		v = b
 	default:
 		return fmt.Errorf("%s can't be set from the command line - use hl edit", c.Key)
 	}

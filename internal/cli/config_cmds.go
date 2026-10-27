@@ -65,93 +65,184 @@ func configCheckCmd() *cobra.Command {
 	}
 }
 
+const setScopesHelp = `What to change is the first argument:
+  <app>    that app's settings. Keys: ` + "%s" + `
+  proxy    the proxy (proxy: in hl.yml). Keys: ` + "%s" + `
+  (none)   the settings every app gets (env: in hl.yml; an app's own env wins). Keys: ` + "%s" + `
+env takes a name: env.TZ=UTC.`
+
+func scopesHelp() string {
+	return fmt.Sprintf(setScopesHelp, strings.Join(config.AppKeys(), ", "), strings.Join(config.ProxyKeys(), ", "),
+		strings.Join(config.HomelabKeys(), ", "))
+}
+
 func setCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "set <app> key=value...",
-		Short: "Change an app's settings in hl.yml (keeps its comments; checks the result first)",
-		Long: `Change an app's settings in hl.yml. Keys: ` + strings.Join(config.AppKeys(), ", ") + `
-env takes a name: env.TZ=UTC. Lists are comma-separated: compose=compose.yml,compose.prod.yml.
-hl.yml keeps its comments and order, and is only written if the result is valid.
-Run hl up <app> to apply the change.
+		Use:   "set [<app>|proxy] key=value...",
+		Short: "Change settings of an app, the proxy or every app (keeps hl.yml's comments; checks the result first)",
+		Long: `Change settings in hl.yml without opening it. ` + scopesHelp() + `
+Lists are comma-separated (compose=compose.yml,compose.prod.yml); switches take true or false.
+hl.yml keeps its comments and order, and is only written if the result is valid; hl says
+which command applies the change.
 
   hl set my-app routing=host host=my-app.example.com
-  hl set my-app port=8080 env.TZ=UTC`,
-		Args:              cobra.MinimumNArgs(2),
-		ValidArgsFunction: completeAppKeys(true),
+  hl set my-app port=8080 env.TZ=UTC
+  hl set proxy port=8080 bind=0.0.0.0
+  hl set env.TZ=Europe/Berlin`,
+		Args:              cobra.MinimumNArgs(1),
+		ValidArgsFunction: completeSetKeys(true),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			scope, kvs := args[0], args[1:]
+			if strings.Contains(scope, "=") {
+				// App names have no "=": no app given, the shared settings.
+				scope, kvs = config.HomelabScope, args
+			} else if len(kvs) == 0 {
+				return &usageError{err: fmt.Errorf("nothing to set for %q - give key=value, e.g. hl set %s port=8080", scope, scope), cmd: cmd.CommandPath()}
+			}
 			var changes []config.Change
-			for _, kv := range args[1:] {
+			for _, kv := range kvs {
 				k, v, ok := strings.Cut(kv, "=")
 				if !ok || k == "" {
 					return fmt.Errorf("%q: use key=value, e.g. port=8080", kv)
 				}
 				if v == "" {
-					return fmt.Errorf("%q: no value - to remove a setting use hl unset %s %s", kv, args[0], k)
+					return fmt.Errorf("%q: no value - to remove a setting use %s", kv, unsetCommand(scope, k))
 				}
 				changes = append(changes, config.Change{Key: k, Value: v})
 			}
-			return editApp(args[0], changes)
+			return editScope(scope, changes)
 		},
 	}
 }
 
 func unsetCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "unset <app> key...",
-		Short: "Remove settings of an app from hl.yml, back to their defaults",
-		Long: `Remove settings of an app from hl.yml, so their defaults apply again
-(e.g. routing falls back to proxy.routing). Keys: ` + strings.Join(config.AppKeys(), ", ") + `
+		Use:   "unset [<app>|proxy] key...",
+		Short: "Remove settings of an app, the proxy or every app, back to their defaults",
+		Long: `Remove settings from hl.yml, so their defaults apply again (e.g. an app's
+routing falls back to proxy.routing). ` + scopesHelp() + `
 env.NAME removes one env setting, env removes them all.
 
-  hl unset my-app prefix env.TZ`,
-		Args:              cobra.MinimumNArgs(2),
-		ValidArgsFunction: completeAppKeys(false),
+  hl unset my-app prefix env.TZ
+  hl unset proxy port
+  hl unset env.TZ`,
+		Args:              cobra.MinimumNArgs(1),
+		ValidArgsFunction: completeSetKeys(false),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			home, err := homeDir()
+			if err != nil {
+				return err
+			}
+			scope, keys := args[0], args[1:]
+			// env and env.NAME without an app are the shared env - unless an app has that name.
+			if config.IsHomelabKey(scope) && !config.HasApp(home, scope) {
+				scope, keys = config.HomelabScope, args
+			} else if len(keys) == 0 {
+				return &usageError{err: fmt.Errorf("nothing to unset for %q - name the keys, e.g. hl unset %s port", scope, scope), cmd: cmd.CommandPath()}
+			}
 			var changes []config.Change
-			for _, k := range args[1:] {
+			for _, k := range keys {
 				changes = append(changes, config.Change{Key: k, Unset: true})
 			}
-			return editApp(args[0], changes)
+			return editScope(scope, changes)
 		},
 	}
 }
 
-func editApp(name string, changes []config.Change) error {
+// unsetCommand is the hl unset command line that removes key from scope.
+func unsetCommand(scope, key string) string {
+	if scope == config.HomelabScope {
+		return "hl unset " + key
+	}
+	return "hl unset " + scope + " " + key
+}
+
+// editScope applies changes to scope (an app, the proxy or the shared settings) and says what
+// changed and how to apply it.
+func editScope(scope string, changes []config.Change) error {
 	home, err := homeDir()
 	if err != nil {
 		return err
 	}
-	if err := config.EditApp(home, name, changes); err != nil {
-		return err
+	if err := config.Edit(home, scope, changes); err != nil {
+		return withHint(err, "`hl status` lists the apps; `hl set --help` lists the keys")
 	}
 	if err := upgradeConfig(home); err != nil {
 		return err
 	}
+	prefix := ""
+	switch scope {
+	case config.HomelabScope:
+	case config.ProxyScope:
+		prefix = "proxy."
+	default:
+		prefix = "apps." + scope + "."
+	}
 	for _, c := range changes {
 		if c.Unset {
-			say("unset apps.%s.%s", name, c.Key)
+			say("unset %s%s", prefix, c.Key)
 		} else {
-			say("set apps.%s.%s = %s", name, c.Key, c.Value)
+			say("set %s%s = %s", prefix, c.Key, c.Value)
 		}
 	}
-	say("apply it: hl up %s", name)
+	say("apply it: %s", applyCommand(scope, changes))
 	return nil
 }
 
-// completeAppKeys completes an app name, then its setting keys (with "=" when setting).
-func completeAppKeys(setting bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		if len(args) == 0 {
-			return completeApps(cmd, args, toComplete)
+// applyCommand is what makes changes to scope take effect.
+func applyCommand(scope string, changes []config.Change) string {
+	switch scope {
+	case config.HomelabScope:
+		return "hl up (compose recreates the apps whose settings changed)"
+	case config.ProxyScope:
+		apps := false
+		for _, c := range changes {
+			switch c.Key {
+			case "network", "subnet", "project":
+				// Every app joins the proxy's network: both move together.
+				return "hl down, then hl up (the proxy and every app move to the new network or project)"
+			case "domain", "routing":
+				apps = true
+			}
 		}
-		var out []string
-		for _, k := range config.AppKeys() {
+		if apps {
+			return "hl proxy up, then hl up (the apps' routes change too)"
+		}
+		return "hl proxy up"
+	}
+	return "hl up " + scope
+}
+
+// completeSetKeys completes the first argument (an app, proxy, or a shared key), then that
+// scope's setting keys (with "=" when setting).
+func completeSetKeys(setting bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	keys := func(list []string) []string {
+		out := make([]string, 0, len(list))
+		for _, k := range list {
 			if setting && !strings.HasSuffix(k, ".") {
 				k += "="
 			}
 			out = append(out, k)
 		}
-		return out, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
+		return out
+	}
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		const dir = cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
+		if len(args) == 0 {
+			apps, _ := completeApps(cmd, args, toComplete)
+			// A trailing space after a scope, none after a shared key being typed.
+			if strings.HasPrefix(toComplete, "env.") {
+				return keys(config.HomelabKeys()), dir
+			}
+			return append(append(apps, config.ProxyScope), keys(config.HomelabKeys())...), cobra.ShellCompDirectiveNoFileComp
+		}
+		switch {
+		case strings.Contains(args[0], "=") || config.IsHomelabKey(args[0]) && !setting:
+			return keys(config.HomelabKeys()), dir
+		case args[0] == config.ProxyScope:
+			return keys(config.ProxyKeys()), dir
+		}
+		return keys(config.AppKeys()), dir
 	}
 }
 

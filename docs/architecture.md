@@ -242,10 +242,19 @@ normalises indentation to two spaces).
 
 - `hl add`/`hl remove` (`config.AddApp`, `RemoveApp`) touch only the `apps:` mapping (`apps: {}`
   from the template is turned into a block mapping).
-- `hl set`/`hl unset` (`config.EditApp`, `internal/config/set.go`) change keys of one app; the
-  keys and their types come from the `App` struct by reflection (ints parsed, lists split on
-  commas, map fields as `env.NAME`). A replaced value keeps the old one's comments. The new
-  content is run through `config.Check` and written only if it has no problems.
+- `hl set`/`hl unset` (`config.Edit`, `internal/config/set.go`) change keys of one scope: an
+  app (`config.EditApp`), the proxy (`config.ProxyScope`, i.e. `proxy`, the reserved app name,
+  so never an app) or the shared settings (`config.HomelabScope`, no first argument; only `env`:
+  `name` renames every Docker object, `projects`/`ignore`/`scan_depth` belong to init/sync).
+  Keys and their types come from the `App`/`Proxy`/`Config` structs by reflection (ints parsed,
+  bools as true/false, lists split on commas, map fields as `env.NAME`). A missing `proxy:` or
+  shared `env:` is added above `apps:`. A replaced value keeps the old one's comments. The new
+  content is run through `config.Check` and written only if it has no problems. The CLI tells
+  the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,
+  so it is the shared scope; for `unset`, `env`/`env.NAME` is the shared scope unless an app has
+  that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
+  `hl up <app>`, `hl up`, `hl proxy up`, or `hl down` then `hl up` when the proxy's network,
+  subnet or project changed).
 - `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
   `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
   checks out. It and `hl config check` find the homelab with `config.Home`, not `Load`, so they

@@ -232,7 +232,10 @@ DNS.
 
 `hl init` writes a commented `hl.yml`. Everything except `apps.<name>.path` is optional; each
 setting's default is in the tables below, and `hl config defaults` prints them with the values in
-effect. hl reads and checks the file on every command; a problem stops the command (see
+effect. You rarely need to open the file: `hl set` and `hl unset` change the proxy
+(`hl set proxy port=8080`), the shared env (`hl set env.TZ=UTC`) and each app
+(`hl set my-app routing=host`); `hl edit` is there for the rest. hl reads and checks the file
+on every command; a problem stops the command (see
 [`hl config check`](#version-and-editor-support)).
 
 ```yaml
@@ -318,12 +321,14 @@ changes its project names: run `hl down` before adding it, then `hl up`.
 **The proxy's Traefik config.** hl runs Traefik with one static config file,
 `.hl/proxy/traefik.yml`, generated from these settings (entrypoints, the Docker provider, the
 dashboard, logs, `ping` for the proxy's healthcheck); `hl config proxy` prints it. With `config`
-set, your file is used instead. After changing proxy settings, `hl proxy up` applies them;
+set, your file is used instead. `hl set proxy key=value` and `hl unset proxy key` change these
+settings; after changing them, `hl proxy up` applies them;
 `hl proxy status` says when the running proxy is behind.
 
 ### `env`
 
 A map of variables passed to every app, e.g. `TZ: UTC`. An app's own `env` wins over it.
+`hl set env.TZ=UTC` sets one, `hl unset env.TZ` removes it.
 
 ### `projects`, `ignore`, `scan_depth`
 
@@ -441,7 +446,9 @@ every app when none is named; they carry on past an app that fails and end with
 | `hl sync` | Make `hl.yml` follow the `projects` folders. Shows a plan first: new folders with a compose file are added (service and port detected like `hl add`), apps whose folder is gone are removed (stopped if running; their data stays), apps whose pinned service or port left their compose file are re-detected, and folders it can't add are listed with the `hl add` command to use. Asks before applying; `--yes` applies without asking, `--dry-run` only shows. |
 | `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`. When several services or ports could be the one to route, it asks on a terminal; without one it names the flag to pass. |
 | `hl set <app> key=value...` | Change an app's settings in `hl.yml`: `routing`, `prefix`, `host`, `port`, `service`, `path`, `compose` and `env_files` (comma-separated), `env.NAME`. Keeps comments; writes only a valid result. `hl up <app>` applies it. |
-| `hl unset <app> key...` | Remove an app's settings so their defaults apply again; `env.NAME` removes one variable, `env` all. |
+| `hl set proxy key=value...` | Change the proxy's settings: every `proxy.*` key, e.g. `hl set proxy port=8080 bind=0.0.0.0 subnet=172.31.0.0/16`; switches take `true`/`false`. hl says what applies it (`hl proxy up`, or `hl down` then `hl up` for `network`, `subnet` or `project`). |
+| `hl set env.NAME=value...` | With no app: the shared `env` every app gets, e.g. `hl set env.TZ=Europe/Berlin`. An app's own `env` wins. `hl up` applies it. |
+| `hl unset [<app>\|proxy] key...` | Remove settings of an app, the proxy (`hl unset proxy port`) or the shared env (`hl unset env.TZ`) so their defaults apply again; `env.NAME` removes one variable, `env` all. |
 | `hl edit` | Open `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
 | `hl remove <app>` | Stop the app and remove it from `hl.yml`. Its data in `data/<app>` stays. |
 | `hl status` (`ls`) | The proxy's state (and the dashboard's URL when it is on), then every app's STATE (`up 2/2`, `partial 1/2`, `down`, or `other homelab`), HEALTH (`healthy`, `starting: <services>`, `unhealthy: <services>`, or `-` when the app has no healthchecks), URL and folder. Says when `hl sync` has something to do. |
@@ -581,7 +588,8 @@ don't. Use the browser, `curl --resolve`, or add the name to `/etc/hosts`.
 just don't run both at once (they would compete for the same port, and hl's copy keeps its data
 in `data/`, not in the app's own volumes).
 
-**Can I edit `hl.yml` by hand?** Yes; hl reads and checks it on every command, and keeps your
+**Can I edit `hl.yml` by hand?** Yes, though `hl set` and `hl unset` cover the proxy, the shared
+env and every app setting; hl reads and checks it on every command, and keeps your
 comments when `hl add`, `hl remove`, `hl set` or `hl unset` change it. `hl edit` checks your
 changes before saving them.
 
