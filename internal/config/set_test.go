@@ -153,7 +153,7 @@ func TestEditProxyAndSharedEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := read(t, dir)
-	for _, want := range []string{"bind: 0.0.0.0 # this machine only", "port: 8082", "subnet: 172.31.0.0/16", "debug: true", "# the proxy"} {
+	for _, want := range []string{"bind: 0.0.0.0    # this machine only", "port: 8082", "subnet: 172.31.0.0/16", "debug: true", "# the proxy"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}
@@ -237,8 +237,11 @@ func TestEditLists(t *testing.T) {
 		{[]Change{{Key: "ignore", Value: "old,scratch-*"}}, "ignore: [old, scratch-*]\napps:"},
 		{[]Change{{Key: "ignore", Value: "new,old", Op: OpAdd}}, "ignore: [old, scratch-*, new]"},
 		{[]Change{{Key: "ignore", Value: "old", Op: OpRemove}}, "ignore: [scratch-*, new]"},
-		{[]Change{{Key: "strip_prefix", Value: "p__"}, {Key: "name", Value: "lab2"}}, "strip_prefix: [p__]\nname: lab2\napps:"},
-		{[]Change{{Key: "ignore", Value: "scratch-*,new", Op: OpRemove}}, "version: 1\nstrip_prefix: [p__]"},
+		// New top-level keys go in their place (name, projects, ignore, strip_prefix, proxy,
+		// env, apps), with the comment hl init gives them.
+		{[]Change{{Key: "strip_prefix", Value: "p__"}, {Key: "name", Value: "lab2"}}, "network are hl-<name>-<app> and hl-<name>-proxy.\nname: lab2\nignore: [scratch-*, new]\n" +
+			"# Left out of app names: folder project__blog becomes app blog.\nstrip_prefix: [p__]\napps:"},
+		{[]Change{{Key: "ignore", Value: "scratch-*,new", Op: OpRemove}}, "name: lab2\n# Left out of app names: folder project__blog becomes app blog.\nstrip_prefix: [p__]\napps:"},
 	}
 	for _, st := range steps {
 		if err := Edit(dir, HomelabScope, st.changes); err != nil {

@@ -66,6 +66,15 @@ func keepBlankLines(old, new []byte) []byte {
 		a, before, n = append(a, l), append(before, n), 0
 	}
 	b := splitLines(new)
+	// Lines are compared without the spaces before a comment, which the encoder makes one.
+	na := make([]string, len(a))
+	for k, l := range a {
+		na[k] = normComment(l)
+	}
+	nb := make([]string, len(b))
+	for k, l := range b {
+		nb[k] = normComment(l)
+	}
 	// lcs[i][j]: the length of the longest common subsequence of a[i:] and b[j:].
 	lcs := make([][]int, len(a)+1)
 	for i := range lcs {
@@ -73,7 +82,7 @@ func keepBlankLines(old, new []byte) []byte {
 	}
 	for i := len(a) - 1; i >= 0; i-- {
 		for j := len(b) - 1; j >= 0; j-- {
-			if a[i] == b[j] {
+			if na[i] == nb[j] {
 				lcs[i][j] = lcs[i+1][j+1] + 1
 			} else {
 				lcs[i][j] = max(lcs[i+1][j], lcs[i][j+1])
@@ -91,16 +100,25 @@ func keepBlankLines(old, new []byte) []byte {
 		pending = 0
 		out = append(out, l)
 	}
+	// topBlank is the blank lines between old's top-level lines: 1 when it has any.
+	topBlank := 0
+	for k := 1; k < len(a); k++ {
+		if before[k] > 0 && isTopLine(a[k]) {
+			topBlank = 1
+		}
+	}
+	var gone []string // old's lines left out since the last line kept
 	i, j := 0, 0
 	for i < len(a) || j < len(b) {
 		switch {
-		case i < len(a) && j < len(b) && a[i] == b[j]:
+		case i < len(a) && j < len(b) && na[i] == nb[j]:
 			pending = max(pending, before[i])
-			emit(b[j])
-			i, j = i+1, j+1
+			emit(a[i]) // old's line: the same but for the spaces before its comment
+			i, j, gone = i+1, j+1, nil
 		case i < len(a) && (j == len(b) || lcs[i+1][j] >= lcs[i][j+1]):
 			// A line new doesn't have: its blank lines go to the next one.
 			pending = max(pending, before[i])
+			gone = append(gone, a[i])
 			i++
 		case blank(b[j]):
 			// The encoder's own blank line (after the document's head comment, or in a block
@@ -108,7 +126,16 @@ func keepBlankLines(old, new []byte) []byte {
 			pending = max(pending, 1)
 			j++
 		default:
-			emit(b[j])
+			if isTopLine(b[j]) && !replaces(b[j], gone) && (len(out) == 0 || !isTopComment(out[len(out)-1])) {
+				// A top-level key (or its comment) hl added: spaced like the key after it, or,
+				// at the end, like the file's other top-level keys.
+				if i < len(a) {
+					pending = max(pending, before[i])
+				} else {
+					pending = max(pending, topBlank)
+				}
+			}
+			emit(commentAt(b[j], gone))
 			j++
 		}
 	}
@@ -118,6 +145,85 @@ func keepBlankLines(old, new []byte) []byte {
 		return new
 	}
 	return res
+}
+
+// isTopLine reports whether l is a top-level line of hl.yml: a key or a comment, not indented.
+func isTopLine(l string) bool { return l != "" && l[0] != ' ' && l[0] != '-' && l[0] != '\t' }
+
+// replaces reports whether key line l takes the place of one of gone: the same key.
+func replaces(l string, gone []string) bool {
+	key, _, ok := strings.Cut(l, ":")
+	if !ok || isTopComment(l) {
+		return false
+	}
+	for _, g := range gone {
+		if gkey, _, ok := strings.Cut(g, ":"); ok && gkey == key {
+			return true
+		}
+	}
+	return false
+}
+
+// isTopComment reports whether l is a comment line that isn't indented.
+func isTopComment(l string) bool { return strings.HasPrefix(l, "#") }
+
+// splitComment splits l at the comment after its value (" # ..."): the part before it,
+// without the spaces in between, and the comment. ok is false when l has no such comment
+// (a line that is only a comment has none either).
+func splitComment(l string) (code, comment string, ok bool) {
+	if strings.HasPrefix(strings.TrimSpace(l), "#") {
+		return l, "", false
+	}
+	var quote byte
+	for k := 0; k < len(l); k++ {
+		c := l[k]
+		switch {
+		case quote == '"' && c == '\\':
+			k++
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '#' && k > 0 && (l[k-1] == ' ' || l[k-1] == '\t'):
+			return strings.TrimRight(l[:k], " \t"), l[k:], true
+		}
+	}
+	return l, "", false
+}
+
+// normComment is l with one space before its comment, as the encoder writes it.
+func normComment(l string) string {
+	if code, comment, ok := splitComment(l); ok {
+		return code + " " + comment
+	}
+	return l
+}
+
+// commentAt is l (a line the encoder wrote, with one space before its comment) with its
+// comment at the column it had in the line it replaces: the line of gone (old's lines left
+// out just before) for the same key with the same comment, unless that one had a single space
+// before its comment too. Otherwise l as it is.
+func commentAt(l string, gone []string) string {
+	code, comment, ok := splitComment(l)
+	if !ok {
+		return l
+	}
+	key, _, _ := strings.Cut(code, ":")
+	for _, g := range gone {
+		gc, gcomment, ok := splitComment(g)
+		gkey, _, _ := strings.Cut(gc, ":")
+		if !ok || gkey != key || gcomment != comment {
+			continue
+		}
+		if len(g)-len(gcomment)-len(gc) == 1 {
+			return l // one space before it, as the encoder writes it
+		}
+		col := len(g) - len(gcomment) // where the comment started: aligned comments stay aligned
+		return code + strings.Repeat(" ", max(1, col-len(code))) + comment
+	}
+	return l
 }
 
 // splitLines splits b into lines, without their line ends.

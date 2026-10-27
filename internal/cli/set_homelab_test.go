@@ -73,7 +73,7 @@ func TestSetHomelabSettings(t *testing.T) {
 
 	r = f.must("unset", "ignore", "strip_prefix")
 	contains(t, "unset", r.out, "unset ignore", "apply it: hl sync")
-	lacks(t, "hl.yml", f.read(filepath.Join(lab, config.FileName)), "ignore", "strip_prefix")
+	lacks(t, "hl.yml", f.read(filepath.Join(lab, config.FileName)), "\nignore:", "\nstrip_prefix:", "Left out of app names")
 }
 
 // scan_depth is a removed key: projects folders are looked into one level deep.

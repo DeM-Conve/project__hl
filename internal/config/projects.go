@@ -84,9 +84,9 @@ func (s InitSettings) Config(dir string) *Config {
 	return c
 }
 
-// nameComment heads the `name` hl init writes.
-const nameComment = "# Another homelab on this Docker uses the default names, so this one's Docker projects\n" +
-	"# and network are " + defaults.Prefix + "<name>-<app> and " + defaults.Prefix + "<name>-" + defaults.ProxyProjectSuffix + "."
+// nameComment heads the `name` hl init or hl set writes.
+const nameComment = "Sets this homelab apart from others on the same Docker: its Docker projects and\n" +
+	"network are " + defaults.Prefix + "<name>-<app> and " + defaults.Prefix + "<name>-" + defaults.ProxyProjectSuffix + "."
 
 // WriteNew writes a new, short <dir>/hl.yml: Template with the projects folders, strip_prefix
 // and the proxy settings of s that differ from the defaults. It refuses to overwrite an
@@ -106,14 +106,13 @@ func WriteNew(dir string, s InitSettings) error {
 	}
 	out, err := edited(path, func(root *yaml.Node) error {
 		if s.Name != "" {
-			beforeApps(root, &yaml.Node{Kind: yaml.ScalarNode, Value: "name", HeadComment: nameComment},
-				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s.Name})
+			insertKey(root, "name", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s.Name})
 		}
 		if len(s.Projects) > 0 {
 			setProjects(root, s.Projects)
 		}
 		if len(s.StripPrefix) > 0 {
-			setList(root, "strip_prefix", s.StripPrefix, stripPrefixComment)
+			setList(root, "strip_prefix", s.StripPrefix)
 		}
 		pd := ProxyDefaults()
 		proxy := &yaml.Node{Kind: yaml.MappingNode}
@@ -127,7 +126,7 @@ func WriteNew(dir string, s InitSettings) error {
 			setScalar(proxy, "routing", s.Routing, "!!str")
 		}
 		if len(proxy.Content) > 0 {
-			beforeApps(root, &yaml.Node{Kind: yaml.ScalarNode, Value: "proxy"}, proxy)
+			insertKey(root, "proxy", proxy)
 		}
 		return nil
 	})
@@ -185,7 +184,7 @@ Skip a folder with ignore: [pattern, ...] or a .hlignore file in it.`
 const stripPrefixComment = `Left out of app names: folder project__blog becomes app blog.`
 
 func setProjects(root *yaml.Node, projects []string) {
-	setList(root, "projects", projects, projectsComment)
+	setList(root, "projects", projects)
 }
 
 // SetList writes a top-level list (projects, ignore, strip_prefix) into <dir>/hl.yml, keeping comments;
@@ -198,7 +197,7 @@ func SetList(dir, key string, values []string) error {
 			remove(root, key)
 			return nil
 		}
-		setList(root, key, values, "")
+		setList(root, key, values)
 		return nil
 	})
 	if err != nil {
@@ -211,8 +210,8 @@ func SetList(dir, key string, values []string) error {
 }
 
 // setList sets key to a flow list of values, keeping the old value's comment; a new key goes
-// before apps:, with comment above it.
-func setList(root *yaml.Node, key string, values []string, comment string) {
+// in its place among the top-level keys (insertKey).
+func setList(root *yaml.Node, key string, values []string) {
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Style: yaml.FlowStyle}
 	for _, p := range values {
 		seq.Content = append(seq.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: p})
@@ -224,20 +223,52 @@ func setList(root *yaml.Node, key string, values []string, comment string) {
 			return
 		}
 	}
-	beforeApps(root, &yaml.Node{Kind: yaml.ScalarNode, Value: key, HeadComment: comment}, seq)
+	insertKey(root, key, seq)
 }
 
-// beforeApps adds key: val to the top-level mapping just before apps:, so the file reads
-// top-down: settings, then apps.
-func beforeApps(root, key, val *yaml.Node) {
-	at := len(root.Content)
-	for i := 0; i < len(root.Content); i += 2 {
-		if root.Content[i].Value == "apps" {
-			at = i
+// topOrder is the order of hl.yml's top-level keys, as hl init writes them: a key hl adds goes
+// in its place among them, so the file reads top-down (settings, proxy, env, then apps).
+var topOrder = []string{"version", "name", "projects", "ignore", "strip_prefix", ProxyScope, "env", "apps"}
+
+// topComments are the comments hl init writes above top-level keys; a key added later gets
+// the same one, so `hl unset` then `hl set` gives the file back as it was.
+var topComments = map[string]string{
+	"name":         nameComment,
+	"projects":     projectsComment,
+	"strip_prefix": stripPrefixComment,
+}
+
+// isTop reports whether m is hl.yml's top-level mapping: the one with version: or apps:
+// (no app or proxy setting has either name).
+func isTop(m *yaml.Node) bool { return lookup(m, "version") != nil || lookup(m, "apps") != nil }
+
+// insertKey adds key: val to mapping m. In the top-level mapping it goes in its place in
+// topOrder (before the first key that comes later; keys hl doesn't know stay where they are)
+// with its comment from topComments; elsewhere at the end.
+func insertKey(m *yaml.Node, key string, val *yaml.Node) {
+	k := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
+	at := len(m.Content)
+	if isTop(m) {
+		k.HeadComment = topComments[key]
+		rank := func(s string) int {
+			for i, t := range topOrder {
+				if t == s {
+					return i
+				}
+			}
+			return -1
+		}
+		if r := rank(key); r >= 0 {
+			for i := 0; i+1 < len(m.Content); i += 2 {
+				if rank(m.Content[i].Value) > r {
+					at = i
+					break
+				}
+			}
 		}
 	}
-	rest := append([]*yaml.Node{key, val}, root.Content[at:]...)
-	root.Content = append(root.Content[:at:at], rest...)
+	rest := append([]*yaml.Node{k, val}, m.Content[at:]...)
+	m.Content = append(m.Content[:at:at], rest...)
 }
 
 // mapValue is the value of key in mapping m, or nil.

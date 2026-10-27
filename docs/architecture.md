@@ -341,6 +341,21 @@ byte. `WriteNew` (hl init) is the only writer that adds them: `spaceSections` pu
 line before each top-level section of a new file. If the result doesn't decode to the same YAML as the
 encoder's output (a blank line inside a block scalar), the encoder's output is written as it is.
 
+The rest of the layout, so that `hl unset` then `hl set` of any key gives an init-written file
+back byte for byte (tests in `edit_test.go`):
+
+- Lines are matched without the spaces before an inline comment (the encoder writes one), and a
+  matched line is written as the old file had it, so `port: 8081   # c` keeps its spaces. A
+  changed line keeps its comment's column when the line it replaces had more than one space
+  before it (aligned comments stay aligned).
+- `remove` drops a key with its own head comment, the paragraph right above it; a paragraph a
+  blank line further up (a section heading) moves to the next key.
+- `insertKey` puts a new key of the top-level mapping in its place in `topOrder` (version,
+  name, projects, ignore, strip_prefix, proxy, env, apps), with the comment `hl init` writes
+  for it (`topComments`: name, projects, strip_prefix); elsewhere a new key goes at the end of
+  its mapping. `keepBlankLines` gives an added top-level key as many blank lines above it as
+  the key after it has (one, in a file hl init wrote).
+
 - `hl add`/`hl remove` (`config.AddApp`, `RemoveApp`) touch only the `apps:` mapping (`apps: {}`
   from the template is turned into a block mapping).
 - `hl set`/`hl unset` (`config.Edit`, `internal/config/set.go`) change keys of one scope: an

@@ -35,7 +35,9 @@ hl unset env.TZ
   entries and `-=` removes them (`ignore+=old`, `compose-=compose.dev.yml`).
 - Switches take `true` or `false` (`hl set proxy debug=true`).
 - Single quotes keep your shell from expanding `${...}`: `hl set my-app 'env.APP_URL=${HL_URL}'`.
-- hl writes `hl.yml` only when the result has no problems, keeps its comments, blank lines and order, prints
+- hl writes `hl.yml` only when the result has no problems, keeps its comments, blank lines and
+  order (`hl unset` takes a key's own comment, the one right above it, with it; a key hl adds
+  goes in its place among the others, with the comment `hl init` gives it), prints
   what it changed, and says which command applies it (`hl up <app>`, `hl up`, `hl up proxy`, `hl sync`,
   or `hl down` then `hl up` for a new proxy subnet):
 

@@ -168,21 +168,13 @@ func ApplyApp(a *App, changes []Change) error {
 	return n.Decode(a)
 }
 
-// section is the mapping under key in m, added before apps: when missing.
+// section is the mapping under key in m, added when missing (insertKey).
 func section(m *yaml.Node, key string) *yaml.Node {
 	if n := lookup(m, key); n != nil {
 		return n
 	}
 	n := &yaml.Node{Kind: yaml.MappingNode}
-	at := len(m.Content)
-	for i := 0; i+1 < len(m.Content); i += 2 {
-		if m.Content[i].Value == "apps" {
-			at = i
-			break
-		}
-	}
-	kv := []*yaml.Node{{Kind: yaml.ScalarNode, Value: key}, n}
-	m.Content = append(m.Content[:at], append(kv, m.Content[at:]...)...)
+	insertKey(m, key, n)
 	return n
 }
 
@@ -463,10 +455,8 @@ func listOp(old *yaml.Node, c Change, items []string) ([]string, error) {
 	return nil, fmt.Errorf("%s: unknown list operation %q", c.Key, c.Op)
 }
 
-// set puts key: val into mapping m, keeping the old value's comments, or adds it: before
-// apps: in the top-level mapping, so settings stay above the apps, else at the end.
+// set puts key: val into mapping m, keeping the old value's comments, or adds it (insertKey).
 func set(m *yaml.Node, key string, val *yaml.Node) {
-	at := len(m.Content)
 	for i := 0; i+1 < len(m.Content); i += 2 {
 		if m.Content[i].Value == key {
 			old := m.Content[i+1]
@@ -474,15 +464,10 @@ func set(m *yaml.Node, key string, val *yaml.Node) {
 			m.Content[i+1] = val
 			return
 		}
-		if m.Content[i].Value == "apps" && m.Content[i+1].Kind == yaml.MappingNode {
-			at = i
-		}
 	}
-	kv := []*yaml.Node{{Kind: yaml.ScalarNode, Value: key}, val}
-	m.Content = append(m.Content[:at], append(kv, m.Content[at:]...)...)
+	insertKey(m, key, val)
 }
 
-// remove deletes key from mapping m; a comment above it moves to the next key.
 // present reports whether mapping m has key (field, or field.sub with field a mapping).
 func present(m *yaml.Node, key string) bool {
 	field, sub, hasSub := strings.Cut(key, ".")
@@ -524,11 +509,19 @@ func Present(dir, scope, key string) bool {
 	return found
 }
 
+// remove deletes key from mapping m with the comment right above it (its own); a comment
+// further up, a blank line away, is about what follows and moves to the next key.
 func remove(m *yaml.Node, key string) {
 	for i := 0; i+1 < len(m.Content); i += 2 {
 		if m.Content[i].Value == key {
-			if hc := m.Content[i].HeadComment; hc != "" && i+2 < len(m.Content) && m.Content[i+2].HeadComment == "" {
-				m.Content[i+2].HeadComment = hc
+			hc := m.Content[i].HeadComment
+			if k := strings.LastIndex(hc, "\n\n"); k >= 0 && i+2 < len(m.Content) {
+				next := m.Content[i+2]
+				rest := strings.TrimRight(hc[:k], "\n")
+				if next.HeadComment != "" {
+					rest += "\n\n" + next.HeadComment
+				}
+				next.HeadComment = rest
 			}
 			m.Content = append(m.Content[:i], m.Content[i+2:]...)
 			return

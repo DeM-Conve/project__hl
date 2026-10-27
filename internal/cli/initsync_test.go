@@ -605,7 +605,7 @@ func TestInitClash(t *testing.T) {
 	if cfg.Name != "my-lab" || cfg.Proxy.Port != 8000 || cfg.ProxyProject() != "hl-my-lab-proxy" || cfg.Proxy.Network != "hl-my-lab-proxy" {
 		t.Errorf("name %q, proxy %+v", cfg.Name, cfg.Proxy)
 	}
-	if text := readFile(t, filepath.Join(lab, config.FileName)); !strings.Contains(text, "# Another homelab on this Docker") {
+	if text := readFile(t, filepath.Join(lab, config.FileName)); !strings.Contains(text, "# Sets this homelab apart from others") {
 		t.Errorf("hl.yml should say why it has a name:\n%s", text)
 	}
 

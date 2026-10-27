@@ -256,6 +256,12 @@ release differs from earlier builds of `main`.
   keep its blank lines and never add any; they used to remove all of them, so one setting
   rewrote the whole file's layout, and then added one below the header comment on every edit.
   A new `hl.yml` from `hl init` has one blank line between its sections.
+- `hl unset` then `hl set` of a key gives `hl.yml` back as it was: the unset takes the key's own
+  comment with it (it used to be left behind above the next key, or lost), the set brings back
+  the comment `hl init` writes for `name`, `projects` and `strip_prefix`, and a top-level key
+  goes back to its place with a blank line around it (it used to land at the end of the
+  settings, right under `proxy:`). An inline comment keeps the spaces before it
+  (`port: 8081   # c`); they used to shrink to one.
 - `hl set <app> path=<folder>` takes a relative folder from the current folder, like `hl add`
   and `hl set projects+=`; it used to write it as given, so hl read it relative to the homelab.
 - `hl init` on an existing homelab changes only what its plan lists. It used to add the

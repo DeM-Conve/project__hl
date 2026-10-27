@@ -189,7 +189,7 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	got := hlYML(t, home)
-	for _, want := range []string{"# the proxy", "bind: 0.0.0.0 # loopback", "port: 8082", "subnet: 172.31.0.0/16", "TZ: Europe/Berlin", "LANG: C.UTF-8"} {
+	for _, want := range []string{"# the proxy", "bind: 0.0.0.0    # loopback", "port: 8082", "subnet: 172.31.0.0/16", "TZ: Europe/Berlin", "LANG: C.UTF-8"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}
