@@ -114,6 +114,17 @@ func fakeMain(name string, args []string) int {
 		return 0
 	}
 	switch {
+	case strings.Contains(joined, "config --variables --format json"):
+		// The app folder's variables.json lists the variables its compose file uses.
+		for i, a := range args {
+			if a == "--project-directory" && i+1 < len(args) {
+				if b, err := os.ReadFile(filepath.Join(args[i+1], "variables.json")); err == nil {
+					_, _ = os.Stdout.Write(b)
+					return 0
+				}
+			}
+		}
+		fmt.Println("{}")
 	case strings.Contains(joined, "config --format json"):
 		// The app folder's model.json is what compose would resolve.
 		for i, a := range args {
@@ -292,6 +303,24 @@ func (f *fake) app(name, model string) string {
 		}
 	}
 	return dir
+}
+
+// vars makes the fake `docker compose config --variables` of an app folder list these names.
+func (f *fake) vars(dir string, names ...string) {
+	f.t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "variables.json"), []byte(varsJSON(names...)), 0o644); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+// varsJSON is what `docker compose config --variables --format json` prints for these names.
+func varsJSON(names ...string) string {
+	m := map[string]any{}
+	for _, n := range names {
+		m[n] = map[string]any{"Name": n, "DefaultValue": "", "PresenceValue": "", "Required": false}
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
 }
 
 // lab writes a homelab folder with this hl.yml and makes it HL_HOME.

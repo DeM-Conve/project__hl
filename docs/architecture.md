@@ -166,6 +166,15 @@ to each other. `HL_URL` has no trailing slash; `HL_PREFIX` is empty unless routi
 These are only interpolation variables: an app sees them in its containers only if its own compose
 file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
 
+**Auto-mapped env** (`scan.AutoEnv`, rules in `internal/defaults`: `EnvBasePathSuffix`,
+`EnvURLSuffix`, `EnvByName`): `hl add`, and `hl init`/`hl sync` for each new app
+(`scan.PlanAdds` with a `VarsFunc`), run `docker compose config --variables --format json`
+(`compose.Project.Variables`; only the names are used) and write the matching values into
+`apps.<app>.env`, where they are ordinary settings. `<X>_BASE_PATH` -> `${HL_PREFIX}` with path
+routing; `<X>_URL` -> `${HL_URL}` only when `<X>_BASE_PATH` exists too and routing isn't `none`;
+`DATA_LOCATION`/`BACKUP_LOCATION` by name. A failing `--variables` call (older compose) only
+warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
+
 ## Command notes
 
 - Every command that touches the proxy (`proxy()` -> `proxyProject` in `internal/cli/proxy_cmds.go`)

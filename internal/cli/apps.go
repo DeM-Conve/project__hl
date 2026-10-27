@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/config"
 	"github.com/DeM-Conve/project__hl/internal/defaults"
+	"github.com/DeM-Conve/project__hl/internal/scan"
 )
 
 // Commands that manage the homelab folder and hl.yml.
@@ -19,12 +20,18 @@ import (
 func addCmd() *cobra.Command {
 	var a config.App
 	var name string
+	var noEnv bool
 	c := &cobra.Command{
 		Use:   "add <folder>",
 		Short: "Add an app: a folder with its own compose file",
 		Long: `Add an app to hl.yml. hl finds the service that publishes a port and serves it
 through the proxy instead; the app's files are not changed. Named volumes are
-kept in <homelab>/data/<app>/<volume>.`,
+kept in <homelab>/data/<app>/<volume>.
+
+hl also fills in apps.<app>.env from the variables the compose file uses:
+<X>_BASE_PATH gets ${HL_PREFIX} (path routing), <X>_URL ${HL_URL} (when
+<X>_BASE_PATH exists too), DATA_LOCATION ${HL_DATA} and BACKUP_LOCATION
+${HL_DATA}/backups. --no-env turns that off.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
@@ -77,6 +84,15 @@ kept in <homelab>/data/<app>/<volume>.`,
 					return fmt.Errorf("%s: %w", name, err)
 				}
 			}
+			var mapped map[string]string
+			if !noEnv {
+				if vars, err := p.Variables(cmd.Context()); err != nil {
+					warn("env not mapped: %v", err)
+				} else {
+					mapped = scan.AutoEnv(vars, cfg.Routing(&a))
+					a.Env = mapped
+				}
+			}
 			if err := upgradeConfig(cfg.Dir); err != nil {
 				return err
 			}
@@ -89,7 +105,8 @@ kept in <homelab>/data/<app>/<volume>.`,
 				say("added %s%s%s (service %s, port %d)", bold, name, reset, a.Service, a.Port)
 				say("url: %s/", cfg.URL(name, &a))
 			}
-			if cfg.Routing(&a) == config.RoutingPath {
+			printEnv(stdout, "", mapped)
+			if cfg.Routing(&a) == config.RoutingPath && !mapsBasePath(a.Env) {
 				say("%snote:%s path routing serves it under %s, with the prefix stripped. The app must build its\n"+
 					"links for that prefix: map ${HL_PREFIX} to its base-path setting in hl.yml (apps.%s.env),\n"+
 					"or use --routing host.", yellow, reset, cfg.Prefix(name, &a), name)
@@ -106,6 +123,7 @@ kept in <homelab>/data/<app>/<volume>.`,
 	f.StringVar(&a.Service, "service", "", "service the proxy forwards to (default: the one that publishes a port)")
 	f.IntVar(&a.Port, "port", 0, "that service's port in its container (default: the one it publishes)")
 	f.StringSliceVar(&a.Compose, "compose", nil, "compose files in the folder (default: the one docker compose picks)")
+	f.BoolVar(&noEnv, "no-env", false, "don't fill in env from the compose file's variables (<X>_BASE_PATH, DATA_LOCATION, ...)")
 	return c
 }
 

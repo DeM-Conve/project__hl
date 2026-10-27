@@ -177,7 +177,7 @@ apps:
 		t.Fatal(err)
 	}
 	var got []string
-	for _, a := range Plan(l.cfg, d, fn) {
+	for _, a := range Plan(l.cfg, d, fn, nil) {
 		line := string(a.Kind) + " " + a.Name
 		switch a.Kind {
 		case Add, Update:

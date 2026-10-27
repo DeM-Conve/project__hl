@@ -11,6 +11,7 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/config"
 	"github.com/DeM-Conve/project__hl/internal/interrupt"
+	"github.com/DeM-Conve/project__hl/internal/scan"
 )
 
 // The journey of a fresh user: init, add, up, status, down - and a second
@@ -145,6 +146,54 @@ func TestAddFlags(t *testing.T) {
 	two := f.app("two", `{"services":{"a":{"ports":[{"target":1}]},"b":{"ports":[{"target":2}]}}}`)
 	r = f.hl("add", two)
 	contains(t, "several services", r.errOut, "several services publish ports (a, b) - pass --service")
+}
+
+func TestAddMapsEnv(t *testing.T) {
+	f := newFake(t)
+	dir := f.app("notes", apiModel)
+	f.vars(dir, "NOTES_BASE_PATH", "NOTES_URL", "UPSTREAM_URL", "DATA_LOCATION", "BACKUP_LOCATION", "DB_DATA_LOCATION", "TZ")
+	lab := f.lab("lab", "apps: {}\n")
+
+	r := f.must("add", dir)
+	contains(t, "add", r.out, "env NOTES_BASE_PATH=${HL_PREFIX}", "env NOTES_URL=${HL_URL}",
+		"env DATA_LOCATION=${HL_DATA}", "env BACKUP_LOCATION=${HL_DATA}/backups")
+	lacks(t, "add", r.out, "UPSTREAM_URL", "DB_DATA_LOCATION", "path routing serves it under")
+	cfg, err := config.Load(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(scan.EnvList(cfg.Apps["notes"].Env), " "); got !=
+		"BACKUP_LOCATION=${HL_DATA}/backups DATA_LOCATION=${HL_DATA} NOTES_BASE_PATH=${HL_PREFIX} NOTES_URL=${HL_URL}" {
+		t.Errorf("env = %s", got)
+	}
+	// The mapped values reach compose as interpolation variables.
+	f.reset()
+	f.must("config", "notes")
+	c := f.find("config")[0]
+	if c.Env["HL_PREFIX"] != "/notes" {
+		t.Errorf("HL_* env = %v", c.Env)
+	}
+
+	// --no-env leaves env alone; host routing doesn't map the base path.
+	vars := []string{"NOTES_BASE_PATH", "NOTES_URL", "TZ"}
+	plain, hosted, old := f.app("plain", apiModel), f.app("hosted", apiModel), f.app("old", apiModel)
+	for _, d := range []string{plain, hosted, old} {
+		f.vars(d, vars...)
+	}
+	r = f.must("add", plain, "--no-env", "--routing", "host")
+	lacks(t, "add --no-env", r.out, "env ")
+	r = f.must("add", hosted, "--routing", "host")
+	contains(t, "add host", r.out, "env NOTES_URL=${HL_URL}")
+	lacks(t, "add host", r.out, "NOTES_BASE_PATH")
+	cfg, _ = config.Load(lab)
+	if cfg.Apps["plain"].Env != nil {
+		t.Errorf("plain env = %v", cfg.Apps["plain"].Env)
+	}
+
+	// Compose too old to list variables: added anyway, with a warning.
+	f.on(rule{Match: []string{"config --variables"}, Stderr: "unknown flag: --variables", Exit: 1})
+	r = f.must("add", old)
+	contains(t, "old compose", r.errOut, "env not mapped")
 }
 
 func TestRemove(t *testing.T) {

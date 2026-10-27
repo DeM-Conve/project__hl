@@ -104,6 +104,10 @@ release differs from earlier builds of `main`.
   `~/.local/bin` (or `/usr/local/bin` as root).
 - Example apps in `examples/` and guides in `docs/guides/`: base paths, moving an existing compose
   app into hl, reaching apps from your network, backups, putting hl behind HTTPS.
+- `hl add`, `hl init` and `hl sync` fill in an app's `env` from the variables its compose file
+  uses (`docker compose config --variables`): `<X>_BASE_PATH` gets `${HL_PREFIX}` (path
+  routing), the matching `<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and
+  `BACKUP_LOCATION` `${HL_DATA}/backups`. They print what they mapped; `--no-env` turns it off.
 
 ### Changed
 

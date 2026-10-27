@@ -25,6 +25,7 @@ type initOptions struct {
 	port     int
 	apps     []string
 	yes      bool
+	noEnv    bool
 }
 
 func initCmd() *cobra.Command {
@@ -56,6 +57,7 @@ that are new in the projects folders instead.`,
 	f.IntVar(&o.port, "port", 0, fmt.Sprintf("host port of the proxy (default: %d)", config.ProxyDefaults().Port))
 	f.StringSliceVar(&o.apps, "apps", nil, "apps to add from the projects folders, by name, or "+pickNone+" (default: all found)")
 	f.BoolVarP(&o.yes, "yes", "y", false, "ask nothing: use flags and defaults")
+	f.BoolVar(&o.noEnv, "no-env", false, "don't fill in the apps' env from their compose variables")
 	return c
 }
 
@@ -201,7 +203,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 	if err != nil {
 		return err
 	}
-	added, err := initApps(p, out, cfg, o.apps, dockerOK)
+	added, err := initApps(p, out, cfg, o.apps, o.noEnv, dockerOK)
 	if err != nil {
 		return err
 	}
@@ -287,7 +289,7 @@ func storedPath(homelab, abs string) string {
 
 // initApps adds apps found in the projects folders: the ones picked on a
 // terminal, else the --apps ones, else all.
-func initApps(p *prompter, out io.Writer, cfg *config.Config, want []string, dockerOK bool) ([]string, error) {
+func initApps(p *prompter, out io.Writer, cfg *config.Config, want []string, noEnv, dockerOK bool) ([]string, error) {
 	if len(cfg.Projects) == 0 {
 		return nil, nil
 	}
@@ -308,7 +310,7 @@ func initApps(p *prompter, out io.Writer, cfg *config.Config, want []string, doc
 		return nil, nil
 	}
 	var adds []scan.Action
-	for _, a := range scan.PlanAdds(cfg, d, modelFunc(cfg)) {
+	for _, a := range scan.PlanAdds(cfg, d, modelFunc(cfg), varsFunc(cfg, noEnv)) {
 		if a.Kind == scan.Add {
 			adds = append(adds, a)
 		} else {

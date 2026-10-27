@@ -26,6 +26,9 @@ case "$*" in
   info*) exit 0 ;;
   "compose version --short") echo 2.29.1; exit 0 ;;
   ps*) exit 0 ;;
+  *"config --variables --format json"*)
+    if [ -f "$dir/fake-vars.json" ]; then cat "$dir/fake-vars.json"; else echo "{}"; fi
+    exit 0 ;;
   *"config --format json"*)
     if [ -f "$dir/fake-model.json" ]; then cat "$dir/fake-model.json"; exit 0; fi
     echo "no fake model in $dir" >&2; exit 1 ;;
@@ -251,6 +254,9 @@ func TestSync(t *testing.T) {
 
 	// A new app, a deleted one, one whose port changed, one opted out.
 	fakeApp(t, filepath.Join(code, "new"), webModel)
+	if err := os.WriteFile(filepath.Join(code, "new", "fake-vars.json"), []byte(varsJSON("NEW_BASE_PATH", "DATA_LOCATION", "TZ")), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	fakeApp(t, filepath.Join(code, "lib"), webModel)
 	if err := os.WriteFile(filepath.Join(code, "lib", ".hlignore"), nil, 0o644); err != nil {
 		t.Fatal(err)
@@ -269,7 +275,8 @@ func TestSync(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	for _, want := range []string{"+ add", "new", "- remove", "old", "data/old stays", "~ update", "web:80 -> web:3000"} {
+	for _, want := range []string{"+ add", "new", "web:80\n", "env NEW_BASE_PATH=${HL_PREFIX}\n", "env DATA_LOCATION=${HL_DATA}\n",
+		"- remove", "old", "data/old stays", "~ update", "web:80 -> web:3000"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("plan lacks %q:\n%s", want, out)
 		}
@@ -298,6 +305,12 @@ func TestSync(t *testing.T) {
 	}
 	if strings.Join(cfg.Names(), ",") != "blog,moved,new" || cfg.Apps["moved"].Port != 3000 {
 		t.Errorf("apps = %v, moved = %+v\n%s", cfg.Names(), cfg.Apps["moved"], out)
+	}
+	if e := cfg.Apps["new"].Env; e["NEW_BASE_PATH"] != "${HL_PREFIX}" || e["DATA_LOCATION"] != "${HL_DATA}" || len(e) != 2 {
+		t.Errorf("new's env = %v\n%s", e, out)
+	}
+	if !strings.Contains(out, "env NEW_BASE_PATH=${HL_PREFIX}") {
+		t.Errorf("sync should say what it mapped:\n%s", out)
 	}
 	if _, err := os.Stat(filepath.Join(lab, "data", "old", "db")); err != nil {
 		t.Errorf("sync must keep a removed app's data: %v", err)

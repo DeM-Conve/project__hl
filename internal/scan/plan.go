@@ -26,16 +26,22 @@ type Action struct {
 	Path    string // the app's folder as in hl.yml
 	Service string // Add/Update: the service and port to pin
 	Port    int
-	Old     string // Update: what was pinned, for display
-	Reason  string // Skip: why, and what to do
+	Old     string            // Update: what was pinned, for display
+	Reason  string            // Skip: why, and what to do
+	Env     map[string]string // Add: env mapped from the compose file's variables (AutoEnv)
+	Note    string            // Add: something to tell the user, e.g. why env wasn't mapped
 }
 
 // ModelFunc resolves an app's compose model (`docker compose config`).
 type ModelFunc func(name string, a *config.App) (*compose.Model, error)
 
-// Plan is what sync would change: adds, then removes, then updates, then skips.
-func Plan(cfg *config.Config, d *Diff, model ModelFunc) []Action {
-	adds := PlanAdds(cfg, d, model)
+// VarsFunc lists the variables an app's compose files use (`docker compose config --variables`).
+type VarsFunc func(name string, a *config.App) ([]string, error)
+
+// Plan is what sync would change: adds, then removes, then updates, then skips. With vars
+// set, each add carries the env AutoEnv maps; nil leaves env alone.
+func Plan(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Action {
+	adds := PlanAdds(cfg, d, model, vars)
 	var out, skips []Action
 	for _, a := range adds {
 		if a.Kind == Skip {
@@ -62,7 +68,7 @@ func Plan(cfg *config.Config, d *Diff, model ModelFunc) []Action {
 
 // PlanAdds is the part of the plan for new folders: an Add with the detected
 // service and port, or a Skip saying why it can't be added.
-func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc) []Action {
+func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Action {
 	var out []Action
 	taken := map[string]bool{}
 	for n := range cfg.Apps {
@@ -88,6 +94,13 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc) []Action {
 				act.Reason = fmt.Sprintf("%v; add it with hl add %s", err, quote(f.Dir))
 			}
 			act.Service, act.Port = svc, port
+			if act.Kind == Add && vars != nil {
+				if vs, err := vars(f.Name, app); err != nil {
+					act.Note = fmt.Sprintf("env not mapped: %v", err)
+				} else {
+					act.Env = AutoEnv(vs, cfg.Routing(app))
+				}
+			}
 		}
 		if act.Kind == Add {
 			taken[f.Name] = true
