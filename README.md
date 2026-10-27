@@ -108,7 +108,7 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl restart [app...]` | Restart containers without rebuilding. |
 | `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (skips ones with uncommitted changes); for the proxy it pulls the image. |
 | `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every app's, prefixed by its name. |
-| `hl status` (`ls`) | The proxy, then each app's state, health, URL and folder. Says when `hl sync` has something to do. |
+| `hl status` | The proxy, then each app's state, health, URL and folder. Says when `hl sync` has something to do. |
 | `hl open <app>` | Print the app's URL and open it in the browser. |
 | `hl shell <app> [service]` | A shell in a running container (default: the service behind the proxy). |
 | `hl show [app\|proxy]` | Settings in effect and where each comes from; `--compose` prints the compose config as hl runs it. |
@@ -117,7 +117,7 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl remove <app>` | Stop the app and forget it. Its data stays; `hl sync` won't add its folder back. |
 | `hl doctor` | Check Docker, compose, the settings, the proxy and every app; warns about an old Traefik or hl. |
 | `hl edit` | Fallback: open `hl.yml` in your editor; saved only if it checks out. |
-| `hl version` | Version, commit and platform, for bug reports (`--short`: only the version). |
+| `hl version` | Version, commit and platform, for bug reports. |
 | `hl completion <shell>` | Shell completion script. |
 
 ## Changing settings

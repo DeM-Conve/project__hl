@@ -15,10 +15,9 @@ import (
 
 func statusCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "status",
-		Aliases: []string{"ls"},
-		Short:   "Apps, their state, health and URLs",
-		Args:    cobra.NoArgs,
+		Use:   "status",
+		Short: "Apps, their state, health and URLs",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
 			if err != nil {

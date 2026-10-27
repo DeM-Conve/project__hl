@@ -296,7 +296,7 @@ func TestStatusShowsHealth(t *testing.T) {
 	f.on(rule{Match: []string{"ps --all"}, Stderr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?\n", Exit: 1})
 	f.rules = f.rules[len(f.rules)-1:]
 	f.on(f.rules[0])
-	r = f.hl("ls")
+	r = f.hl("status")
 	if r.code != 0 {
 		t.Fatalf("status without docker should still work: %s", r)
 	}
@@ -504,7 +504,7 @@ func TestDown(t *testing.T) {
 	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n")
 	// Nothing runs: down does nothing and succeeds, every time.
 	f.must("down")
-	f.must("stop")
+	f.must("down")
 	if d := f.find("down"); len(d) != 0 {
 		t.Errorf("nothing to stop, but: %v", d)
 	}
@@ -905,12 +905,11 @@ func TestVersionAndCompletion(t *testing.T) {
 	f := newFake(t)
 	r := f.must("version")
 	contains(t, "version", r.out, "hl ", "go1.", "/")
-	r2 := f.must("--version")
-	if r.out != r2.out {
-		t.Errorf("version %q vs --version %q", r.out, r2.out)
-	}
-	if r := f.must("version", "--short"); strings.Count(r.out, " ") != 0 {
-		t.Errorf("short: %q", r.out)
+	// One way to ask: no aliases, no --version flag, no --short.
+	for _, args := range [][]string{{"--version"}, {"-v"}, {"version", "--short"}, {"ls"}, {"start"}, {"stop"}} {
+		if r := f.hl(args...); r.code != 2 {
+			t.Errorf("hl %v: want a usage error, got %s", args, r)
+		}
 	}
 	for _, sh := range []string{"bash", "zsh", "fish", "powershell"} {
 		if r := f.must("completion", sh); len(r.out) < 100 {

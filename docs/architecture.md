@@ -340,8 +340,8 @@ empty config, the source `hl.yml` when the raw file sets it.
 `internal/version` holds `Version`/`Commit`/`Date`, set by GoReleaser's `-ldflags -X`. Without them
 `Get` fills in from `runtime/debug` build info: the module version for `go install ...@vX`, and
 ``vcs.revision`/`vcs.time` for builds from a checkout (`-dirty` with `vcs.modified`). `String`
-omits commit and date when unknown; `Full` (what `hl version` and `--version` print) adds the Go
-version and OS/architecture for bug reports; `hl version --short` prints only the version.
+omits commit and date when unknown; `Full` (what `hl version` prints) adds the Go
+version and OS/architecture for bug reports.
 
 ## Projects folders: `hl init` and `hl sync`
 

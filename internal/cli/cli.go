@@ -18,7 +18,6 @@ import (
 	"github.com/DeM-Conve/project__hl/internal/config"
 	"github.com/DeM-Conve/project__hl/internal/defaults"
 	"github.com/DeM-Conve/project__hl/internal/interrupt"
-	"github.com/DeM-Conve/project__hl/internal/version"
 )
 
 // Exit codes. An interruption exits 128 + the signal (130 for Ctrl-C), and
@@ -199,7 +198,6 @@ app's data (data/<app>/).
   hl init ~/homelab           create the homelab folder
   hl add ~/code/my-app        add an app (its folder, with a compose file)
   hl up                       start everything; hl status shows the URLs`,
-		Version:       version.Get().Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -208,7 +206,6 @@ app's data (data/<app>/).
 			return supported(cmd)
 		},
 	}
-	c.SetVersionTemplate(version.Get().Full() + "\n")
 	c.PersistentFlags().StringVar(&homeFlag, "home", "", "homelab folder (default: $"+defaults.HomeEnv+", the nearest folder with an hl.yml, or the one hl init set)")
 	c.AddCommand(initCmd(), addCmd(), removeCmd(), statusCmd(),
 		upCmd(), downCmd(), restartCmd(), rebuildCmd(),

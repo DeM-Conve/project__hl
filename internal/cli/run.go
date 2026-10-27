@@ -239,7 +239,6 @@ func upCmd() *cobra.Command {
 				func() error { return eachApp(ctx, cfg, names, true, &w, "up", "--detach") })
 			return statusAfter(ctx, cfg, err)
 		})
-	c.Aliases = []string{"start"}
 	w.add(c)
 	return c
 }
@@ -341,7 +340,6 @@ func statusAfter(ctx context.Context, cfg *config.Config, err error) error {
 func downCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:               "down [app...|proxy]",
-		Aliases:           []string{"stop"},
 		Short:             "Stop and remove apps' containers; data stays. With no app, also stops the proxy",
 		ValidArgsFunction: completeTargets,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -47,7 +47,7 @@ release differs from earlier builds of `main`.
 - Apps run unmodified: hl layers a generated compose override on top (`hl show <app> --compose`).
 - Shared `env` for every app, per-app `env` and `env_files`, and `${HL_URL}`, `${HL_PREFIX}`,
   `${HL_HOST}`, `${HL_DATA}`, `${HL_APP}` for an app's settings.
-- Commands: `status`/`ls`, `up`/`start`, `down`/`stop`, `restart`, `rebuild`, `logs`,
+- Commands: `status`, `up`, `down`, `restart`, `rebuild`, `logs`,
   `open`, `shell`, `show`, `doctor`,
   `version` and shell `completion` (which offers app and service names).
 - `hl status` has a HEALTH column: `healthy`, `starting: <services>`, `unhealthy: <services>`,
@@ -67,8 +67,7 @@ release differs from earlier builds of `main`.
   `hl rebuild proxy --pull` pulls the proxy's image.
 - `hl shell` opens the service behind the proxy by default, also when hl detected it rather than
   `hl.yml` pinning it, and exits with the shell's own status.
-- `hl version` shows the Go version, platform and whether the build had local changes;
-  `--short` prints only the version.
+- `hl version` shows the Go version, platform and whether the build had local changes.
 - `name:` in `hl.yml` runs a second homelab on the same Docker: its apps become `hl-<name>-<app>`
   and its proxy project and network `hl-<name>-proxy`. hl never starts, stops or replaces a
   compose project that another homelab's folder runs (`hl down` leaves it alone, `hl status`
@@ -142,6 +141,8 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- **Breaking:** the command aliases `start` (`hl up`), `stop` (`hl down`) and `ls` (`hl status`),
+  the `-v`/`--version` flag and `hl version --short` are gone; `hl version` prints the version.
 - **Breaking:** the proxy keys `config`, `dynamic`, `dashboard`, `dashboard_public`, `access_log`
   and `log_level` are gone; `proxy.debug: true` (`hl set proxy debug=true`) turns on Traefik's
   INFO log and access log. An `hl.yml` that still has one is refused with a message naming the

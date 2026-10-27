@@ -226,20 +226,13 @@ func composeAtLeast(v string, major, minor int) bool {
 }
 
 func versionCmd() *cobra.Command {
-	var short bool
-	c := &cobra.Command{
+	return &cobra.Command{
 		Use:   "version",
 		Short: "Print hl's version, commit, build date and platform (for bug reports)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if short {
-				fmt.Fprintln(stdout, version.Get().Version)
-				return nil
-			}
 			fmt.Fprintln(stdout, version.Get().Full())
 			return nil
 		},
 	}
-	c.Flags().BoolVar(&short, "short", false, "print only the version")
-	return c
 }
