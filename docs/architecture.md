@@ -377,7 +377,8 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   folder or the proxy network already there - the folder's name as an ID, else
   `defaults.HomelabDir`, then `-2` ... up to `defaults.MaxNameTries` - and `WriteNew` writes it
   with a comment saying why), `InitSettings.Config` makes
-  the homelab in memory, `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,
+  the homelab in memory (with no `--strip-prefix`, `strip_prefix` is `scan.SharedPrefixes` of the
+  new folders' names; `none` turns that off), `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,
   env, skips; `--apps` narrows the adds) and prints the plan with `printPlan`. Then, only when there is something to write and `--yes`
   isn't given: without a terminal it stops ("pass --yes", like `hl sync`), else one `confirm`
   (`prompt.go`, plain bufio, Enter = yes); "no" writes nothing. Pre-flight runs the

@@ -68,7 +68,7 @@ projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
 	f.StringSliceVar(&o.apps, "apps", nil, "apps to add from the projects folders, by name, or "+pickNone+" (default: every web app found)")
 	f.BoolVarP(&o.yes, "yes", "y", false, "apply the plan without asking")
 	f.BoolVar(&o.noEnv, "no-env", false, "don't fill in the apps' env from their compose variables")
-	f.StringSliceVar(&o.strip, "strip-prefix", nil, "folder-name prefixes left out of app names (project__blog -> blog)")
+	f.StringSliceVar(&o.strip, "strip-prefix", nil, "folder-name prefixes left out of app names, project__blog -> blog (default: a prefix most folders found share; "+pickNone+" for whole names)")
 	return c
 }
 
@@ -103,6 +103,10 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 	var s config.InitSettings
 	var saveProjects, saveStrip bool
 	var why initWhy
+	noStrip := len(o.strip) == 1 && o.strip[0] == pickNone
+	if noStrip {
+		o.strip = []string{}
+	}
 	if existing {
 		if cfg, err = config.Load(dir); err != nil {
 			return err
@@ -125,7 +129,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 			saveProjects = len(cfg.Projects) > 0
 		}
 		switch {
-		case o.strip == nil:
+		case o.strip == nil, noStrip:
 		case len(cfg.StripPrefix) > 0:
 			note("--strip-prefix is ignored: %s already has strip_prefix - change it with hl strip-prefix", config.FileName)
 		default:
@@ -136,6 +140,17 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		s = config.InitSettings{Routing: o.routing, Bind: o.bind, Port: o.port, StripPrefix: o.strip}
 		if s.Projects, err = initProjects(dir, o.projects); err != nil {
 			return err
+		}
+		if o.strip == nil && len(s.Projects) > 0 {
+			// Folders named <prefix><app> (project__blog, project__wiki): names without it.
+			if d, err := scan.Compare(s.Config(dir)); err == nil {
+				var names []string
+				for _, f := range d.New {
+					names = append(names, filepath.Base(f.Dir))
+				}
+				s.StripPrefix = scan.SharedPrefixes(names)
+				why.strip = len(s.StripPrefix) > 0
+			}
 		}
 		if s.Routing == "" {
 			s.Routing = pd.Routing
@@ -254,7 +269,11 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 		w("projects", "%s", strings.Join(cfg.Projects, ", "))
 	}
 	if len(cfg.StripPrefix) > 0 {
-		w("names", "without %s", strings.Join(cfg.StripPrefix, ", "))
+		if why.strip {
+			w("app names", "without %s - the folders share it (--strip-prefix none keeps whole names)", strings.Join(cfg.StripPrefix, ", "))
+		} else {
+			w("app names", "without %s", strings.Join(cfg.StripPrefix, ", "))
+		}
 	}
 	if why.name != "" {
 		w("name", "%s - %s, so this one's Docker names are %s%s-<app> and %s", cfg.Name, why.name,
@@ -365,6 +384,7 @@ func initDir(args []string) (string, error) {
 type initWhy struct {
 	busyPort int    // the default proxy port, in use, so another one was picked
 	name     string // why the homelab got a name: who uses the default Docker names
+	strip    bool   // strip_prefix was worked out from the folder names, not given
 }
 
 // initName picks a name for a new homelab when another homelab on this Docker already uses the

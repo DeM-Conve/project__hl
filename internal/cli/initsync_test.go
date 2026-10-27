@@ -411,7 +411,7 @@ func TestStripPrefix(t *testing.T) {
 
 	// On an existing homelab --strip-prefix is saved only when none is set.
 	other := filepath.Join(home, "other")
-	if out, err = runHL(t, "", "init", "--yes", other); err != nil {
+	if out, err = runHL(t, "", "init", "--yes", other, "--strip-prefix", "none"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if out, err = runHL(t, "", "init", "--yes", other, "--strip-prefix", "x-,y-"); err != nil || !strings.Contains(out, "strip_prefix saved") {
@@ -422,6 +422,39 @@ func TestStripPrefix(t *testing.T) {
 	}
 	if cfg, _ := config.Load(other); strings.Join(cfg.StripPrefix, ",") != "x-,y-" {
 		t.Errorf("strip_prefix = %q", cfg.StripPrefix)
+	}
+}
+
+func TestInitSharedPrefix(t *testing.T) {
+	home := initSyncEnv(t)
+	code := filepath.Join(home, "code")
+	for _, f := range []string{"project__blog", "project__wiki", "plain"} {
+		fakeApp(t, filepath.Join(code, f), webModel)
+	}
+	lab := filepath.Join(home, "lab")
+	out, err := runHL(t, "", "init", lab, "--projects", code, "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !strings.Contains(out, "app names  without project__ - the folders share it (--strip-prefix none keeps whole names)") {
+		t.Errorf("the plan should say it strips the shared prefix:\n%s", out)
+	}
+	cfg, err := config.Load(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.Names(), ",") != "blog,plain,wiki" || strings.Join(cfg.StripPrefix, ",") != "project__" {
+		t.Errorf("apps = %v, strip_prefix = %q\n%s", cfg.Names(), cfg.StripPrefix, out)
+	}
+
+	// --strip-prefix none keeps the whole folder names.
+	whole := filepath.Join(home, "whole")
+	if out, err = runHL(t, "", "init", whole, "--projects", code, "--strip-prefix", "none", "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	cfg, _ = config.Load(whole)
+	if strings.Join(cfg.Names(), ",") != "plain,project__blog,project__wiki" || len(cfg.StripPrefix) != 0 || strings.Contains(out, "app names") {
+		t.Errorf("apps = %v, strip_prefix = %q\n%s", cfg.Names(), cfg.StripPrefix, out)
 	}
 }
 

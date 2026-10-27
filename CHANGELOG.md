@@ -153,6 +153,10 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl init` strips a folder-name prefix the projects folders share (`project__blog`,
+  `project__wiki` -> apps `blog`, `wiki`): a prefix ending in `-`, `_` or `__` that at least two,
+  and at least half, of the folders found have, unless stripping it would give two apps the same
+  name. The plan says so; `--strip-prefix none` keeps whole names.
 - `hl init` settles clashes with another homelab on the same machine itself, and shows them in
   its plan: when port 80 is busy it takes the first free of 8080, 8000, 8081, 8888, 8090 (it
   gave up when 8080 was busy too), and when another homelab runs the proxy project or network

@@ -215,3 +215,25 @@ apps:
 		t.Errorf("order: adds first, skips last:\n%s", all)
 	}
 }
+
+func TestSharedPrefixes(t *testing.T) {
+	for _, c := range []struct {
+		folders []string
+		want    string
+	}{
+		{[]string{"project__blog", "project__wiki", "project__notes", "tools"}, "project__"},
+		{[]string{"project__blog"}, ""},                     // one folder: nothing shared
+		{[]string{"my-blog", "my-wiki", "a", "b", "c"}, ""}, // fewer than half
+		{[]string{"my-blog", "my-wiki", "other"}, "my-"},
+		{[]string{"a-b-x", "a-b-y", "a-c"}, "a-"},                  // the one most folders share
+		{[]string{"x_one", "x_two", "y-three", "y-four"}, "x_,y-"}, // two groups
+		{[]string{"pre-blog", "pre-wiki", "blog"}, ""},             // stripping would clash
+		{[]string{"plain", "names"}, ""},
+		{[]string{"svc-", "svc-a"}, ""},                   // nothing left after svc- in one
+		{[]string{"lab__a", "lab__b", "lab__a"}, "lab__"}, // duplicates count once
+	} {
+		if got := strings.Join(SharedPrefixes(c.folders), ","); got != c.want {
+			t.Errorf("SharedPrefixes(%q) = %q, want %q", c.folders, got, c.want)
+		}
+	}
+}

@@ -136,6 +136,61 @@ func folders(cfg *config.Config, dir, written string, depth int) ([]Folder, erro
 	return out, nil
 }
 
+// SharedPrefixes are the folder-name prefixes worth stripping from app names (strip_prefix):
+// a prefix ending in one of defaults.PrefixEnds that at least two folders, and at least half
+// of them, share (project__blog, project__wiki -> project__). Of nested prefixes the one the
+// most folders share wins, then the longest (project__ over project_). None when stripping
+// would give two folders the same app name. Longest first.
+func SharedPrefixes(folders []string) []string {
+	count := map[string]int{}
+	seen := map[string]bool{}
+	for _, f := range folders {
+		if seen[f] {
+			continue
+		}
+		seen[f] = true
+		for i := 1; i < len(f); i++ { // something must be left after the prefix
+			if strings.ContainsRune(defaults.PrefixEnds, rune(f[i-1])) {
+				count[f[:i]]++
+			}
+		}
+	}
+	var out []string
+	for p, n := range count {
+		if n < 2 || 2*n < len(seen) {
+			continue
+		}
+		keep := true
+		for q, m := range count {
+			if q == p || m < 2 {
+				continue
+			}
+			if strings.HasPrefix(p, q) && m > n || strings.HasPrefix(q, p) && m == n {
+				keep = false // a shorter one covers more folders, or a longer one the same
+				break
+			}
+		}
+		if keep {
+			out = append(out, p)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if len(out[i]) != len(out[j]) {
+			return len(out[i]) > len(out[j])
+		}
+		return out[i] < out[j]
+	})
+	names := map[string]bool{}
+	for f := range seen {
+		n := AppName(config.Stripped(f, out))
+		if names[n] {
+			return nil
+		}
+		names[n] = true
+	}
+	return out
+}
+
 // AppName turns a folder name into an app name: lowercase, other characters
 // than letters, digits, '.', '_' and '-' become '-'. "" if nothing is left.
 func AppName(folder string) string {
