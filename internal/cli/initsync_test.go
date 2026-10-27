@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // initSyncDocker answers the docker calls init and sync make: `info`,
@@ -766,5 +768,41 @@ func TestInitExistingHomelabIsHonest(t *testing.T) {
 		"+ add", "blog", "projects folders saved")
 	if cfg, err := config.Load(lab); err != nil || strings.Join(cfg.Projects, ",") != "~/code" || cfg.Apps["blog"] == nil {
 		t.Errorf("after --projects: %v %+v", err, cfg)
+	}
+}
+
+// A second homelab doesn't get the port another homelab's proxy is set to, even while that
+// proxy is stopped (nothing listens on the port).
+func TestInitSecondHomelabPort(t *testing.T) {
+	home := initSyncEnv(t)
+	first := filepath.Join(home, "first")
+	if out, err := runHL(t, "", "init", first, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	second := filepath.Join(home, "second")
+	out, err := runHL(t, "", "init", second, "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	alt := defaults.AltPorts[0]
+	contains(t, "plan", out, fmt.Sprintf("127.0.0.1:%d (this machine only; port 80 is the proxy port of the homelab in %s)", alt, first))
+	if cfg, err := config.Load(second); err != nil || cfg.Proxy.Port != alt {
+		t.Errorf("second homelab: %v %+v", err, cfg)
+	}
+
+	// Known from Docker too (a stopped proxy container), when it isn't the default homelab.
+	third := filepath.Join(home, "third")
+	ps := strings.Join([]string{"hl-proxy", "traefik", "exited", "Exited (0) 1 hour ago",
+		filepath.Join(first, ".hl", "proxy", "compose.yml"), "hl-proxy-traefik-1"}, "\t") + "\n"
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), []byte(ps), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err = runHL(t, "", "init", third, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	// The default (second, now) has the first alternative, first (only in Docker) has 80: both
+	// are skipped.
+	if cfg, err := config.Load(third); err != nil || cfg.Proxy.Port == 80 || cfg.Proxy.Port == alt {
+		t.Errorf("third homelab: %v %+v\n%s", err, cfg, out)
 	}
 }

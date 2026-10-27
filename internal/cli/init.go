@@ -46,7 +46,8 @@ without asking; without a terminal (a script, a pipe) --yes is required, as
 for hl sync. To change the plan, run it again with other flags.
 
 init picks the proxy itself: ` + config.ProxyDefaults().Routing + ` routing on ` + config.ProxyDefaults().Bind + ` (this machine only), port
-` + fmt.Sprint(config.ProxyDefaults().Port) + `, or the first free of ` + joinInts(defaults.AltPorts) + ` when that one is in use.
+` + fmt.Sprint(config.ProxyDefaults().Port) + `, or the first free of ` + joinInts(defaults.AltPorts) + ` when that one is in use or is
+another homelab's proxy port (the default homelab's, or one Docker has containers of).
 Change it afterwards with hl set proxy (bind=0.0.0.0, port=8080, routing=host).
 To leave out an app init adds, hl remove <app> afterwards (hl sync won't add it
 back).
@@ -137,8 +138,18 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 				why.strip = len(s.StripPrefix) > 0
 			}
 		}
-		if portInUse(s.Bind, s.Port) {
-			if free := freePort(s.Bind); free != 0 {
+		claimed := otherHomelabPorts(dir, dockerOK)
+		busy := func(p int) bool { return portInUse(s.Bind, p) || claimed[p] != "" }
+		if busy(s.Port) {
+			why.portOwner = claimed[s.Port]
+			free := 0
+			for _, p := range defaults.AltPorts {
+				if !busy(p) {
+					free = p
+					break
+				}
+			}
+			if free != 0 {
 				why.busyPort, s.Port = s.Port, free
 			} else {
 				say("%swarning:%s port %d is in use on %s - free it before hl up, or hl set proxy port=<free port>", yellow, reset, s.Port, s.Bind)
@@ -280,7 +291,10 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 	if ip := net.ParseIP(cfg.Proxy.Bind); ip != nil && !ip.IsLoopback() {
 		reach = "your network too"
 	}
-	if why.busyPort != 0 {
+	switch {
+	case why.busyPort != 0 && why.portOwner != "":
+		reach += fmt.Sprintf("; port %d is the proxy port of the homelab in %s", why.busyPort, why.portOwner)
+	case why.busyPort != 0:
 		reach += fmt.Sprintf("; port %d is in use", why.busyPort)
 	}
 	w("proxy", "%s:%d (%s), %s routing: apps at %s/", cfg.Proxy.Bind, cfg.Proxy.Port, reach, cfg.Proxy.Routing,
@@ -343,9 +357,10 @@ func initDir(args []string) (string, error) {
 
 // initWhy is what init changed in a new homelab's plan to avoid a clash, for the plan to say.
 type initWhy struct {
-	busyPort int    // the default proxy port, in use, so another one was picked
-	name     string // why the homelab got a name: who uses the default Docker names
-	strip    bool   // strip_prefix was worked out from the folder names, not given
+	busyPort  int    // the default proxy port, in use, so another one was picked
+	portOwner string // the other homelab whose proxy has that port, "" when something else uses it
+	name      string // why the homelab got a name: who uses the default Docker names
+	strip     bool   // strip_prefix was worked out from the folder names, not given
 
 	// An existing hl.yml: what the flags add to it.
 	saveProjects, saveStrip bool
@@ -374,6 +389,37 @@ func initName(ctx context.Context, dir string, s config.InitSettings) (name, why
 		}
 	}
 	return "", "" // hl doctor and hl up explain the clash
+}
+
+// otherHomelabPorts are the proxy ports other homelabs on this machine are set to, whether
+// their proxy runs or not, with the homelab's folder: the default homelab, and (when Docker
+// answers) every homelab that has containers, stopped ones too. A port free right now may be
+// one of theirs, and both proxies can't have it once they run.
+func otherHomelabPorts(dir string, dockerOK bool) map[int]string {
+	homes := []string{config.DefaultHome()}
+	if dockerOK {
+		if inv, err := containers(context.Background()); err == nil {
+			for _, cs := range inv.byProject {
+				for _, c := range cs {
+					if strings.Contains(c.configFiles, string(filepath.Separator)+defaults.StateDir+string(filepath.Separator)) {
+						homes = append(homes, homelabOf(c.configFiles))
+					}
+				}
+			}
+		}
+	}
+	out := map[int]string{}
+	for _, h := range homes {
+		if h == "" || sameDir(h, dir) {
+			continue
+		}
+		if cfg, err := config.Load(h); err == nil {
+			if _, ok := out[cfg.Proxy.Port]; !ok {
+				out[cfg.Proxy.Port] = cfg.Dir
+			}
+		}
+	}
+	return out
 }
 
 // otherHome warns when hl commands won't use the homelab init just made default, because

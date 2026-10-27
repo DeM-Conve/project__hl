@@ -439,8 +439,11 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   `default` line when another homelab was the default (`config.DefaultHome`). It plans first and writes nothing until it is confirmed: the settings come from `--projects`,
   `--strip-prefix` and defaults only (the proxy has no flags: path routing on `127.0.0.1`;
   `--projects`, else `defaults.CandidateProjects` that exist in the home folder;
-  the default port, or the first free of `defaults.AltPorts` (`freePort`) when that is busy, shown
-  as "port 80 is in use" in the plan; with docker working, `initName` gives a new homelab a `name`
+  the default port, or the first of `defaults.AltPorts` that is free and unclaimed when that is
+  busy or claimed, shown as "port 80 is in use" (or "is the proxy port of the homelab in <dir>")
+  in the plan. Claimed ports (`otherHomelabPorts`) are the `proxy.port` of every other homelab hl
+  can find: the recorded default and, with docker working, the folder in the `config_files`
+  label of any container (running or stopped) started from a homelab's `.hl/`; with docker working, `initName` gives a new homelab a `name`
   when `proxyNamesTaken` (docker.go) finds the default proxy project run from another homelab's
   folder or the proxy network already there - the folder's name as an ID, else
   `defaults.HomelabDir`, then `-2` ... up to `defaults.MaxNameTries` - and `WriteNew` writes it

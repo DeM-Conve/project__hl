@@ -293,7 +293,7 @@ and not settings (some have a command-line flag):
 | `200` | lines shown by `hl logs` and `hl logs proxy` (change with `--tail`) |
 | `2m` | how long `--wait` waits for each app (change with `--wait-timeout`) |
 | `20` | log lines `--wait` shows for each service that didn't become healthy |
-| `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use (and error hints suggest) |
+| `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use or another homelab's proxy is set to it (and error hints suggest) |
 | `code`, `projects`, `src` | projects folders `hl init` suggests, under your home folder, when they exist |
 | `homelab` | the folder `hl init` uses under your home folder when you name none |
 | `.hlignore` | a folder holding a file with this name is never picked up as an app |
