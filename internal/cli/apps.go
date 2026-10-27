@@ -146,8 +146,7 @@ the mapped ones; env.NAME= with no value leaves that variable out.`,
 			}
 			printEnv(stdout, "", a.Env)
 			if cfg.Routing(&a) == config.RoutingPath && !mapsBasePath(a.Env) {
-				say("%snote:%s path routing serves it under %s, with the prefix stripped. The app must build its\n"+
-					"links for that prefix: hl set %s env.<ITS_BASE_PATH>='${HL_PREFIX}', or hl set %[4]s routing=host.",
+				say("%shint:%s if its links break under %s: hl set %s env.<BASE_PATH_VAR>='${HL_PREFIX}' (or routing=host)",
 					yellow, reset, cfg.Prefix(name, &a), name)
 			}
 			say("start it: hl up %s", name)

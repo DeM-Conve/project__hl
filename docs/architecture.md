@@ -231,6 +231,9 @@ warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-m
   `healthy` (every healthcheck passes), `starting: <services>`, `unhealthy: <services>` (also
   restarting or exited ones), `-` without healthchecks. Without Docker it still prints hl.yml's
   apps, states `?`, and a warning with the hint.
+- `logs <app>` (and `logs proxy`) first checks the inventory: a project with no containers at
+  all gets "isn't running" and exit 0 instead of compose's empty output (`notRunning`; without
+  Docker compose runs and says what is wrong).
 - `logs` with no app runs `docker compose logs` for every app at once, each line prefixed by its
   app; `--tail` (default `defaults.LogTail`) and `-f` apply to all.
 - `show` (`internal/cli/show.go`) reads `hl.yml` and, only for an app whose `service` or `port`

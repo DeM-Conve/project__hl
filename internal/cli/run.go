@@ -527,6 +527,9 @@ func logsCmd() *cobra.Command {
 				a = append(a, "--follow")
 			}
 			if len(args) > 0 && args[0] == proxyArg {
+				if notRunning(ctx, cfg.ProxyProject(), proxyArg) {
+					return nil
+				}
 				p, err := proxy(cfg)
 				if err != nil {
 					return err
@@ -543,6 +546,9 @@ func logsCmd() *cobra.Command {
 			if _, err := targets(cfg, args[:1]); err != nil {
 				return err
 			}
+			if notRunning(ctx, cfg.ProjectName(args[0]), args[0]) {
+				return nil
+			}
 			p, err := prepared(ctx, cfg, args[0])
 			if err != nil {
 				return err
@@ -556,6 +562,17 @@ func logsCmd() *cobra.Command {
 	c.Flags().BoolVarP(&follow, "follow", "f", false, "keep following")
 	c.Flags().IntVarP(&tail, "tail", "n", defaults.LogTail, "lines to show from the end of each log")
 	return c
+}
+
+// notRunning says so and reports true when project has no containers at all (compose would
+// print nothing); without Docker it reports false and lets compose say what is wrong.
+func notRunning(ctx context.Context, project, name string) bool {
+	inv, err := containers(ctx)
+	if err != nil || len(inv.of(project)) > 0 {
+		return false
+	}
+	say("%s isn't running, so it has no logs - start it with: hl up %s", name, name)
+	return true
 }
 
 // logsAll runs `docker compose logs` for every app at once, each line

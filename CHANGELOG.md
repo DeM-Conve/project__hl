@@ -15,6 +15,9 @@ release differs from earlier builds of `main`.
 
 ### Added
 
+- `hl logs <app>` (or `hl logs proxy`) on something that isn't running says so, instead of
+  printing nothing.
+
 - `hl remove <app>` of an app in a projects folder adds the folder to `ignore` (and says so), so
   `hl sync` doesn't add it straight back; `hl add` of that folder later takes it out again.
 
@@ -176,6 +179,9 @@ release differs from earlier builds of `main`.
   `hl set my-app service=...`) instead of the `hl.yml` key to edit; `hl edit` stays as the fallback.
 
 ### Fixed
+
+- `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
+  line, shown only with path routing when no base-path variable was mapped.
 
 - Folders inside `data/<app>/` that the app's env points at (like an auto-mapped
   `BACKUP_LOCATION`) are created by hl before the app starts; Docker created them owned by root,

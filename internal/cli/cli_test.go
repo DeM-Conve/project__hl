@@ -121,7 +121,7 @@ func TestAddSettings(t *testing.T) {
 	// The folder name becomes a valid app name.
 	r = f.must("add", dir)
 	contains(t, "add", r.out, "note: several services publish ports (ui, web); picked web - add service=<name> to route another",
-		"added my-tool (service web, port 80)", "path routing serves it under /my-tool")
+		"added my-tool (service web, port 80)", "hint: if its links break under /my-tool: hl set my-tool env.<BASE_PATH_VAR>='${HL_PREFIX}' (or routing=host)")
 
 	r = f.must("add", dir, "name=db", "routing=none", "compose=compose.prod.yml")
 	contains(t, "add none", r.out, "not behind the proxy")
@@ -166,7 +166,7 @@ func TestAddMapsEnv(t *testing.T) {
 	r := f.must("add", dir)
 	contains(t, "add", r.out, "env NOTES_BASE_PATH=${HL_PREFIX}", "env NOTES_URL=${HL_URL}",
 		"env DATA_LOCATION=${HL_DATA}", "env BACKUP_LOCATION=${HL_DATA}/backups")
-	lacks(t, "add", r.out, "UPSTREAM_URL", "DB_DATA_LOCATION", "path routing serves it under")
+	lacks(t, "add", r.out, "UPSTREAM_URL", "DB_DATA_LOCATION", "hint:")
 	cfg, err := config.Load(lab)
 	if err != nil {
 		t.Fatal(err)
@@ -579,11 +579,21 @@ func TestRebuildPull(t *testing.T) {
 func TestLogs(t *testing.T) {
 	f := newFake(t)
 	a, b := f.app("a", webModel2), f.app("bb", apiModel)
-	f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n  bb: {path: '"+b+"'}\n")
+	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n  bb: {path: '"+b+"'}\n")
 	f.on(rule{Match: []string{"--project-name hl-a ", "logs"}, Stdout: "web-1  | GET /\nweb-1  | GET /about\n"})
 	f.on(rule{Match: []string{"--project-name hl-bb ", "logs"}, Stdout: "api-1  | ready\n"})
 
-	r := f.must("logs", "a", "web", "-f", "--tail", "5")
+	// A stopped app (or proxy) has no containers: say so instead of printing nothing.
+	r := f.must("logs", "a")
+	contains(t, "logs of a stopped app", r.out, "a isn't running", "hl up a")
+	r = f.must("logs", "proxy")
+	contains(t, "logs of a stopped proxy", r.out, "proxy isn't running", "hl up proxy")
+	if l := f.find("logs --tail"); len(l) != 0 {
+		t.Errorf("compose logs ran for nothing: %v", l)
+	}
+
+	f.containers(ctr("hl-a", "web", "exited", "Exited (0) 1 minute ago", filepath.Join(lab, ".hl", "a", "override.yml")))
+	r = f.must("logs", "a", "web", "-f", "--tail", "5")
 	if l := f.find("--project-name hl-a ", "logs"); len(l) != 1 || !strings.HasSuffix(l[0].String(), "logs --tail 5 --follow web") {
 		t.Errorf("logs args: %v", l)
 	}
@@ -921,7 +931,8 @@ func TestVersionAndCompletion(t *testing.T) {
 func TestInterruptStopsCleanly(t *testing.T) {
 	f := newFake(t)
 	a, b := f.app("a", webModel2), f.app("b", apiModel)
-	f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n  b: {path: '"+b+"'}\n")
+	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n  b: {path: '"+b+"'}\n")
+	f.containers(ctr("hl-a", "web", "running", "Up", filepath.Join(lab, ".hl", "a", "override.yml")))
 	f.on(rule{Match: []string{"logs"}, Wait: true})
 	ctx, cancel := context.WithCancelCause(context.Background())
 	done := make(chan result)
