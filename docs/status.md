@@ -84,3 +84,8 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     lists; `scan_depth` still needs `hl edit` unless the top-level `hl set` covers it.
 13. **Picking apps on a terminal**: `hl init` used to offer the apps found as a checklist; now it
     shows the plan and asks once, and `--apps a,b` picks. Is that enough?
+14. **Shared prefix and clash names on an existing homelab** (2026-10-27): `hl init` strips a
+    shared folder-name prefix and picks a `name`/free port only for a new homelab. Re-running it
+    on an existing `hl.yml` without `strip_prefix` (or one clashing with another homelab) changes
+    nothing and leaves that to `hl set`/`hl doctor`. Should it offer them there too (renaming
+    apps or projects that may already run)?
