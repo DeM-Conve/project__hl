@@ -306,8 +306,12 @@ warns. Kept apps are never re-mapped.
 ## Editing hl.yml
 
 Every change hl makes to `hl.yml` goes through the `yaml.Node` tree (`config.edited`/`editFile` in
-`internal/config/edit.go`), so comments and key order survive (yaml.v3 drops blank lines and
-normalises indentation to two spaces).
+`internal/config/edit.go`), so comments and key order survive (yaml.v3 normalises indentation
+to two spaces). yaml.v3 also drops blank lines; `keepBlankLines` puts them back: it matches the
+encoder's lines against the old file's non-blank lines (longest common subsequence), and each
+line still there gets the blank lines that stood above it; a changed or removed line hands its
+blank lines on to the next line written. If the result doesn't decode to the same YAML as the
+encoder's output (a blank line inside a block scalar), the encoder's output is written as it is.
 
 - `hl add`/`hl remove` (`config.AddApp`, `RemoveApp`) touch only the `apps:` mapping (`apps: {}`
   from the template is turned into a block mapping).

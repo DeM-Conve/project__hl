@@ -258,3 +258,61 @@ func TestUnsetLastProxyKeyDropsTheSection(t *testing.T) {
 		t.Errorf("unknown app: %T %v", err, err)
 	}
 }
+
+func TestEditKeepsBlankLines(t *testing.T) {
+	const spaced = `version: 1
+
+# Shared by every app.
+env:
+  TZ: UTC
+
+# The proxy: this machine only.
+proxy:
+  bind: 127.0.0.1 # loopback
+
+  port: 8080
+
+apps:
+  # The blog.
+  blog:
+    path: ~/code/blog
+    port: 80
+
+  # The wiki, host-routed.
+  wiki:
+    path: ~/code/wiki # the folder
+    routing: host
+
+  notes: {path: ~/code/notes}
+`
+	dir := write(t, spaced)
+	if err := EditApp(dir, "blog", []Change{{Key: "routing", Value: "host"}}); err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Replace(spaced, "    port: 80\n", "    port: 80\n    routing: host\n", 1)
+	if got := read(t, dir); got != want {
+		t.Errorf("set changed more than one line:\n--- got\n%s--- want\n%s", got, want)
+	}
+
+	// A changed and a removed line keep the spacing around them.
+	if err := EditApp(dir, "wiki", []Change{{Key: "routing", Unset: true}, {Key: "path", Value: "~/src/wiki"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Edit(dir, ProxyScope, []Change{{Key: "port", Value: "9090"}}); err != nil {
+		t.Fatal(err)
+	}
+	want = strings.Replace(want, "    path: ~/code/wiki # the folder\n    routing: host\n", "    path: ~/src/wiki # the folder\n", 1)
+	want = strings.Replace(want, "  port: 8080\n", "  port: 9090\n", 1)
+	if got := read(t, dir); got != want {
+		t.Errorf("after unset:\n--- got\n%s--- want\n%s", got, want)
+	}
+
+	// A blank line inside a block scalar is the value's, not spacing: the file stays valid.
+	dir = write(t, "version: 1\nenv:\n  MOTD: |\n    one\n\n    two\n\napps: {}\n")
+	if err := Edit(dir, HomelabScope, []Change{{Key: "env.TZ", Value: "UTC"}}); err != nil {
+		t.Fatal(err)
+	}
+	if c, err := Load(dir); err != nil || c.Env["MOTD"] != "one\n\ntwo\n" || c.Env["TZ"] != "UTC" {
+		t.Errorf("block scalar: %+v, %v\n%s", c, err, read(t, dir))
+	}
+}

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -40,7 +42,85 @@ func edited(path string, edit func(root *yaml.Node) error) ([]byte, error) {
 	if err := enc.Encode(&doc); err != nil {
 		return nil, err
 	}
-	return out.Bytes(), nil
+	return keepBlankLines(b, out.Bytes()), nil
+}
+
+// keepBlankLines puts the blank lines of old (the file before an edit) back into new (the
+// encoder's output, which drops them). Each blank line belongs to the line after it: new's
+// lines are matched against old's other lines, and a line still there gets its blank lines
+// back. A changed or removed line passes its blank lines on to the next line written, so
+// sections keep their spacing. If the result doesn't decode to the same YAML as new (a blank
+// line inside a block scalar, say), new is returned as it is.
+func keepBlankLines(old, new []byte) []byte {
+	blank := func(s string) bool { return strings.TrimSpace(s) == "" }
+	// a: old's other lines; before[i]: the blank lines above a[i].
+	var a []string
+	var before []int
+	n := 0
+	for _, l := range splitLines(old) {
+		if blank(l) {
+			n++
+			continue
+		}
+		a, before, n = append(a, l), append(before, n), 0
+	}
+	b := splitLines(new)
+	// lcs[i][j]: the length of the longest common subsequence of a[i:] and b[j:].
+	lcs := make([][]int, len(a)+1)
+	for i := range lcs {
+		lcs[i] = make([]int, len(b)+1)
+	}
+	for i := len(a) - 1; i >= 0; i-- {
+		for j := len(b) - 1; j >= 0; j-- {
+			if a[i] == b[j] {
+				lcs[i][j] = lcs[i+1][j+1] + 1
+			} else {
+				lcs[i][j] = max(lcs[i+1][j], lcs[i][j+1])
+			}
+		}
+	}
+	var out []string
+	pending := 0 // blank lines to write before the next line
+	emit := func(l string) {
+		if len(out) > 0 {
+			for ; pending > 0; pending-- {
+				out = append(out, "")
+			}
+		}
+		pending = 0
+		out = append(out, l)
+	}
+	i, j := 0, 0
+	for i < len(a) || j < len(b) {
+		switch {
+		case i < len(a) && j < len(b) && a[i] == b[j]:
+			pending = max(pending, before[i])
+			emit(b[j])
+			i, j = i+1, j+1
+		case i < len(a) && (j == len(b) || lcs[i+1][j] >= lcs[i][j+1]):
+			// A line new doesn't have: its blank lines go to the next one.
+			pending = max(pending, before[i])
+			i++
+		default:
+			emit(b[j])
+			j++
+		}
+	}
+	res := []byte(strings.Join(out, "\n") + "\n")
+	var x, y any
+	if yaml.Unmarshal(res, &x) != nil || yaml.Unmarshal(new, &y) != nil || !reflect.DeepEqual(x, y) {
+		return new
+	}
+	return res
+}
+
+// splitLines splits b into lines, without their line ends.
+func splitLines(b []byte) []string {
+	s := strings.TrimSuffix(string(b), "\n")
+	if s == "" {
+		return nil
+	}
+	return strings.Split(s, "\n")
 }
 
 // editFile applies edit to <dir>/hl.yml and writes it back.

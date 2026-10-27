@@ -204,6 +204,9 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl set`, `hl unset` and every other command that changes `hl.yml` (add, remove, sync, init)
+  keep its blank lines; they used to remove all of them, so one setting rewrote the whole file's
+  layout.
 - `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
   into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl
