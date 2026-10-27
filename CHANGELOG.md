@@ -204,6 +204,10 @@ release differs from earlier builds of `main`.
   compose files, `compose=` to a missing file, and `service=` to a service the compose files
   don't have (when they can be read) are refused, listing the services. Unsetting the last proxy
   setting leaves no empty `proxy: {}` behind.
+- `hl status` and `hl show` print folders inside your home folder as `~/...`, and `hl show` no
+  longer pads every row to its longest value (a long path pushed every source far right).
+- `hl init` making a second homelab the default said so only after writing; the plan says it
+  first, naming the homelab that was the default.
 - `hl logs proxy` printing nothing (Traefik logs only errors by default) now says how to see more:
   `hl set proxy debug=true`. `hl logs <app> <service>` with a service the app doesn't have lists
   its services instead of compose's error.

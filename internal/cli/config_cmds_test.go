@@ -503,7 +503,7 @@ func TestShowHomelabSettings(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
-		home, "env ($HL_HOME)", "port", "8080", "http://127.0.0.1:8080",
+		"folder  ~/homelab  env ($HL_HOME)", "port", "8080", "http://127.0.0.1:8080",
 		"~/nowhere", "not found", "ignore", "old", "always: .*", "scan_depth", strconv.Itoa(defaults.ScanDepth), "default",
 	} {
 		if !strings.Contains(out, want) {

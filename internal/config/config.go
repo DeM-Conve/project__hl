@@ -556,6 +556,15 @@ func Home(flag string) (string, error) {
 	return "", errors.New("no homelab found - create one with `hl init <folder>`, or point to it with --home or $" + defaults.HomeEnv)
 }
 
+// DefaultHome is the homelab `hl init` recorded as the default, "" when there is none.
+func DefaultHome() string {
+	b, err := os.ReadFile(defaultHomeFile())
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
 // SetDefaultHome records dir as the homelab used outside any homelab folder.
 func SetDefaultHome(dir string) error {
 	f := defaultHomeFile()

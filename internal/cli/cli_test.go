@@ -503,12 +503,12 @@ func TestShow(t *testing.T) {
 		"  b: {path: '"+b+"', routing: host, service: api, port: 3000}\n")
 
 	r := f.must("show")
-	contains(t, "show", r.out, "homelab", lab, "env ($HL_HOME)", "port", "8082", "hl.yml", "listen", "http://127.0.0.1:8082", "hl show proxy",
+	contains(t, "show", r.out, "homelab", "folder  ~/lab  env ($HL_HOME)", "port", "8082", "hl.yml", "listen", "http://127.0.0.1:8082", "hl show proxy",
 		"TZ=UTC", "LANG=C", "http://localhost:8082/a/", "http://b.localhost:8082/")
 	lacks(t, "show", r.out, "bind", "dashboard_public") // settings left at their default are in hl show proxy
 
 	r = f.must("show", "a")
-	contains(t, "show a", r.out, "folder", a, "project", "hl-a", "compose.yml", "found in the folder",
+	contains(t, "show a", r.out, "folder   ~/my code/a  hl.yml\n", "project", "hl-a", "compose.yml", "found in the folder",
 		"service", "web", "detected", "port", "80", "routing", "default (proxy.routing)", "http://localhost:8082/a/",
 		"prefix", "/a", filepath.Join(lab, "data", "a"),
 		"HL_URL=http://localhost:8082/a", "A_BASE=/a", "apps.a.env: ${HL_PREFIX}",

@@ -263,6 +263,9 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 	} else {
 		w("homelab", "%s (new hl.yml, data/)", cfg.Dir)
 	}
+	if old := config.DefaultHome(); old != "" && !samePath(old, cfg.Dir) {
+		w("default", "this homelab becomes the default, instead of %s (hl --home %q ... still reaches that one)", old, old)
+	}
 	if len(cfg.Projects) == 0 {
 		w("projects", "none - pass --projects <folder>, or later hl set projects+=<folder>")
 	} else {

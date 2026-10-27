@@ -132,7 +132,7 @@ func showProxy(cfg *config.Config) error {
 
 	say("%sproxy%s %s", bold, reset, state)
 	w := table()
-	fmt.Fprintf(w, "  listen\thttp://%s\t\n", net.JoinHostPort(p.Bind, strconv.Itoa(p.Port)))
+	fmt.Fprintf(w, "  listen\thttp://%s\n", net.JoinHostPort(p.Bind, strconv.Itoa(p.Port)))
 	for _, st := range settings {
 		key, ok := strings.CutPrefix(st.Key, "proxy.")
 		if !ok {
@@ -142,9 +142,9 @@ func showProxy(cfg *config.Config) error {
 		if key == "image" && image != "" && image != p.Image {
 			v += "  (running: " + image + ")"
 		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\n", key, v, from(st.Source))
+		fmt.Fprintf(w, "  %s\t%s  %s\n", key, v, from(st.Source))
 	}
-	fmt.Fprintf(w, "  traefik config\t%s\t%s\n", files.Static, from("generated from "+config.FileName))
+	fmt.Fprintf(w, "  traefik config\t%s  %s\n", tilde(files.Static), from("generated from "+config.FileName))
 	_ = w.Flush()
 
 	if clash != nil {

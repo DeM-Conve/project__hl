@@ -51,13 +51,13 @@ func printStatus(ctx context.Context, cfg *config.Config) error {
 	case inv.owner(cfg, cfg.ProxyProject()) != "":
 		// Not this homelab's proxy: its address would only mislead.
 		say("%sproxy:%s %srun by another homelab (%s) - see hl doctor%s", bold, reset, yellow, inv.owner(cfg, cfg.ProxyProject()), reset)
-		say("%shome %s%s", dim, cfg.Dir, reset)
+		say("%shome %s%s", dim, tilde(cfg.Dir), reset)
 		proxyState = ""
 	case inv.running(cfg.ProxyProject()):
 		proxyState = green + "running" + reset
 	}
 	if proxyState != "" {
-		say("%sproxy%s %s  %s%s:%d%s  %shome %s%s", bold, reset, proxyState, dim, cfg.Proxy.Bind, cfg.Proxy.Port, reset, dim, cfg.Dir, reset)
+		say("%sproxy%s %s  %s%s:%d%s  %shome %s%s", bold, reset, proxyState, dim, cfg.Proxy.Bind, cfg.Proxy.Port, reset, dim, tilde(cfg.Dir), reset)
 	}
 	fmt.Fprintln(stdout)
 	if len(cfg.Apps) == 0 {
@@ -82,7 +82,7 @@ func printStatus(ctx context.Context, cfg *config.Config) error {
 				state, health = summarize(inv.of(cfg.ProjectName(n)))
 			}
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", n, state, health, u, cfg.AppDir(a))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", n, state, health, u, tilde(cfg.AppDir(a)))
 	}
 	return w.Flush()
 }

@@ -86,9 +86,9 @@ func setIn(set bool) string {
 
 func showApp(ctx context.Context, cfg *config.Config, name string, a *config.App) {
 	w := table()
-	row := func(k, v, src string) { fmt.Fprintf(w, "  %s\t%s\t%s\n", k, v, from(src)) }
+	row := func(k, v, src string) { fmt.Fprintf(w, "  %s\t%s  %s\n", k, v, from(src)) }
 	say("%s%s%s", bold, name, reset)
-	row("folder", cfg.AppDir(a), config.FileName)
+	row("folder", tilde(cfg.AppDir(a)), config.FileName)
 	routing := cfg.Routing(a)
 	row("project", cfg.ProjectName(name), "")
 
@@ -152,7 +152,7 @@ func showApp(ctx context.Context, cfg *config.Config, name string, a *config.App
 			row("host", cfg.Host(name, a), setIn(a.Host != ""))
 		}
 	}
-	row("data", cfg.DataDir(name), defaults.DataDir+"/<app>")
+	row("data", tilde(cfg.DataDir(name)), defaults.DataDir+"/<app>")
 	if p != nil && len(p.EnvFiles) > 0 {
 		row("env files", strings.Join(p.EnvFiles, ", "), "the app's "+defaults.AppEnvFile+", then env_files")
 	}
@@ -168,7 +168,7 @@ func showApp(ctx context.Context, cfg *config.Config, name string, a *config.App
 		if v.Overrides != "" {
 			src += ", over the " + envSource(name, v.Overrides)
 		}
-		fmt.Fprintf(w, "    %s=%s\t%s\n", v.Name, v.Value, from(src))
+		fmt.Fprintf(w, "    %s=%s  %s\n", v.Name, v.Value, from(src))
 	}
 	_ = w.Flush()
 	if modelErr != nil {
@@ -206,10 +206,10 @@ func showHomelab(cfg *config.Config) error {
 	}
 	say("%shomelab%s", bold, reset)
 	w := table()
-	fmt.Fprintf(w, "  folder\t%s\t%s\n", cfg.Dir, from(homeSource(cfg.Dir)))
-	fmt.Fprintf(w, "  config\t%s\t\n", cfg.File())
+	fmt.Fprintf(w, "  folder\t%s  %s\n", tilde(cfg.Dir), from(homeSource(cfg.Dir)))
+	fmt.Fprintf(w, "  config\t%s\n", tilde(cfg.File()))
 	if cfg.Name != "" {
-		fmt.Fprintf(w, "  name\t%s\t%s\n", cfg.Name, from(config.FileName))
+		fmt.Fprintf(w, "  name\t%s  %s\n", cfg.Name, from(config.FileName))
 	}
 	_ = w.Flush()
 
@@ -220,49 +220,49 @@ func showHomelab(cfg *config.Config) error {
 		if !ok || s.Source == "default" {
 			continue // hl show proxy lists every setting
 		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\n", key, s.Value, from(s.Source))
+		fmt.Fprintf(w, "  %s\t%s  %s\n", key, s.Value, from(s.Source))
 	}
-	fmt.Fprintf(w, "  listen\thttp://%s\t%s\n", net.JoinHostPort(cfg.Proxy.Bind, strconv.Itoa(cfg.Proxy.Port)), from("hl show proxy: state and every setting"))
+	fmt.Fprintf(w, "  listen\thttp://%s  %s\n", net.JoinHostPort(cfg.Proxy.Bind, strconv.Itoa(cfg.Proxy.Port)), from("hl show proxy: state and every setting"))
 	_ = w.Flush()
 
 	say("%senv%s %s(every app; an app's own env wins)%s", bold, reset, dim, reset)
 	w = table()
 	if _, ok := cfg.Env[defaults.TZEnv]; !ok {
 		if tz, source := config.HostTimeZone(); tz != "" {
-			fmt.Fprintf(w, "  %s=%s\t%s\n", defaults.TZEnv, tz, from(source+", unless an app's env or env files set one"))
+			fmt.Fprintf(w, "  %s=%s  %s\n", defaults.TZEnv, tz, from(source+", unless an app's env or env files set one"))
 		} else {
-			fmt.Fprintf(w, "  %s\t%s\n", defaults.TZEnv, from("none: the host's time zone can't be told, so apps keep their own default"))
+			fmt.Fprintf(w, "  %s  %s\n", defaults.TZEnv, from("none: the host's time zone can't be told, so apps keep their own default"))
 		}
 	}
 	for _, k := range sortedKeys(cfg.Env) {
-		fmt.Fprintf(w, "  %s=%s\t%s\n", k, cfg.Env[k], from(config.FileName))
+		fmt.Fprintf(w, "  %s=%s  %s\n", k, cfg.Env[k], from(config.FileName))
 	}
 	_ = w.Flush()
 
 	say("%sprojects%s %s(where hl init and hl sync look for apps)%s", bold, reset, dim, reset)
 	w = table()
 	if len(cfg.Projects) == 0 {
-		fmt.Fprintf(w, "  folders\t-\t%s\n", from("none: hl sync needs one"))
+		fmt.Fprintf(w, "  folders\t-  %s\n", from("none: hl sync needs one"))
 	}
 	for i, p := range cfg.Projects {
 		note := config.FileName
 		if st, err := os.Stat(cfg.ProjectDirs()[i]); err != nil || !st.IsDir() {
 			note = yellow + "not found: " + cfg.ProjectDirs()[i] + reset
 		}
-		fmt.Fprintf(w, "  folder\t%s\t%s\n", p, from(note))
+		fmt.Fprintf(w, "  folder\t%s  %s\n", p, from(note))
 	}
 	ignore := strings.Join(cfg.Ignore, ", ")
 	if ignore == "" {
 		ignore = "-"
 	}
-	fmt.Fprintf(w, "  ignore\t%s\t%s\n", ignore, from("always: "+strings.Join(defaults.DefaultIgnore, ", ")+", folders with a "+defaults.IgnoreFile))
+	fmt.Fprintf(w, "  ignore\t%s  %s\n", ignore, from("always: "+strings.Join(defaults.DefaultIgnore, ", ")+", folders with a "+defaults.IgnoreFile))
 	depth, depthFrom := cfg.ScanDepth, config.FileName
 	if depth == 0 {
 		depth, depthFrom = defaults.ScanDepth, "default"
 	}
-	fmt.Fprintf(w, "  scan_depth\t%d\t%s\n", depth, from(depthFrom))
+	fmt.Fprintf(w, "  scan_depth\t%d  %s\n", depth, from(depthFrom))
 	if len(cfg.StripPrefix) > 0 {
-		fmt.Fprintf(w, "  strip_prefix\t%s\t%s\n", strings.Join(cfg.StripPrefix, ", "), from(config.FileName))
+		fmt.Fprintf(w, "  strip_prefix\t%s  %s\n", strings.Join(cfg.StripPrefix, ", "), from(config.FileName))
 	}
 	_ = w.Flush()
 
@@ -280,7 +280,7 @@ func showHomelab(cfg *config.Config) error {
 		} else {
 			u += "/"
 		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\n", n, u, from(cfg.AppDir(a)))
+		fmt.Fprintf(w, "  %s\t%s  %s\n", n, u, from(tilde(cfg.AppDir(a))))
 	}
 	_ = w.Flush()
 	say("%shl show <app> for one app's details%s", dim, reset)

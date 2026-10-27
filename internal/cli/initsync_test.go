@@ -405,7 +405,7 @@ func TestStatusOtherHomelabsProxy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if !strings.Contains(out, "proxy: run by another homelab ("+other+") - see hl doctor\nhome "+lab) || strings.Contains(out, "127.0.0.1:80") {
+	if !strings.Contains(out, "proxy: run by another homelab ("+other+") - see hl doctor\nhome ~/lab") || strings.Contains(out, "127.0.0.1:80") {
 		t.Errorf("status header:\n%s", out)
 	}
 }
@@ -667,6 +667,10 @@ func TestInitDefaultFolder(t *testing.T) {
 	second := filepath.Join(home, "second")
 	if out, err = runHL(t, "", "init", second, "--yes"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
+	}
+	// A second homelab takes over as the default: the plan says so.
+	if !strings.Contains(out, "default    this homelab becomes the default, instead of "+lab) {
+		t.Errorf("the plan should say the default changes:\n%s", out)
 	}
 	chdir(t, second)
 	if out, err = runHL(t, "", "init", "--yes"); err != nil || !strings.Contains(out, "homelab    "+second+" (hl.yml kept)") {

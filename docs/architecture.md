@@ -266,7 +266,9 @@ warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-m
   apps get (`config.HostTimeZone` when the shared env has none), the projects folders (and which
   are missing), `ignore` with the built-in patterns, `scan_depth`, `strip_prefix`, and the apps.
   `--compose` runs `docker compose config` on the prepared app (or the proxy's project) instead:
-  the whole config as hl runs it.
+  the whole config as hl runs it. Only the key column is aligned (the source follows the value
+  after two spaces, so one long path doesn't push every row), and paths inside the user's home
+  folder print as `~/...` (`tilde`, also in `hl status` and `hl show proxy`).
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.
 - `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the
@@ -418,7 +420,8 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
 - **`hl init`** sets up the folder given, else the one `config.Home` finds (so a second run adds
   new apps to it), else `~/homelab` (`defaults.HomelabDir`) - never the current folder by itself
   (`initDir`). After recording the default it runs `config.Home` again and warns (`otherHome`)
-  when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win. It plans first and writes nothing until it is confirmed: the settings come from flags
+  when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win; the plan has a
+  `default` line when another homelab was the default (`config.DefaultHome`). It plans first and writes nothing until it is confirmed: the settings come from flags
   and defaults only (`--projects`, else `defaults.CandidateProjects` that exist in the home folder;
   the default port, or the first free of `defaults.AltPorts` (`freePort`) when that is busy, shown
   as "port 80 is in use" in the plan; with docker working, `initName` gives a new homelab a `name`
