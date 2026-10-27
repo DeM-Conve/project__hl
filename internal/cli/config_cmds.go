@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -393,6 +394,11 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 		say("nothing to change in %s", config.FileName)
 		return nil
 	}
+	if scope == config.ProxyScope {
+		if err := checkNewSubnet(ctx, home, changes); err != nil {
+			return &usageError{err: err, cmd: "hl set"}
+		}
+	}
 	noop := make([]bool, len(changes))
 	if len(changes) > 1 {
 		for i, c := range changes {
@@ -438,6 +444,32 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 	}
 	if len(applied) > 0 {
 		say("apply it: %s", applyCommand(scope, applied))
+	}
+	return nil
+}
+
+// checkNewSubnet refuses a new proxy.subnet that overlaps another Docker network or one of this
+// machine's networks (the proxy's own network is recreated with it, so it doesn't count). When
+// Docker can't be reached, the subnet is accepted with a note: hl up checks it again.
+func checkNewSubnet(ctx context.Context, home string, changes []config.Change) error {
+	for _, c := range changes {
+		if c.Key != "subnet" || c.Unset {
+			continue
+		}
+		_, want, err := net.ParseCIDR(c.Value)
+		if err != nil {
+			return nil // config.Edit says what is wrong with it
+		}
+		cfg, err := config.Load(home)
+		if err != nil {
+			return nil
+		}
+		nets, err := networks(ctx)
+		if err != nil {
+			fmt.Fprintf(stderr, "%snote:%s can't reach Docker to check that %s is free; hl up checks it before starting the proxy\n", yellow, reset, want)
+			return nil
+		}
+		return subnetClash(cfg, want, nets)
 	}
 	return nil
 }

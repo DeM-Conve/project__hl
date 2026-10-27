@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -335,4 +336,34 @@ func TestSetNoChange(t *testing.T) {
 	// One change among no-ops: only it is set and applied.
 	r := f.must("set", "proxy", "port=8080", "bind=0.0.0.0")
 	contains(t, "mixed", r.out, "proxy.port is already 8080", "set proxy.bind = 0.0.0.0", "apply it: hl up proxy\n")
+}
+
+// hl set proxy subnet= refuses a subnet that overlaps another Docker network or this machine's,
+// with a free one in the hint; the proxy's own network doesn't count (hl down, hl up recreate it).
+func TestSetSubnetChecksOverlap(t *testing.T) {
+	f := newFake(t)
+	lab := f.lab("lab", "version: 1\nproxy:\n  subnet: 172.30.0.0/16\napps: {}\n")
+	before := f.read(filepath.Join(lab, "hl.yml"))
+	f.on(rule{Match: []string{"network ls"}, Stdout: "n1\nn2\nn3\n"})
+	f.on(rule{Match: []string{"network inspect", "n1"}, Stdout: "bridge\t172.17.0.0/16 \nmine\t10.200.5.0/24 \nhl-proxy\t172.30.0.0/16 \n"})
+	r := f.hl("set", "proxy", "subnet=10.200.0.0/16")
+	if r.code != 2 {
+		t.Fatalf("an overlapping subnet: want exit 2: %s", r)
+	}
+	contains(t, "overlap", r.errOut, "proxy.subnet 10.200.0.0/16 overlaps Docker network mine (10.200.5.0/24)", "`hl set proxy subnet=172.31.0.0/16`")
+	hostSubnets = func() []*net.IPNet {
+		_, n, _ := net.ParseCIDR("192.168.1.0/24")
+		return []*net.IPNet{n}
+	}
+	r = f.hl("set", "proxy", "subnet=192.168.0.0/16")
+	if r.code != 2 {
+		t.Fatalf("a host subnet: want exit 2: %s", r)
+	}
+	contains(t, "host overlap", r.errOut, "overlaps this machine's network 192.168.1.0/24")
+	if got := f.read(filepath.Join(lab, "hl.yml")); got != before {
+		t.Errorf("hl.yml changed:\n%s", got)
+	}
+	// A free one is taken, even though the proxy's network still has the old subnet.
+	r = f.must("set", "proxy", "subnet=172.29.0.0/16")
+	contains(t, "free subnet", r.out, "set proxy.subnet = 172.29.0.0/16", "apply it: hl down, then hl up")
 }

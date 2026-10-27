@@ -156,8 +156,9 @@ hl set my-app 'env.MY_APP_TRUSTED_PROXIES=172.31.0.0/16'   # the variable your a
 hl down && hl up                                           # the network is recreated with it
 ```
 
-Before creating the network hl checks that the subnet doesn't overlap another Docker network or
-one of this machine's, and suggests a free one if it does.
+`hl set proxy subnet=` checks that the subnet doesn't overlap another Docker network or one of
+this machine's, and refuses it with a free one to use if it does (when Docker isn't running it
+takes the subnet with a note); hl checks again before creating the network.
 
 ## Homelab settings
 

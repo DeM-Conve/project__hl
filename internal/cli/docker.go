@@ -313,13 +313,21 @@ func checkNetwork(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
+	for _, n := range nets {
+		if n.name == cfg.Proxy.Network && len(n.subnets) > 0 && n.subnets[0].String() != want.String() {
+			return withHint(fmt.Errorf("network %s exists with subnet %s, but proxy.subnet is %s", n.name, n.subnets[0], want),
+				"stop everything with `hl down` (that removes the network), then `hl up`; or keep the network's: `hl set proxy subnet=%s`", n.subnets[0])
+		}
+	}
+	return subnetClash(cfg, want, nets)
+}
+
+// subnetClash fails when want overlaps a Docker network other than the proxy's own, or one of
+// this machine's networks, with a free subnet in the hint.
+func subnetClash(cfg *config.Config, want *net.IPNet, nets []dockerNetwork) error {
 	var used []*net.IPNet
 	for _, n := range nets {
 		if n.name == cfg.Proxy.Network {
-			if len(n.subnets) > 0 && n.subnets[0].String() != want.String() {
-				return withHint(fmt.Errorf("network %s exists with subnet %s, but proxy.subnet is %s", n.name, n.subnets[0], want),
-					"stop everything with `hl down` (that removes the network), then `hl up`; or keep the network's: `hl set proxy subnet=%s`", n.subnets[0])
-			}
 			continue
 		}
 		for _, s := range n.subnets {

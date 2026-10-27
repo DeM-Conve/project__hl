@@ -235,6 +235,9 @@ warns. Kept apps are never re-mapped.
   publish=<port>`, else `lsof`, else `ss`, with a free port suggested - and `checkNetwork` - with
   `proxy.subnet` set, the proxy network existing with another subnet, or the subnet overlapping
   another Docker network or one of the machine's own, each with the fix (a free `172.x.0.0/16`).
+  `hl set proxy subnet=` runs the overlap part (`subnetClash`, from `checkNewSubnet`) before
+  writing, so a clashing subnet is refused (exit 2) there already; without Docker it is taken
+  with a note.
 - Multi-app commands (`eachApp`) run every app even when one fails, print each failure as it
   happens and end with "n of m apps failed: ..." (exit 1). An interruption stops the loop.
 - `--wait` (`up`, `rebuild`) runs the command as usual (every service starts), then

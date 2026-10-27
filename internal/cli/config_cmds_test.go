@@ -175,11 +175,12 @@ func TestSetAndUnset(t *testing.T) {
 
 func TestSetProxyAndSharedEnv(t *testing.T) {
 	home, _ := homelab(t, "version: 1\n# the proxy\nproxy:\n  bind: 127.0.0.1  # loopback\napps:\n  my-app:\n    path: ~/code/my-app\n")
+	t.Setenv("PATH", t.TempDir()) // no docker: the new subnet is taken with a note, whatever this machine runs
 	out, err := run(t, "", "set", "proxy", "port=8082", "subnet=172.31.0.0/16", "bind=0.0.0.0")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	for _, want := range []string{"set proxy.port = 8082", "set proxy.subnet = 172.31.0.0/16", "apply it: hl down, then hl up"} {
+	for _, want := range []string{"set proxy.port = 8082", "set proxy.subnet = 172.31.0.0/16", "apply it: hl down, then hl up", "can't reach Docker to check that 172.31.0.0/16 is free"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q:\n%s", want, out)
 		}

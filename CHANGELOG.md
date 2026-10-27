@@ -241,6 +241,9 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl set proxy subnet=` refuses a subnet that overlaps another Docker network or one of this
+  machine's, with a free one in the hint (exit 2); it used to accept it, and only `hl up` said
+  so. Without Docker running, the subnet is taken with a note.
 - `hl set` that changes nothing (the value it has, `+=` of an entry already listed, `-=` of one
   that isn't; `hl unset` of a key that isn't set) says so (`proxy.port is already 8080`, `nothing
   to change in hl.yml`), writes nothing and names no command to apply it; `-=` of a missing
