@@ -49,6 +49,8 @@ type Config struct {
 	Ignore []string `yaml:"ignore,omitempty"`
 	// How deep below a projects folder to look for apps; 0 = defaults.ScanDepth.
 	ScanDepth int `yaml:"scan_depth,omitempty"`
+	// Folder-name prefixes left out of app names: project__blog becomes app blog.
+	StripPrefix []string `yaml:"strip_prefix,omitempty"`
 	// --- end projects ---
 
 	// Dir is the homelab folder hl.yml was read from.
@@ -136,6 +138,17 @@ func NameFor(folder string) string {
 		}
 	}
 	return b.String()
+}
+
+// Stripped is folder without the first of prefixes it starts with (strip_prefix), unless
+// nothing would be left.
+func Stripped(folder string, prefixes []string) string {
+	for _, p := range prefixes {
+		if rest, ok := strings.CutPrefix(folder, p); ok && p != "" && rest != "" {
+			return rest
+		}
+	}
+	return folder
 }
 
 // ID is name as Docker and Traefik accept it: my-app.io -> my-app-io.

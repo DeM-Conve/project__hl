@@ -51,7 +51,7 @@ ${HL_DATA}/backups. --no-env turns that off; --env KEY=VALUE sets one more
 				return withHint(fmt.Errorf("folder %s not found", dir), "pass the app's folder: the one with its compose file")
 			}
 			if name == "" {
-				name = config.NameFor(filepath.Base(dir))
+				name = config.NameFor(config.Stripped(filepath.Base(dir), cfg.StripPrefix))
 			}
 			if err := config.ValidName(name); err != nil {
 				return withHint(err, "pass a name with --name")
@@ -125,7 +125,7 @@ ${HL_DATA}/backups. --no-env turns that off; --env KEY=VALUE sets one more
 		},
 	}
 	f := c.Flags()
-	f.StringVar(&name, "name", "", "app name (default: the folder's name)")
+	f.StringVar(&name, "name", "", "app name (default: the folder's name, less a strip_prefix)")
 	f.StringVar(&a.Routing, "routing", "", "path, host or none (default: proxy.routing)")
 	f.StringVar(&a.Prefix, "prefix", "", "URL prefix for path routing (default: /<name>)")
 	f.StringVar(&a.Host, "host", "", "host name for host routing (default: <name>.<domain>)")

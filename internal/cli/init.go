@@ -24,6 +24,7 @@ type initOptions struct {
 	bind     string
 	port     int
 	apps     []string
+	strip    []string
 	yes      bool
 	noEnv    bool
 }
@@ -58,6 +59,7 @@ that are new in the projects folders instead.`,
 	f.StringSliceVar(&o.apps, "apps", nil, "apps to add from the projects folders, by name, or "+pickNone+" (default: all found)")
 	f.BoolVarP(&o.yes, "yes", "y", false, "ask nothing: use flags and defaults")
 	f.BoolVar(&o.noEnv, "no-env", false, "don't fill in the apps' env from their compose variables")
+	f.StringSliceVar(&o.strip, "strip-prefix", nil, "folder-name prefixes left out of app names (project__blog -> blog)")
 	return c
 }
 
@@ -122,13 +124,23 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 				say("projects folders saved in %s: %s", config.FileName, strings.Join(projects, ", "))
 			}
 		}
+		switch {
+		case o.strip == nil:
+		case len(cfg.StripPrefix) > 0:
+			say("%snote:%s --strip-prefix is ignored: %s already has strip_prefix", yellow, reset, config.FileName)
+		default:
+			if err := config.SetList(dir, "strip_prefix", o.strip); err != nil {
+				return err
+			}
+			say("strip_prefix saved in %s: %s", config.FileName, strings.Join(o.strip, ", "))
+		}
 	} else {
 		pd := config.ProxyDefaults()
 		projects, err := askProjects(p, out, dir, o.projects)
 		if err != nil {
 			return err
 		}
-		s := config.InitSettings{Projects: projects, Routing: o.routing, Bind: o.bind, Port: o.port}
+		s := config.InitSettings{Projects: projects, Routing: o.routing, Bind: o.bind, Port: o.port, StripPrefix: o.strip}
 		if s.Routing == "" {
 			s.Routing = pd.Routing
 			if interactive {

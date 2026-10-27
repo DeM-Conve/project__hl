@@ -320,6 +320,54 @@ func TestSync(t *testing.T) {
 	}
 }
 
+func TestStripPrefix(t *testing.T) {
+	home := initSyncEnv(t)
+	code := filepath.Join(home, "code")
+	lab := filepath.Join(home, "lab")
+	fakeApp(t, filepath.Join(code, "project__blog"), webModel)
+	fakeApp(t, filepath.Join(code, "plain"), webModel)
+	out, err := runHL(t, "", "init", lab, "--projects", code, "--strip-prefix", "project__")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	cfg, err := config.Load(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.Names(), ",") != "blog,plain" || strings.Join(cfg.StripPrefix, ",") != "project__" {
+		t.Errorf("apps = %v, strip_prefix = %q\n%s", cfg.Names(), cfg.StripPrefix, out)
+	}
+	if a := cfg.Apps["blog"]; a.Path != filepath.Join("~", "code", "project__blog") {
+		t.Errorf("blog = %+v", a)
+	}
+
+	// sync and add name new folders the same way.
+	fakeApp(t, filepath.Join(code, "project__wiki"), webModel)
+	if out, err = runHL(t, "", "sync", "--home", lab, "--yes"); err != nil || !strings.Contains(out, "added wiki") {
+		t.Errorf("%v\n%s", err, out)
+	}
+	notes := filepath.Join(home, "elsewhere", "project__notes")
+	fakeApp(t, notes, webModel)
+	if out, err = runHL(t, "", "add", notes, "--home", lab); err != nil || !strings.Contains(out, "added notes") {
+		t.Errorf("%v\n%s", err, out)
+	}
+
+	// On an existing homelab --strip-prefix is saved only when none is set.
+	other := filepath.Join(home, "other")
+	if out, err = runHL(t, "", "init", other); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if out, err = runHL(t, "", "init", other, "--strip-prefix", "x-,y-"); err != nil || !strings.Contains(out, "strip_prefix saved") {
+		t.Errorf("%v\n%s", err, out)
+	}
+	if out, err = runHL(t, "", "init", other, "--strip-prefix", "z-"); err != nil || !strings.Contains(out, "--strip-prefix is ignored") {
+		t.Errorf("%v\n%s", err, out)
+	}
+	if cfg, _ := config.Load(other); strings.Join(cfg.StripPrefix, ",") != "x-,y-" {
+		t.Errorf("strip_prefix = %q", cfg.StripPrefix)
+	}
+}
+
 func TestSyncWithoutProjects(t *testing.T) {
 	home := initSyncEnv(t)
 	lab := filepath.Join(home, "lab")

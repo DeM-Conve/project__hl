@@ -57,6 +57,11 @@ func (c *Config) validateProjects() error {
 			return fmt.Errorf("projects[%d]: empty folder", i)
 		}
 	}
+	for i, p := range c.StripPrefix {
+		if p == "" {
+			return fmt.Errorf("strip_prefix[%d]: empty prefix", i)
+		}
+	}
 	return nil
 }
 
@@ -66,6 +71,8 @@ type InitSettings struct {
 	Port     int
 	Routing  string
 	Projects []string
+	// StripPrefix: folder-name prefixes left out of app names.
+	StripPrefix []string
 }
 
 // WriteNew writes a new <dir>/hl.yml from Template with s filled in. It
@@ -100,6 +107,9 @@ func WriteNew(dir string, s InitSettings) error {
 		if len(s.Projects) > 0 {
 			setProjects(root, s.Projects)
 		}
+		if len(s.StripPrefix) > 0 {
+			setList(root, "strip_prefix", s.StripPrefix, stripPrefixComment)
+		}
 		return nil
 	})
 }
@@ -132,19 +142,53 @@ const projectsComment = `Folders with your projects: each subfolder with a compo
 ` + "`hl sync`" + ` adds new ones and removes apps whose folder is gone (their data stays).
 Skip a folder with ignore: [pattern, ...] or a .hlignore file in it.`
 
+const stripPrefixComment = `Left out of app names: folder project__blog becomes app blog.`
+
 func setProjects(root *yaml.Node, projects []string) {
+	setList(root, "projects", projects, projectsComment)
+}
+
+// ListKeys are the top-level lists of folder names and patterns that commands edit
+// (`hl projects`, `hl ignore`, `hl strip-prefix`).
+var ListKeys = []string{"projects", "ignore", "strip_prefix"}
+
+// SetList writes a top-level list (one of ListKeys) into <dir>/hl.yml, keeping comments;
+// an empty list removes the key. The result is checked first: on any problem hl.yml is left
+// as it was and the error lists them.
+func SetList(dir, key string, values []string) error {
+	path := filepath.Join(dir, FileName)
+	out, err := edited(path, func(root *yaml.Node) error {
+		if len(values) == 0 {
+			remove(root, key)
+			return nil
+		}
+		setList(root, key, values, "")
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if ps := Check(out); len(ps) > 0 {
+		return fmt.Errorf("%s not changed: %w", FileName, &ProblemsError{File: path, Problems: ps})
+	}
+	return writeKeepMode(path, out)
+}
+
+// setList sets key to a flow list of values, keeping the old value's comment; a new key goes
+// before apps:, with comment above it.
+func setList(root *yaml.Node, key string, values []string, comment string) {
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Style: yaml.FlowStyle}
-	for _, p := range projects {
+	for _, p := range values {
 		seq.Content = append(seq.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: p})
 	}
 	for i := 0; i < len(root.Content); i += 2 {
-		if root.Content[i].Value == "projects" {
+		if root.Content[i].Value == key {
 			seq.LineComment = root.Content[i+1].LineComment
 			root.Content[i+1] = seq
 			return
 		}
 	}
-	key := &yaml.Node{Kind: yaml.ScalarNode, Value: "projects", HeadComment: projectsComment}
+	k := &yaml.Node{Kind: yaml.ScalarNode, Value: key, HeadComment: comment}
 	// Before apps:, so the file reads top-down: proxy, projects, apps.
 	at := len(root.Content)
 	for i := 0; i < len(root.Content); i += 2 {
@@ -152,7 +196,7 @@ func setProjects(root *yaml.Node, projects []string) {
 			at = i
 		}
 	}
-	rest := append([]*yaml.Node{key, seq}, root.Content[at:]...)
+	rest := append([]*yaml.Node{k, seq}, root.Content[at:]...)
 	root.Content = append(root.Content[:at:at], rest...)
 }
 

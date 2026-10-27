@@ -122,7 +122,7 @@ func folders(cfg *config.Config, dir, written string, depth int) ([]Folder, erro
 		}
 		path := filepath.Join(written, name)
 		if _, err := compose.FindFile(sub); err == nil {
-			out = append(out, Folder{Dir: sub, Path: path, Name: AppName(name)})
+			out = append(out, Folder{Dir: sub, Path: path, Name: AppName(config.Stripped(name, cfg.StripPrefix))})
 			continue
 		}
 		if depth > 1 {

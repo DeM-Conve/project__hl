@@ -64,7 +64,8 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
 ## Names
 
 - App names match `^[a-z0-9][a-z0-9._-]*$` (dots allowed, e.g. `my-app.io`). `hl add` derives one
-  from the folder name (`config.NameFor`: `My App` -> `my-app`).
+  from the folder name (`config.NameFor`: `My App` -> `my-app`), after `config.Stripped` drops the
+  first `strip_prefix` it starts with (`project__blog` -> `blog`); `scan.AppName` does the same for init/sync.
 - A homelab's optional top-level `name` prefixes its Docker names: projects `hl-<name>-<id>`,
   default proxy project and network `hl-<name>-proxy` (`Config.ProjectName`, `ProxyProject`).
   Without it they are `hl-<id>` and `hl-proxy` as before, so existing setups keep their names.
@@ -296,7 +297,7 @@ version and OS/architecture for bug reports; `hl version --short` prints only th
 
 ## Projects folders: `hl init` and `hl sync`
 
-hl.yml's `projects`, `ignore` and `scan_depth` (a separate block in `config.Config`; edits in
+hl.yml's `projects`, `ignore`, `scan_depth` and `strip_prefix` (a separate block in `config.Config`; edits in
 `config/projects.go`) drive both commands. Their defaults (`.hlignore`, the always-ignored name
 patterns, scan depth 1, the folders init suggests, init's fallback port and network bind) are in
 `internal/defaults`; the compose file names are `defaults.ComposeFiles`.

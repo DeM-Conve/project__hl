@@ -72,9 +72,57 @@ func TestSetProjectsAndPinApp(t *testing.T) {
 }
 
 func TestValidateProjects(t *testing.T) {
-	for _, body := range []string{"ignore: ['[']", "scan_depth: -1", "projects: ['']"} {
+	for _, body := range []string{"ignore: ['[']", "scan_depth: -1", "projects: ['']", "strip_prefix: ['']"} {
 		if _, err := Load(write(t, body)); err == nil {
 			t.Errorf("%q: expected an error", body)
 		}
+	}
+}
+
+func TestStripped(t *testing.T) {
+	prefixes := []string{"project__", "app-"}
+	for in, want := range map[string]string{
+		"project__blog.io": "blog.io",
+		"app-wiki":         "wiki",
+		"project__":        "project__", // nothing would be left
+		"blog":             "blog",
+		"my-project__x":    "my-project__x",
+	} {
+		if got := Stripped(in, prefixes); got != want {
+			t.Errorf("Stripped(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSetList(t *testing.T) {
+	dir := write(t, "# top\nprojects: [code] # mine\napps: {}\n")
+	if err := SetList(dir, "strip_prefix", []string{"project__"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetList(dir, "ignore", []string{"old", "scratch-*"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetList(dir, "ignore", []string{"["}); err == nil || !strings.Contains(err.Error(), "not changed") {
+		t.Errorf("a bad pattern must leave hl.yml alone, got %v", err)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, FileName))
+	text := string(b)
+	for _, want := range []string{"# top", "# mine", "strip_prefix: [project__]", "ignore: [old, scratch-*]"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("hl.yml lacks %q:\n%s", want, text)
+		}
+	}
+	if strings.Index(text, "strip_prefix:") > strings.Index(text, "apps:") {
+		t.Errorf("new lists go before apps:\n%s", text)
+	}
+	if err := SetList(dir, "ignore", nil); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Ignore != nil || strings.Join(c.StripPrefix, ",") != "project__" {
+		t.Errorf("ignore = %q, strip_prefix = %q", c.Ignore, c.StripPrefix)
 	}
 }

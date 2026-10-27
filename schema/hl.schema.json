@@ -193,6 +193,22 @@
       "type": "integer",
       "minimum": 0,
       "default": 1
+    },
+    "strip_prefix": {
+      "description": "Folder-name prefixes left out of app names by hl init, hl sync and hl add: with project__, folder project__blog becomes app blog. The first prefix a folder starts with is removed, unless nothing would be left.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "examples": [
+        [
+          "project__"
+        ]
+      ]
     }
   },
   "definitions": {
