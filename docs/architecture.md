@@ -340,6 +340,11 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   content is run through `config.Check` and written only if it has no problems. An unknown key
   or app is a `config.UnknownError`, which the CLI turns into a usage error (exit 2); so is a key
   given without an app that isn't a homelab one (`notHomelabKey` names the scope that has it).
+  A value that can't be used (not a number, not in the list for `-=`, or a problem `Check` finds
+  in the result while the file before had none) is a `config.ValueError`: the full key
+  (`apps.<app>.<key>`, `proxy.<key>`) and the problem's text up to " - ", with the rest as its
+  `Hint()`; no file:line, since hl.yml wasn't written. The CLI makes it a usage error (exit 2)
+  with that hint. When hl.yml already had problems, the `ProblemsError` with file:line stays.
   A change of an app's `path`, `compose` or `service` is tried first (`checkAppChanges`: the
   `project` of the changed app must resolve, and the service be in its model when that can be
   read). The CLI tells

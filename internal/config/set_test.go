@@ -72,6 +72,39 @@ func TestEditAppKeepsComments(t *testing.T) {
 	}
 }
 
+// withFix is err's message with a ValueError's hint after it.
+func withFix(err error) string {
+	var ve *ValueError
+	if errors.As(err, &ve) {
+		return ve.Error() + " | " + ve.Hint()
+	}
+	return err.Error()
+}
+
+// A wrong value is a ValueError with the full key and no place in hl.yml (it wasn't written);
+// a problem hl.yml already had keeps its file:line.
+func TestEditValueErrors(t *testing.T) {
+	dir := write(t, commented)
+	err := EditApp(dir, "my-app", []Change{{Key: "routing", Value: "hots"}})
+	var ve *ValueError
+	if !errors.As(err, &ve) || ve.Error() != `apps.my-app.routing: "hots" is not path, host or none` || ve.Hint() != `did you mean "host"?` {
+		t.Errorf("routing=hots: %T %v", err, err)
+	}
+	if err := EditApp(dir, "my-app", []Change{{Key: "port", Value: "x"}}); !errors.As(err, &ve) || ve.Error() != `apps.my-app.port: "x" is not a whole number` {
+		t.Errorf("port=x: %T %v", err, err)
+	}
+	if err := Edit(dir, ProxyScope, []Change{{Key: "debug", Value: "x"}}); !errors.As(err, &ve) || ve.Error() != `proxy.debug: "x" is not true or false` {
+		t.Errorf("debug=x: %T %v", err, err)
+	}
+
+	broken := write(t, "version: 1\napps:\n  a: {path: x, routing: hots}\n")
+	err = EditApp(broken, "a", []Change{{Key: "port", Value: "80"}})
+	var pe *ProblemsError
+	if errors.As(err, &ve) || !errors.As(err, &pe) || !strings.Contains(err.Error(), "hl.yml:3:") {
+		t.Errorf("broken hl.yml: %T %v", err, err)
+	}
+}
+
 func TestEditAppRefusesBadResults(t *testing.T) {
 	dir := write(t, commented)
 	for _, tc := range []struct {
@@ -87,7 +120,7 @@ func TestEditAppRefusesBadResults(t *testing.T) {
 		{[]Change{{Key: "port.x", Value: "1"}}, "no parts"},
 	} {
 		err := EditApp(dir, "my-app", tc.changes)
-		if err == nil || !strings.Contains(err.Error(), tc.has) {
+		if err == nil || !strings.Contains(withFix(err), tc.has) {
 			t.Errorf("%+v: err = %v, want %q", tc.changes, err, tc.has)
 		}
 		if read(t, dir) != commented {
@@ -176,7 +209,7 @@ func TestEditProxyRefusesBadResults(t *testing.T) {
 		{HomelabScope, []Change{{Key: "apps", Value: "x"}}, "unknown setting"},
 	} {
 		err := Edit(dir, tc.scope, tc.changes)
-		if err == nil || !strings.Contains(err.Error(), tc.has) {
+		if err == nil || !strings.Contains(withFix(err), tc.has) {
 			t.Errorf("%q %+v: err = %v, want %q", tc.scope, tc.changes, err, tc.has)
 		}
 		if read(t, dir) != commented {

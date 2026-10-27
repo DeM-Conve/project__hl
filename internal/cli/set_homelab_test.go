@@ -49,13 +49,13 @@ func TestSetHomelabSettings(t *testing.T) {
 		t.Errorf("projects after -= = %q", got)
 	}
 	r = f.hl("set", "projects-=~/elsewhere")
-	if r.code != 1 || !strings.Contains(r.errOut, `"~/elsewhere" is not in it (~/my code)`) {
+	if r.code != 2 || !strings.Contains(r.errOut, `error: projects: "~/elsewhere" is not in it (~/my code)`) {
 		t.Errorf("remove unknown: %s", r)
 	}
 
 	f.must("set", "ignore+=old,scratch-*", "strip_prefix=project__", "scan_depth=2")
 	r = f.hl("set", "ignore+=[")
-	if r.code != 1 || !strings.Contains(r.errOut, "not a valid pattern") {
+	if r.code != 2 || !strings.Contains(r.errOut, "not a valid pattern") {
 		t.Errorf("bad pattern: %s", r)
 	}
 	f.must("set", "ignore-=old")
@@ -74,7 +74,7 @@ func TestSetHomelabSettings(t *testing.T) {
 	r = f.must("unset", "ignore", "strip_prefix", "scan_depth")
 	contains(t, "unset", r.out, "unset ignore", "apply it: hl sync")
 	lacks(t, "hl.yml", f.read(filepath.Join(lab, config.FileName)), "ignore", "strip_prefix", "scan_depth")
-	if r := f.hl("set", "scan_depth+=1"); r.code != 1 || !strings.Contains(r.errOut, "not a list") {
+	if r := f.hl("set", "scan_depth+=1"); r.code != 2 || !strings.Contains(r.errOut, "scan_depth: is not a list") {
 		t.Errorf("+= on a number: %s", r)
 	}
 }
@@ -159,6 +159,10 @@ func TestSetUnsetMistakes(t *testing.T) {
 		{[]string{"set", "b", "port=80"}, 2, []string{`no app "b"`}},
 		{[]string{"unset", "a", "prot"}, 2, []string{`unknown setting "prot"`}},
 		{[]string{"set", "a", "port="}, 2, []string{"no value"}},
+		// A wrong value: the full key, the fix as the hint, no place in hl.yml.
+		{[]string{"set", "a", "routing=hots"}, 2, []string{"error: apps.a.routing: \"hots\" is not path, host or none\nhint: did you mean \"host\"?\n"}},
+		{[]string{"set", "a", "port=0"}, 2, []string{"error: apps.a.port: 0 is not a port\nhint: use a number from 1 to 65535\n"}},
+		{[]string{"set", "proxy", "debug=maybe"}, 2, []string{`error: proxy.debug: "maybe" is not true or false`}},
 		{[]string{"set", "a", "path=/no/such/folder"}, 1, []string{"app folder /no/such/folder not found"}},
 		{[]string{"set", "a", "compose=nope.yml"}, 1, []string{"nope.yml not found"}},
 		{[]string{"set", "a", "service=nosuch"}, 1, []string{`no service "nosuch"`, "hint: services: db, web"}},
@@ -168,6 +172,9 @@ func TestSetUnsetMistakes(t *testing.T) {
 			t.Errorf("%v: want exit %d: %s", c.args, c.code, r)
 		}
 		contains(t, strings.Join(c.args, " "), r.errOut, c.want...)
+		if c.code == 2 {
+			lacks(t, strings.Join(c.args, " "), r.errOut, config.FileName+":")
+		}
 	}
 	if f.read(filepath.Join(lab, config.FileName)) != before {
 		t.Error("a refused change was written")

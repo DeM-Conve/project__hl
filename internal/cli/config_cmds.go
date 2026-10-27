@@ -327,6 +327,14 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 		}
 	}
 	if err := config.Edit(home, scope, edits); err != nil {
+		var ve *config.ValueError
+		if errors.As(err, &ve) {
+			// A value the user gave: say which key and what to do, not where in hl.yml.
+			if h := ve.Hint(); h != "" {
+				err = withHint(ve, "%s", h)
+			}
+			return &usageError{err: err, cmd: "hl set"}
+		}
 		err = withHint(err, "`hl show` lists the apps and settings; `hl set --help` lists the keys")
 		var u *config.UnknownError
 		if errors.As(err, &u) {

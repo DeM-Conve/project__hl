@@ -319,7 +319,7 @@ don't stop the command. All of these go to stderr.
 | --- | --- |
 | `0` | Success. |
 | `1` | A command failed: one of hl's own checks (including problems in `hl.yml`), or a docker or git command. |
-| `2` | Usage: an unknown command, a wrong argument or flag. |
+| `2` | Usage: an unknown command, a wrong argument or flag, or a setting or value `hl set`/`hl unset` can't take (the error names the key, e.g. `apps.my-app.routing`, and the hint the fix; `hl.yml` is left as it was). |
 | `128 + signal` | Interrupted; `130` for Ctrl-C. |
 | the shell's | `hl shell` exits with the status of the shell it ran. |
 

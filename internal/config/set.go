@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -105,7 +107,7 @@ func unknown(format string, a ...any) error { return &UnknownError{msg: fmt.Spri
 func Edit(dir, scope string, changes []Change) error {
 	switch scope {
 	case HomelabScope:
-		return editScope(dir, changes, homelabFields(), func(root *yaml.Node) (*yaml.Node, error) { return root, nil })
+		return editScope(dir, "", changes, homelabFields(), func(root *yaml.Node) (*yaml.Node, error) { return root, nil })
 	case ProxyScope:
 		fields := proxyFields()
 		for k := range removedKeys {
@@ -113,7 +115,7 @@ func Edit(dir, scope string, changes []Change) error {
 				fields[f] = reflect.TypeOf("") // only so hl unset can remove it; Check refuses it
 			}
 		}
-		return editScope(dir, changes, fields, func(root *yaml.Node) (*yaml.Node, error) {
+		return editScope(dir, "proxy.", changes, fields, func(root *yaml.Node) (*yaml.Node, error) {
 			return section(root, "proxy"), nil
 		})
 	}
@@ -126,7 +128,7 @@ func EditApp(dir, name string, changes []Change) error {
 	for _, f := range removedAppKeys() {
 		fields[f] = reflect.TypeOf("") // only so hl unset can remove it; Check refuses it
 	}
-	return editScope(dir, changes, fields, func(root *yaml.Node) (*yaml.Node, error) {
+	return editScope(dir, "apps."+name+".", changes, fields, func(root *yaml.Node) (*yaml.Node, error) {
 		apps := lookup(root, "apps")
 		var app *yaml.Node
 		var names []string
@@ -180,7 +182,8 @@ func section(m *yaml.Node, key string) *yaml.Node {
 }
 
 // editScope applies changes to the mapping find returns, checks the result and writes it.
-func editScope(dir string, changes []Change, fields map[string]reflect.Type, find func(root *yaml.Node) (*yaml.Node, error)) error {
+// prefix is the scope's part of a full key ("apps.my-app.", "proxy.", "").
+func editScope(dir, prefix string, changes []Change, fields map[string]reflect.Type, find func(root *yaml.Node) (*yaml.Node, error)) error {
 	path := filepath.Join(dir, FileName)
 	out, err := edited(path, func(root *yaml.Node) error {
 		target, err := find(root)
@@ -204,13 +207,63 @@ func editScope(dir string, changes []Change, fields map[string]reflect.Type, fin
 		}
 		return nil
 	})
+	var ve *ValueError
+	if errors.As(err, &ve) {
+		for i := range ve.Problems {
+			ve.Problems[i].Key = prefix + ve.Problems[i].Key
+		}
+		return ve
+	}
 	if err != nil {
 		return err
 	}
 	if ps := Check(out); len(ps) > 0 {
+		if orig, err := os.ReadFile(path); err == nil && len(Check(orig)) == 0 {
+			// hl.yml was fine: the values given are wrong, not a place in the file.
+			for i := range ps {
+				ps[i].Line, ps[i].Column = 0, 0
+			}
+			return &ValueError{Problems: ps}
+		}
 		return fmt.Errorf("%s not changed: %w", FileName, &ProblemsError{File: path, Problems: ps})
 	}
 	return writeKeepMode(path, out)
+}
+
+// ValueError is a value `hl set`/`hl unset` can't use (a usage mistake): each problem's key is
+// the full one (apps.my-app.routing), with no place in hl.yml, since hl.yml wasn't written.
+type ValueError struct{ Problems []Problem }
+
+func (e *ValueError) Error() string {
+	var lines []string
+	for _, p := range e.Problems {
+		what, _, _ := strings.Cut(p.Message, " - ")
+		if p.Key != "" {
+			what = p.Key + ": " + what
+		}
+		lines = append(lines, what)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// Hint is what to do about it: the fix each problem names ("did you mean ...", "use ..."),
+// "" when none does.
+func (e *ValueError) Hint() string {
+	var fixes []string
+	for _, p := range e.Problems {
+		if _, fix, ok := strings.Cut(p.Message, " - "); ok {
+			fixes = append(fixes, fix)
+		}
+	}
+	return strings.Join(fixes, "; ")
+}
+
+// valueErr is a *ValueError for one key: what is wrong, and (optional) the fix.
+func valueErr(key, what, fix string) error {
+	if fix != "" {
+		what += " - " + fix
+	}
+	return &ValueError{Problems: []Problem{{Key: key, Message: what}}}
 }
 
 func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error {
@@ -230,15 +283,15 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 	}
 	isMap := t.Kind() == reflect.Map
 	if c.Op != "" && t.Kind() != reflect.Slice {
-		return fmt.Errorf("%s is not a list: use %s=value", c.Key, c.Key)
+		return valueErr(c.Key, "is not a list", fmt.Sprintf("use %s=value", c.Key))
 	}
 	switch {
 	case isMap && !hasSub && !c.Unset:
-		return fmt.Errorf("%s needs a name: %s.NAME=value", field, field)
+		return valueErr(field, "needs a name", fmt.Sprintf("%s.NAME=value", field))
 	case !isMap && hasSub:
-		return fmt.Errorf("%s has no parts: use %s=value", field, field)
+		return valueErr(field, "has no parts", fmt.Sprintf("use %s=value", field))
 	case isMap && hasSub && sub == "":
-		return fmt.Errorf("%s needs a name: %s.NAME", field, field)
+		return valueErr(field, "needs a name", fmt.Sprintf("%s.NAME", field))
 	}
 
 	target, key := app, field
@@ -272,7 +325,7 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 	case reflect.Int:
 		n, err := strconv.Atoi(c.Value)
 		if err != nil {
-			return fmt.Errorf("%s: %q is not a whole number", c.Key, c.Value)
+			return valueErr(c.Key, fmt.Sprintf("%q is not a whole number", c.Value), "")
 		}
 		v = n
 	case reflect.Slice:
@@ -298,7 +351,7 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 	case reflect.Bool:
 		b, err := strconv.ParseBool(c.Value)
 		if err != nil {
-			return fmt.Errorf("%s: %q is not true or false", c.Key, c.Value)
+			return valueErr(c.Key, fmt.Sprintf("%q is not true or false", c.Value), "")
 		}
 		v = b
 	default:
@@ -344,9 +397,9 @@ func listOp(old *yaml.Node, c Change, items []string) ([]string, error) {
 		for _, it := range items {
 			if !in(have, it) {
 				if len(have) == 0 {
-					return nil, fmt.Errorf("%s: %q is not in it (it is empty)", c.Key, it)
+					return nil, valueErr(c.Key, fmt.Sprintf("%q is not in it (it is empty)", it), "")
 				}
-				return nil, fmt.Errorf("%s: %q is not in it (%s)", c.Key, it, strings.Join(have, ", "))
+				return nil, valueErr(c.Key, fmt.Sprintf("%q is not in it (%s)", it, strings.Join(have, ", ")), "")
 			}
 		}
 		var kept []string

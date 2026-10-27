@@ -222,6 +222,11 @@ release differs from earlier builds of `main`.
 - `hl init` of a second homelab no longer plans port 80 just because the first one's proxy is
   stopped: it skips the proxy port of the default homelab and of any homelab Docker has
   containers of, and the plan says whose port it is.
+- A wrong value in `hl set`/`hl unset` is reported as the key and what's wrong, with the fix as
+  the hint (`error: apps.my-app.routing: "hots" is not path, host or none` / `hint: did you
+  mean "host"?`), and exits 2 like other usage mistakes. It used to point at a line of the
+  `hl.yml` that was never written, and exit 1. A problem `hl.yml` already has is still shown
+  with its file and line.
 - `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
   into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl

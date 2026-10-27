@@ -194,7 +194,7 @@ var rules = map[string]rule{
 	"proxy.port":    portRule,
 	"name": func(v string) string {
 		if v != "" && !labNameRE.MatchString(v) {
-			return fmt.Sprintf("%q - use lowercase letters, digits and '-'", v)
+			return fmt.Sprintf("%q is not a valid name - use lowercase letters, digits and '-'", v)
 		}
 		return ""
 	},
