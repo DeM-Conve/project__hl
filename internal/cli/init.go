@@ -127,7 +127,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		switch {
 		case o.strip == nil:
 		case len(cfg.StripPrefix) > 0:
-			say("%snote:%s --strip-prefix is ignored: %s already has strip_prefix", yellow, reset, config.FileName)
+			say("%snote:%s --strip-prefix is ignored: %s already has strip_prefix - change it with hl strip-prefix", yellow, reset, config.FileName)
 		default:
 			if err := config.SetList(dir, "strip_prefix", o.strip); err != nil {
 				return err
@@ -366,8 +366,8 @@ func initApps(p *prompter, out io.Writer, cfg *config.Config, want []string, noE
 		names[i] = a.Name
 	}
 	if left := len(adds) - len(chosen); left > 0 {
-		fmt.Fprintf(out, "left out %s - add later with hl sync, or skip for good with ignore: in %s or a %s file\n",
-			plural(left, "app", "apps"), config.FileName, defaults.IgnoreFile)
+		fmt.Fprintf(out, "left out %s - add later with hl sync, or skip for good with hl ignore add <folder name> or a %s file\n",
+			plural(left, "app", "apps"), defaults.IgnoreFile)
 	}
 	return names, nil
 }

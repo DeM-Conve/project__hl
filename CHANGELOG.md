@@ -111,6 +111,9 @@ release differs from earlier builds of `main`.
 - `hl add --env KEY=VALUE` (repeatable) sets an app's env as it is added, over the mapped values.
 - `strip_prefix:` in `hl.yml` (and `hl init --strip-prefix`): folder-name prefixes left out of
   app names, so folder `project__blog` becomes app `blog` in `hl init`, `hl sync` and `hl add`.
+- `hl projects`, `hl ignore` and `hl strip-prefix`, each with `add`, `remove` and `list`: change
+  the lists that tell `hl init` and `hl sync` where apps are and how to name them, keeping
+  `hl.yml`'s comments and checking the result before writing.
 
 ### Changed
 

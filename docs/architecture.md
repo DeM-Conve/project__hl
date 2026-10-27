@@ -252,6 +252,11 @@ normalises indentation to two spaces).
 
 - `hl add`/`hl remove` (`config.AddApp`, `RemoveApp`) touch only the `apps:` mapping (`apps: {}`
   from the template is turned into a block mapping).
+- `hl projects`, `hl ignore`, `hl strip-prefix` (`internal/cli/scan_cmds.go`, one `listCmd`
+  each) rewrite one top-level list with `config.SetList` (`config/projects.go`): a flow list kept
+  in place with its comment, a new key put before `apps:`, an empty list removes the key, and the
+  result is run through `config.Check` before it is written. `projects add` stores a folder the
+  way `hl init` does (`storedPath`); `remove` matches the written entry or the resolved path.
 - `hl set`/`hl unset` (`config.EditApp`, `internal/config/set.go`) change keys of one app; the
   keys and their types come from the `App` struct by reflection (ints parsed, lists split on
   commas, map fields as `env.NAME`). A replaced value keeps the old one's comments. The new

@@ -45,7 +45,7 @@ skipped. Apps outside the projects folders are left alone.`,
 
 func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry, noEnv bool) error {
 	if len(cfg.Projects) == 0 {
-		return fmt.Errorf("no projects folders in %s - add e.g. `projects: [~/code]` to it, or run hl init", config.FileName)
+		return withHint(fmt.Errorf("no projects folders in %s", config.FileName), "add one with hl projects add <folder>, e.g. hl projects add ~/code")
 	}
 	d, err := scan.Compare(cfg)
 	if err != nil {
