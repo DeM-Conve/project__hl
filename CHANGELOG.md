@@ -241,6 +241,9 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- The free port a "port ... is already in use" hint suggests is never the proxy port another
+  homelab on this machine is set to (the ports `hl init` avoids); it used to name one when that
+  homelab's proxy was stopped.
 - `hl set proxy subnet=` refuses a subnet that overlaps another Docker network or one of this
   machine's, with a free one in the hint (exit 2); it used to accept it, and only `hl up` said
   so. Without Docker running, the subnet is taken with a note.

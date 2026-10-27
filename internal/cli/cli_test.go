@@ -1457,3 +1457,18 @@ func TestProxyClashHints(t *testing.T) {
 	r = g.hl("show", "proxy")
 	contains(t, "network clash", r.out, "wasn't created by hl's proxy", "`hl set name=<name>`")
 }
+
+// The free port a busy-port hint names is never the proxy port another homelab is set to.
+func TestPortHintSkipsOtherHomelabsPorts(t *testing.T) {
+	f := newFake(t)
+	other := f.lab("other", "version: 1\nname: other\nproxy: {port: 8000}\napps: {}\n")
+	f.lab("lab", "version: 1\nproxy: {port: 8080}\napps: {}\n")
+	f.containers(ctr("hl-other-proxy", "traefik", "exited", "Exited (0)", filepath.Join(other, ".hl", "proxy", "compose.yml")))
+	portInUse = func(bind string, port int) bool { return port == 8080 }
+	r := f.hl("up", "proxy")
+	if r.code != 1 {
+		t.Fatalf("port in use: %s", r)
+	}
+	contains(t, "port hint", r.errOut, "port 8080 on 127.0.0.1 is already in use", "`hl set proxy port=8081` (8081 is free)")
+	lacks(t, "port hint", r.errOut, "port=8000")
+}

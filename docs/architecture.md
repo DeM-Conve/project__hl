@@ -232,7 +232,7 @@ warns. Kept apps are never re-mapped.
   doesn't drop every app's routes for a moment. Before
   starting it (`startProxy`, also `hl up proxy`): `checkPort` - something else on `bind:port`?
   (`net.Listen`; when hl may not open a low port, a connect instead), named by `docker ps --filter
-  publish=<port>`, else `lsof`, else `ss`, with a free port suggested - and `checkNetwork` - with
+  publish=<port>`, else `lsof`, else `ss`, with a free port suggested (`freePort`: one of `defaults.AltPorts` that no other homelab's proxy is set to, `otherHomelabPorts` as for `hl init`) - and `checkNetwork` - with
   `proxy.subnet` set, the proxy network existing with another subnet, or the subnet overlapping
   another Docker network or one of the machine's own, each with the fix (a free `172.x.0.0/16`).
   `hl set proxy subnet=` runs the overlap part (`subnetClash`, from `checkNewSubnet`) before

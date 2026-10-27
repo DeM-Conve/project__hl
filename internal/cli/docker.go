@@ -168,7 +168,7 @@ func checkPort(ctx context.Context, cfg *config.Config) error {
 		who = "another program"
 	}
 	hint := "stop it, or move the proxy to a free port: `hl set proxy port=<port>`"
-	if free := freePort(bind); free != 0 {
+	if free := freePort(cfg); free != 0 {
 		hint = fmt.Sprintf("stop it, or move the proxy to a free port: `hl set proxy port=%d` (%d is free)", free, free)
 	}
 	return withHint(fmt.Errorf("port %d on %s is already in use by %s", port, bind, who), "%s", hint)
@@ -198,10 +198,12 @@ func addrInUse(bind string, port int) bool {
 	return true
 }
 
-// freePort suggests a port near the usual alternatives that is free.
-func freePort(bind string) int {
+// freePort suggests a port near the usual alternatives that is free and isn't the proxy port
+// another homelab on this machine is set to (as hl init picks one), 0 if none is.
+func freePort(cfg *config.Config) int {
+	claimed := otherHomelabPorts(cfg.Dir, true)
 	for _, p := range defaults.AltPorts {
-		if !portInUse(bind, p) {
+		if claimed[p] == "" && !portInUse(cfg.Proxy.Bind, p) {
 			return p
 		}
 	}
