@@ -333,6 +333,63 @@ func (c *Config) ProxyFile() string { return filepath.Join(c.ProxyDir(), default
 // hlVars are the values an app's settings can refer to, in a fixed order.
 var hlVars = []string{"HL_APP", "HL_URL", "HL_PREFIX", "HL_HOST", "HL_DATA"}
 
+// Where an app's env value comes from (EnvVar.Source).
+const (
+	SourceHL        = "hl"
+	SourceSharedEnv = "env"
+	SourceAppEnv    = "apps.<app>.env"
+)
+
+// EnvVar is one variable hl gives an app's compose files: its value (expanded), the value as
+// written in hl.yml, and where it came from (a Source* constant). Overrides is the source it
+// replaced, if any (an app's env over the shared one).
+type EnvVar struct {
+	Name, Value, Raw, Source, Overrides string
+}
+
+// EnvVars is AppEnv with where each value came from: one entry per name, the HL_* values
+// first, then the others sorted by name.
+func (c *Config) EnvVars(name string, a *App) []EnvVar {
+	env := c.AppEnv(name, a)
+	byName := map[string]*EnvVar{}
+	var order []string
+	add := func(k, raw, source string) {
+		if v, ok := byName[k]; ok {
+			v.Raw, v.Overrides, v.Source = raw, v.Source, source
+			return
+		}
+		byName[k] = &EnvVar{Name: k, Raw: raw, Source: source}
+		order = append(order, k)
+	}
+	for _, k := range hlVars {
+		add(k, "", SourceHL)
+	}
+	for _, src := range []struct {
+		m      map[string]string
+		source string
+	}{{c.Env, SourceSharedEnv}, {a.Env, SourceAppEnv}} {
+		keys := make([]string, 0, len(src.m))
+		for k := range src.m {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			add(k, src.m[k], src.source)
+		}
+	}
+	// The value in effect is the last one AppEnv gives (as for the process env).
+	for _, kv := range env {
+		k, v, _ := strings.Cut(kv, "=")
+		byName[k].Value = v
+	}
+	sort.SliceStable(order[len(hlVars):], func(i, j int) bool { return order[len(hlVars)+i] < order[len(hlVars)+j] })
+	out := make([]EnvVar, 0, len(order))
+	for _, k := range order {
+		out = append(out, *byName[k])
+	}
+	return out
+}
+
 // AppEnv is what the app's compose files can interpolate, as KEY=VALUE: the
 // HL_* values, then the shared env, then the app's own (later ones win).
 // Values may refer to HL_* and to the shell's environment as ${NAME}.

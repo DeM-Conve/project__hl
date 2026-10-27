@@ -10,7 +10,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   routing, fixed proxy subnet, shared `TZ`), which is how it is tested end to end.
 - **CLI first** (2026-10-27): the goal is that a user never has to open `hl.yml`. `hl set`/`hl unset`
   cover every app key, every `proxy.*` key (`hl set proxy port=8080`) and the shared env
-  (`hl set env.TZ=UTC`); `hl edit` stays as the fallback. Still only reachable through
+  (`hl set env.TZ=UTC`); `hl show [app]` reads it back; `hl edit` stays as the fallback. Still only reachable through
   `hl edit`: `name` (renames every Docker object, so it needs `hl down` first).
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,

@@ -206,6 +206,12 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
   apps, states `?`, and a warning with the hint.
 - `logs` with no app runs `docker compose logs` for every app at once, each line prefixed by its
   app; `--tail` (default `defaults.LogTail`) and `-f` apply to all.
+- `show` (`internal/cli/show.go`) reads `hl.yml` and, only for an app whose `service` or `port`
+  isn't pinned, the compose model (`docker compose config`, as `prepared` would; nothing is
+  written or started). The env list comes from `config.EnvVars`: `AppEnv` with one entry per
+  name, its source (`hl`, the shared `env`, the app's `env`), the value as written, and the
+  source it overrides. With no app it lists `config.Settings`' `proxy.*` entries, leaving out
+  options that are unset and off.
 - `ps` with no app lists the containers of this homelab's projects (the proxy and each app).
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.

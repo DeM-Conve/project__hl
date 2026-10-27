@@ -165,7 +165,7 @@ func editScope(scope string, changes []config.Change) error {
 		return err
 	}
 	if err := config.Edit(home, scope, changes); err != nil {
-		return withHint(err, "`hl status` lists the apps; `hl set --help` lists the keys")
+		return withHint(err, "`hl show` lists the apps and settings; `hl set --help` lists the keys")
 	}
 	if err := upgradeConfig(home); err != nil {
 		return err

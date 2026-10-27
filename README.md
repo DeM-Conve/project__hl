@@ -461,6 +461,7 @@ every app when none is named; they carry on past an app that fails and end with
 | `hl ps [app]` | Containers of one app, or of the whole homelab. |
 | `hl open <app>` | Print the app's URL and open it in the browser (only prints when there's no display, e.g. over ssh). |
 | `hl shell <app> [service]` | A shell (`bash`, else `sh`) in a running container; default: the service behind the proxy (the pinned one, or the one hl detects). hl exits with the shell's own exit status. |
+| `hl show [app]` | What hl stores and works out for an app, short and readable: folder, compose files, Docker project, the service and port behind the proxy, routing, URL, prefix or host, data folder, and every variable its compose files can use with where the value comes from (`hl`, the shared env, or the app's env, and which one it overrides). Each value says whether it is from `hl.yml`, a default, or detected from the app's compose config. With no app: the homelab folder, the proxy's settings, the shared env and the apps with their URLs. |
 | `hl config <app>` | The app's full compose config as hl runs it: its own files plus hl's override. |
 | `hl config proxy` | The proxy's Traefik static config (same as `hl proxy config`). |
 | `hl config check` | Check `hl.yml`: every problem as `file:line:column: key: message - fix`, unknown keys with "did you mean". Exits 1 when there are problems. |

@@ -96,6 +96,9 @@ release differs from earlier builds of `main`.
   proxy and `hl set env.TZ=UTC` (no app) the env every app gets; `hl unset proxy port` and
   `hl unset env.TZ` remove them. hl says which command applies the change, and shell completion
   offers the keys.
+- `hl show [app]` shows what hl stores and works out for an app (folder, service and port, routing,
+  URL, data folder, and each env variable with where its value comes from), or with no app the
+  homelab: its folder, the proxy's settings, the shared env and the apps.
 - `hl edit` opens `hl.yml` in your editor, checks it on save and reopens it on a problem;
   `hl.yml` is never left broken.
 - `hl config defaults` shows every default, the value in effect and where it comes from, and the

@@ -277,6 +277,44 @@ func TestUpWait(t *testing.T) {
 	}
 }
 
+func TestShow(t *testing.T) {
+	f := newFake(t)
+	a, b := f.app("a", webModel2), f.app("b", apiModel)
+	lab := f.lab("lab", "proxy: {port: 8082}\nenv: {TZ: UTC, LANG: C}\napps:\n"+
+		"  a:\n    path: '"+a+"'\n    env: {TZ: Europe/Berlin, A_BASE: '${HL_PREFIX}'}\n"+
+		"  b: {path: '"+b+"', routing: host, service: api, port: 3000}\n")
+
+	r := f.must("show")
+	contains(t, "show", r.out, "homelab", lab, "env ($HL_HOME)", "port", "8082", "hl.yml", "bind", "127.0.0.1", "default",
+		"TZ=UTC", "LANG=C", "http://localhost:8082/a/", "http://b.localhost:8082/")
+	lacks(t, "show", r.out, "dashboard_public") // options that are off and unset stay out
+
+	r = f.must("show", "a")
+	contains(t, "show a", r.out, "folder", a, "project", "hl-a", "compose.yml", "found in the folder",
+		"service", "web", "detected", "port", "80", "routing", "default (proxy.routing)", "http://localhost:8082/a/",
+		"prefix", "/a", filepath.Join(lab, "data", "a"),
+		"HL_URL=http://localhost:8082/a", "A_BASE=/a", "apps.a.env: ${HL_PREFIX}",
+		"TZ=Europe/Berlin", "apps.a.env, over the shared env", "LANG=C", "shared env")
+	if n := len(f.find("compose", "up")); n != 0 {
+		t.Errorf("show started something: %v", f.calls())
+	}
+
+	r = f.must("show", "b")
+	contains(t, "show b", r.out, "api", "3000", "host", "b.localhost")
+	lacks(t, "show b", r.out, "detected", "prefix")
+
+	r = f.hl("show", "c")
+	if r.code != 1 {
+		t.Fatalf("unknown app: %s", r)
+	}
+	contains(t, "show c", r.errOut, `no app "c"`, "hint:")
+
+	// An app whose compose config can't be read: hl.yml's values, and a note.
+	f.on(rule{Match: []string{"--project-name hl-a", "config"}, Stderr: "yaml: broken\n", Exit: 1})
+	r = f.must("show", "a")
+	contains(t, "show a (broken)", r.out, "detected when the app starts", "note:")
+}
+
 func TestDown(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
