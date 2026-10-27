@@ -125,6 +125,9 @@ release differs from earlier builds of `main`.
 - `hl init` and `hl sync` add only folders that look like web apps (a preferred service name or a
   common HTTP port); others, like a database on its own port, are listed with the `hl add`
   command to use (`--routing none` to run it without the proxy).
+- `hl add` without a terminal no longer stops when several services publish ports and one has a
+  usual web name (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`): it routes that one and says
+  so. It still asks for `--service` when none has such a name.
 - `hl restart` starts the proxy first, like `hl up`, `hl rebuild` and `hl update`.
 
 ### Fixed

@@ -388,7 +388,7 @@ no app's `hl-<app>` may equal `proxy.project`), and the `hl config` subcommands,
 | Key | Default | What it does |
 | --- | --- | --- |
 | `path` | required | The app's folder: absolute, `~/...`, or relative to the homelab folder. |
-| `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it stops and asks for `--service`. `hl add` writes it here. |
+| `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and stops asking for `--service` only when none has one of those names. `hl add` writes it here. |
 | `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `--port`). `hl add` writes it here. |
 | `routing` | `proxy.routing` | `path`, `host` or `none`. |
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
@@ -476,7 +476,7 @@ every app when none is named; they carry on past an app that fails and end with
 | `hl projects [list]`, `hl projects add\|remove <folder>...` | List the `projects` folders (and which are missing), add one (it must exist; stored with `~` or relative to the homelab like `hl init` does), or remove one (by the name in `hl.yml` or its path; its apps stay). Then run `hl sync`. |
 | `hl ignore [list]`, `hl ignore add\|remove <pattern>...` | List, add or remove `ignore` patterns (`*`, `?`, `[...]`); the list also shows the built-in ones. |
 | `hl strip-prefix [list]`, `hl strip-prefix add\|remove <prefix>...` | List, add or remove `strip_prefix` entries. Apps already added keep their names. |
-| `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`, `--env KEY=VALUE` (repeatable; sets `apps.<name>.env` and wins over the mapped values), `--no-env` (don't [fill in env](#env-hl-fills-in) from the compose file's variables). When several services or ports could be the one to route, it asks on a terminal; without one it names the flag to pass. |
+| `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`, `--env KEY=VALUE` (repeatable; sets `apps.<name>.env` and wins over the mapped values), `--no-env` (don't [fill in env](#env-hl-fills-in) from the compose file's variables). When several services or ports could be the one to route, it asks on a terminal; without one it takes the service with a usual web name (with a note) and otherwise names the flag to pass. |
 | `hl set <app> key=value...` | Change an app's settings in `hl.yml`: `routing`, `prefix`, `host`, `port`, `service`, `path`, `compose` and `env_files` (comma-separated), `env.NAME`. Keeps comments; writes only a valid result. `hl up <app>` applies it. |
 | `hl unset <app> key...` | Remove an app's settings so their defaults apply again; `env.NAME` removes one variable, `env` all. |
 | `hl edit` | Open `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |

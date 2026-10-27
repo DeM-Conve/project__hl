@@ -150,7 +150,8 @@ running proxy predates the current config (compose's `config-hash` label vs `doc
 `hl add` (`cli.pickServicePort`) asks instead when there is more than one candidate service, or
 the service publishes several distinct container ports: a numbered list on a terminal (the
 shared `prompter` from `prompt.go`), with `Exposed`'s pick (or the first port) as the default;
-without a terminal (`stdinTerminal`, `golang.org/x/term`) it fails naming `--service`/`--port`. Flags skip the question.
+without a terminal (`stdinTerminal`, `golang.org/x/term`) it takes `Exposed`'s pick with a note, and fails naming
+`--service` only when no service has a preferred name (or `--port` when the service publishes several). Flags skip the question.
 `hl add` writes the picked `service` and `port` into `hl.yml` so later changes to the app's compose
 file don't silently move the route; `prepared` only detects them when `hl.yml` leaves them empty.
 Routing `none` needs neither.

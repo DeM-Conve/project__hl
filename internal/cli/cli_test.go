@@ -112,12 +112,11 @@ func TestAddFlags(t *testing.T) {
 	call := f.find("config --format json")[0]
 	contains(t, "compose files", call.String(), "--file "+filepath.Join(dir, "compose.prod.yml"))
 
-	// Several published services: without a terminal to ask on, the flag to pass.
-	r = f.hl("add", dir)
-	contains(t, "add", r.errOut, "my-tool: several services publish ports (ui, web) - pass --service, e.g. --service web")
+	// Several published services: without a terminal to ask on, the usual web name, with a note.
 	// The folder name becomes a valid app name.
-	r = f.must("add", dir, "--service", "web")
-	contains(t, "add", r.out, "added my-tool (service web, port 80)", "path routing serves it under /my-tool")
+	r = f.must("add", dir)
+	contains(t, "add", r.out, "note: several services publish ports (ui, web); picked web - pass --service to route another",
+		"added my-tool (service web, port 80)", "path routing serves it under /my-tool")
 
 	r = f.must("add", dir, "--name", "db", "--routing", "none", "--compose", "compose.prod.yml")
 	contains(t, "add none", r.out, "not behind the proxy")
@@ -145,7 +144,7 @@ func TestAddFlags(t *testing.T) {
 	}
 	two := f.app("two", `{"services":{"a":{"ports":[{"target":1}]},"b":{"ports":[{"target":2}]}}}`)
 	r = f.hl("add", two)
-	contains(t, "several services", r.errOut, "several services publish ports (a, b) - pass --service")
+	contains(t, "several services", r.errOut, "several services publish ports (a, b) and none has a usual web name (frontend, web, app, nginx, proxy, ui) - pass --service, e.g. --service a")
 }
 
 func TestAddMapsEnv(t *testing.T) {
