@@ -7,11 +7,13 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
 	"github.com/DeM-Conve/project__hl/internal/defaults"
@@ -334,6 +336,10 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 			if len(changes) > 1 || c.Op != "" {
 				return &usageError{err: errors.New("name= renames the app: give it on its own, e.g. hl set " + scope + " name=<new name>"), cmd: "hl set"}
 			}
+			if c.Value == scope {
+				say("%s is already called %s - nothing to change", scope, c.Value)
+				return nil
+			}
 			if err := renameApp(ctx, home, scope, c.Value); err != nil {
 				return err
 			}
@@ -370,6 +376,29 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 			}
 		}
 	}
+	prefix := ""
+	switch scope {
+	case config.HomelabScope:
+	case config.ProxyScope:
+		prefix = "proxy."
+	default:
+		prefix = "apps." + scope + "."
+	}
+	// A change that changes nothing (the same value, an entry already listed or not there to
+	// remove, a key that isn't set) is said as such: no write, and nothing to apply.
+	if unchanged(home, scope, edits) {
+		for _, c := range changes {
+			say("%s", noChange(prefix, c))
+		}
+		say("nothing to change in %s", config.FileName)
+		return nil
+	}
+	noop := make([]bool, len(changes))
+	if len(changes) > 1 {
+		for i, c := range changes {
+			noop[i] = c.Key != "compose" && unchanged(home, scope, []config.Change{c})
+		}
+	}
 	if err := config.Edit(home, scope, edits); err != nil {
 		var ve *config.ValueError
 		if errors.As(err, &ve) {
@@ -389,26 +418,69 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 	if err := upgradeConfig(home); err != nil {
 		return err
 	}
-	prefix := ""
-	switch scope {
-	case config.HomelabScope:
-	case config.ProxyScope:
-		prefix = "proxy."
-	default:
-		prefix = "apps." + scope + "."
-	}
-	for _, c := range changes {
-		if c.Unset {
+	// Only the known settings that changed need applying.
+	var applied []config.Change
+	for i, c := range changes {
+		switch {
+		case noop[i]:
+			say("%s", noChange(prefix, c))
+			continue
+		case c.Unset:
 			say("unset %s%s", prefix, c.Key)
 			if !knownSetting(scope, c.Key) {
 				say("note: %s%s was not a known setting; removed it from %s", prefix, c.Key, config.FileName)
+				continue
 			}
-		} else {
+		default:
 			say("set %s%s %s= %s", prefix, c.Key, c.Op, c.Value)
 		}
+		applied = append(applied, c)
 	}
-	say("apply it: %s", applyCommand(scope, changes))
+	if len(applied) > 0 {
+		say("apply it: %s", applyCommand(scope, applied))
+	}
 	return nil
+}
+
+// noChange says why change c (to a key under prefix) leaves hl.yml as it is.
+func noChange(prefix string, c config.Change) string {
+	switch {
+	case c.Unset:
+		return fmt.Sprintf("%s%s isn't set", prefix, c.Key)
+	case c.Op == config.OpAdd:
+		return fmt.Sprintf("%s%s already has %s", prefix, c.Key, c.Value)
+	case c.Op == config.OpRemove:
+		return fmt.Sprintf("%s%s has no %s", prefix, c.Key, c.Value)
+	}
+	return fmt.Sprintf("%s%s is already %s", prefix, c.Key, c.Value)
+}
+
+// unchanged reports whether applying changes to scope leaves hl.yml's settings as they are (the
+// same YAML, whatever the layout). It edits a copy, so nothing is written; a change config.Edit
+// refuses counts as a change, so the real edit reports it.
+func unchanged(home, scope string, changes []config.Change) bool {
+	orig, err := os.ReadFile(filepath.Join(home, config.FileName))
+	if err != nil {
+		return false
+	}
+	tmp, err := os.MkdirTemp("", "hl-set-")
+	if err != nil {
+		return false
+	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+	copied := filepath.Join(tmp, config.FileName)
+	if os.WriteFile(copied, orig, 0o600) != nil || config.Edit(tmp, scope, changes) != nil {
+		return false
+	}
+	out, err := os.ReadFile(copied)
+	if err != nil {
+		return false
+	}
+	var before, after any
+	if yaml.Unmarshal(orig, &before) != nil || yaml.Unmarshal(out, &after) != nil {
+		return false
+	}
+	return reflect.DeepEqual(before, after)
 }
 
 // checkAppChanges refuses an app's path, compose or service change that can't work: the folder
@@ -462,10 +534,6 @@ func renameApp(ctx context.Context, home, old, new string) error {
 	}
 	if _, err := appArg(cfg, old); err != nil {
 		return err
-	}
-	if new == old {
-		say("%s is already called %s", old, new)
-		return nil
 	}
 	if err := config.ValidName(new); err != nil {
 		return withHint(err, "pick another: hl set %s name=<name>", old)

@@ -241,6 +241,11 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl set` that changes nothing (the value it has, `+=` of an entry already listed, `-=` of one
+  that isn't; `hl unset` of a key that isn't set) says so (`proxy.port is already 8080`, `nothing
+  to change in hl.yml`), writes nothing and names no command to apply it; `-=` of a missing
+  entry used to be an error. `hl unset` of a key that wasn't a known setting names nothing to
+  apply either, and with several changes only the ones that change something are applied.
 - `hl up` (or `hl up proxy`) after `hl set proxy subnet=` while the proxy runs refuses with
   the fix (`hl down`, then `hl up`) and leaves the running proxy up. Compose used to remove the
   proxy, then fail to change the network ("has active endpoints"), so every app lost its route.

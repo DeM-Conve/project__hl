@@ -37,7 +37,8 @@ hl unset env.TZ
 - Single quotes keep your shell from expanding `${...}`: `hl set my-app 'env.APP_URL=${HL_URL}'`.
 - hl writes `hl.yml` only when the result has no problems, keeps its comments, blank lines and order, prints
   what it changed, and says which command applies it (`hl up <app>`, `hl up`, `hl up proxy`, `hl sync`,
-  or `hl down` then `hl up` for a new proxy subnet):
+  or `hl down` then `hl up` for a new proxy subnet). A change that changes nothing (the same value,
+  an entry already listed, or not there to remove) says so and writes nothing:
 
   ```console
   $ hl set my-app routing=host

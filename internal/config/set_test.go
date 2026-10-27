@@ -205,7 +205,6 @@ func TestEditProxyRefusesBadResults(t *testing.T) {
 		{HomelabScope, []Change{{Key: "env.1X", Value: "a"}}, "not a valid variable name"},
 		{HomelabScope, []Change{{Key: "name", Value: "Lab 2"}}, "lowercase"},
 		{HomelabScope, []Change{{Key: "name", Value: "x", Op: OpAdd}}, "not a list"},
-		{HomelabScope, []Change{{Key: "ignore", Value: "nope", Op: OpRemove}}, `"nope" is not in it`},
 		{HomelabScope, []Change{{Key: "scan_depth", Value: "-1"}}, "scan_depth"},
 		{HomelabScope, []Change{{Key: "apps", Value: "x"}}, "unknown setting"},
 	} {

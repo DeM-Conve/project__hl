@@ -199,7 +199,7 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 	if out, err := run(t, "", "unset", "proxy", "port"); err != nil || !strings.Contains(out, "unset proxy.port") || !strings.Contains(out, "apply it: hl up (the proxy, then the apps") {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if out, err := run(t, "", "set", "proxy", "bind=0.0.0.0"); err != nil || !strings.Contains(out, "apply it: hl up proxy\n") {
+	if out, err := run(t, "", "set", "proxy", "bind=127.0.0.1"); err != nil || !strings.Contains(out, "apply it: hl up proxy\n") {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if out, err := run(t, "", "unset", "env.TZ"); err != nil || !strings.Contains(out, "unset env.TZ") {

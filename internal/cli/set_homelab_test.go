@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
 )
@@ -48,10 +49,8 @@ func TestSetHomelabSettings(t *testing.T) {
 	if got := strings.Join(load().Projects, "|"); got != "~/my code" {
 		t.Errorf("projects after -= = %q", got)
 	}
-	r = f.hl("set", "projects-=~/elsewhere")
-	if r.code != 2 || !strings.Contains(r.errOut, `error: projects: "~/elsewhere" is not in it (~/my code)`) {
-		t.Errorf("remove unknown: %s", r)
-	}
+	r = f.must("set", "projects-=~/elsewhere")
+	contains(t, "remove unknown", r.out, "projects has no ~/elsewhere", "nothing to change")
 
 	f.must("set", "ignore+=old,scratch-*", "strip_prefix=project__")
 	r = f.hl("set", "ignore+=[")
@@ -273,10 +272,12 @@ func TestUnsetUnknownKeyInFile(t *testing.T) {
 	}
 	r := f.must("unset", "proxy", "prot")
 	contains(t, "unset proxy prot", r.out, "unset proxy.prot", "note: proxy.prot was not a known setting; removed it from hl.yml")
+	lacks(t, "unset proxy prot", r.out, "apply it")
 	r = f.must("unset", "blog", "servce")
 	contains(t, "unset blog servce", r.out, "note: apps.blog.servce was not a known setting")
 	r = f.must("unset", "projects_old")
 	contains(t, "unset projects_old", r.out, "note: projects_old was not a known setting")
+	lacks(t, "unset projects_old", r.out, "apply it")
 	if got := f.read(filepath.Join(lab, "hl.yml")); got != "# my lab\n\nversion: 1\nenv: {TZ: UTC}\n\nproxy:\n  port: 8080\n\napps:\n  blog:\n    path: "+dir+"\n" {
 		t.Errorf("hl.yml:\n%s", got)
 	}
@@ -291,4 +292,47 @@ func TestUnsetUnknownKeyInFile(t *testing.T) {
 	if r := f.must("unset", "proxy", "port"); strings.Contains(r.out, "note:") {
 		t.Errorf("a known setting needs no note: %s", r)
 	}
+}
+
+// A set or unset that changes nothing says so, leaves hl.yml alone and names nothing to apply;
+// with other changes, only those are applied.
+func TestSetNoChange(t *testing.T) {
+	f := newFake(t)
+	code := filepath.Join(f.home, "my code")
+	dir := f.app("blog", `{"services":{"web":{"ports":[{"target":80}]}}}`)
+	if err := os.MkdirAll(code, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lab := f.lab("lab", "version: 1\nprojects: ['~/my code']\nignore: [old]\nproxy:\n  port: 8080\napps:\n  blog:\n    path: '"+dir+"'\n    port: 80\n")
+	path := filepath.Join(lab, "hl.yml")
+	before := f.read(path)
+	old := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"set", "proxy", "port=8080"}, "proxy.port is already 8080"},
+		{[]string{"set", "blog", "port=80"}, "apps.blog.port is already 80"},
+		{[]string{"set", "projects+=" + code}, "projects already has"},
+		{[]string{"set", "ignore-=new"}, "ignore has no new"},
+		{[]string{"set", "ignore+=old"}, "ignore already has old"},
+		{[]string{"unset", "proxy", "bind"}, "proxy.bind isn't set"},
+		{[]string{"set", "blog", "name=blog"}, "blog is already called blog"},
+	} {
+		r := f.must(c.args...)
+		contains(t, strings.Join(c.args, " "), r.out, c.want, "nothing to change")
+		lacks(t, strings.Join(c.args, " "), r.out, "apply it", "set ")
+	}
+	if got := f.read(path); got != before {
+		t.Errorf("hl.yml changed:\n%s", got)
+	}
+	if st, err := os.Stat(path); err != nil || !st.ModTime().Equal(old) {
+		t.Errorf("hl.yml was written again: %v", err)
+	}
+	// One change among no-ops: only it is set and applied.
+	r := f.must("set", "proxy", "port=8080", "bind=0.0.0.0")
+	contains(t, "mixed", r.out, "proxy.port is already 8080", "set proxy.bind = 0.0.0.0", "apply it: hl up proxy\n")
 }

@@ -351,8 +351,8 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   `env`, `name`, `projects`, `ignore`, `strip_prefix`).
   Keys and their types come from the `App`/`Proxy`/`Config` structs by reflection (ints parsed,
   bools as true/false, lists split on commas, map fields as `env.NAME`). A list takes `key=`
-  (replace), `key+=` (add the entries not in it, `config.OpAdd`) or `key-=` (remove them, each
-  must be there, `config.OpRemove`); an empty list removes the key, and a new top-level key goes
+  (replace), `key+=` (add the entries not in it, `config.OpAdd`) or `key-=` (remove the entries in
+  it, `config.OpRemove`); an empty list removes the key, and a new top-level key goes
   before `apps:`. Before editing, the CLI (`homelabChanges`) writes `projects` folders like
   `hl init` does (`storedPath`; each must exist; `-=` matches the written entry or the resolved
   path) and refuses `name` while any of this homelab's projects has containers (`nothingRuns`),
@@ -391,7 +391,10 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   `hl up <app>`, `hl up proxy` for the proxy's `bind`, `image` and `debug`, `hl up` for the
   shared env, `name` and the proxy's `domain`, `routing` or `port` (they are in the apps' routes
   or `HL_URL`; a bare `hl up` applies the proxy first), `hl sync` for the projects settings, or
-  `hl down` then `hl up` when the proxy's subnet changed).
+  `hl down` then `hl up` when the proxy's subnet changed). A change that leaves hl.yml's YAML as
+  it is (`unchanged`: the edit tried on a copy) is said as such (`noChange`: "is already",
+  "already has", "has no", "isn't set") with nothing written and no apply hint; with several
+  changes, only the ones that change something, and are known settings, are applied.
 - There is no editor command: every key is reachable with `hl set`/`hl unset`. A file broken by
   hand fails `config.Load` with a `*config.ProblemsError` (each problem with file:line:column);
   `cli.load` adds the hint to fix those lines in an editor and re-check with `hl doctor`.

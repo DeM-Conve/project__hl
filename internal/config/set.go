@@ -419,7 +419,7 @@ func applyChange(app *yaml.Node, fields map[string]reflect.Type, c Change) error
 }
 
 // listOp is the list old (a sequence node, or nil) with items added (OpAdd: the ones not in
-// it yet) or removed (OpRemove: each must be in it).
+// it yet) or removed (OpRemove: the ones in it).
 func listOp(old *yaml.Node, c Change, items []string) ([]string, error) {
 	var have []string
 	if old != nil && old.Kind == yaml.SequenceNode {
@@ -444,14 +444,7 @@ func listOp(old *yaml.Node, c Change, items []string) ([]string, error) {
 		}
 		return have, nil
 	case OpRemove:
-		for _, it := range items {
-			if !in(have, it) {
-				if len(have) == 0 {
-					return nil, valueErr(c.Key, fmt.Sprintf("%q is not in it (it is empty)", it), "")
-				}
-				return nil, valueErr(c.Key, fmt.Sprintf("%q is not in it (%s)", it, strings.Join(have, ", ")), "")
-			}
-		}
+		// An entry that isn't there is already removed: nothing to do for it.
 		var kept []string
 		for _, h := range have {
 			if !in(items, h) {
