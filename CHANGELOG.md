@@ -108,6 +108,7 @@ release differs from earlier builds of `main`.
   uses (`docker compose config --variables`): `<X>_BASE_PATH` gets `${HL_PREFIX}` (path
   routing), the matching `<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and
   `BACKUP_LOCATION` `${HL_DATA}/backups`. They print what they mapped; `--no-env` turns it off.
+- `hl add --env KEY=VALUE` (repeatable) sets an app's env as it is added, over the mapped values.
 
 ### Changed
 

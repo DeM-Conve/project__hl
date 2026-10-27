@@ -190,6 +190,38 @@ func TestAddMapsEnv(t *testing.T) {
 		t.Errorf("plain env = %v", cfg.Apps["plain"].Env)
 	}
 
+	// --env adds values and wins over the mapped ones; a bad one changes nothing.
+	extra := f.app("extra", apiModel)
+	f.vars(extra, vars...)
+	for _, c := range []struct {
+		args []string
+		code int
+		want string
+	}{
+		{[]string{"add", extra, "--env", "NOPE"}, 2, `--env "NOPE": use KEY=VALUE`},
+		{[]string{"add", extra, "--env", "=x"}, 2, "use KEY=VALUE"},
+		{[]string{"add", extra, "--env", "BAD NAME=x"}, 1, "not a valid variable name"},
+	} {
+		if r := f.hl(c.args...); r.code != c.code || !strings.Contains(r.errOut, c.want) {
+			t.Errorf("hl %v: want exit %d and %q, got %s", c.args, c.code, c.want, r)
+		}
+	}
+	r = f.must("add", extra, "--env", "NOTES_URL=https://notes.example.com", "--env", "TZ=Europe/Berlin", "--env", "EMPTY=")
+	contains(t, "add --env", r.out, "env NOTES_URL=https://notes.example.com", "env TZ=Europe/Berlin", "env NOTES_BASE_PATH=${HL_PREFIX}")
+	cfg, _ = config.Load(lab)
+	if e := cfg.Apps["extra"].Env; e["NOTES_URL"] != "https://notes.example.com" || e["TZ"] != "Europe/Berlin" ||
+		e["NOTES_BASE_PATH"] != "${HL_PREFIX}" || len(e) != 4 {
+		t.Errorf("extra env = %v", e)
+	}
+	// --env with --no-env: only the flags.
+	flagged := f.app("flagged", apiModel)
+	f.vars(flagged, vars...)
+	f.must("add", flagged, "--no-env", "--env", "TZ=UTC")
+	cfg, _ = config.Load(lab)
+	if e := cfg.Apps["flagged"].Env; len(e) != 1 || e["TZ"] != "UTC" {
+		t.Errorf("flagged env = %v", e)
+	}
+
 	// Compose too old to list variables: added anyway, with a warning.
 	f.on(rule{Match: []string{"config --variables"}, Stderr: "unknown flag: --variables", Exit: 1})
 	r = f.must("add", old)
