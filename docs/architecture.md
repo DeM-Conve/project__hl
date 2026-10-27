@@ -229,7 +229,11 @@ warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-m
   `defaults.FailLogTail` log lines.
 - `down`/`stop` with no app stops every app that has containers, then the proxy; apps and a proxy
   that aren't there are skipped, so it is safe to repeat. An app hl can no longer prepare (folder
-  gone) is stopped by project name alone (`downByName`). `remove` does the same for the app,
+  gone) is stopped by project name alone (`downByName`). `remove` does the same for the app
+  (and, when the app's folder still exists inside a projects folder - `scan.InProjects` - and
+  no pattern ignores it yet, adds `scan.IgnoreEntry(<folder name>)`, the name with pattern
+  characters escaped, to `ignore`; `hl add` removes an `ignore` entry that is exactly the
+  folder's name),
   deletes it from `hl.yml` and `.hl/<app>/`, and keeps `data/<app>/`.
 - `rebuild --pull` per app (`pullAndRebuild`): skip if `git status --porcelain` fails (not a repo) or shows changes; otherwise
   `git pull --ff-only` (a failed pull is a failure for that app; the folder is left as it was),

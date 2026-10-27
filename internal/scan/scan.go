@@ -55,6 +55,16 @@ func Ignored(cfg *config.Config, name string) bool {
 	return false
 }
 
+// InProjects reports whether dir is inside one of hl.yml's projects folders, where hl sync
+// would find it.
+func InProjects(cfg *config.Config, dir string) bool { return inside(cfg.ProjectDirs(), dir) }
+
+// IgnoreEntry is the ignore pattern that matches exactly the folder name, with the pattern
+// characters (*, ?, [, \) escaped.
+func IgnoreEntry(name string) string {
+	return strings.NewReplacer(`\`, `\\`, "*", `\*`, "?", `\?`, "[", `\[`).Replace(name)
+}
+
 // Compare lists the project folders and compares them with hl.yml's apps.
 func Compare(cfg *config.Config) (*Diff, error) {
 	d := &Diff{}

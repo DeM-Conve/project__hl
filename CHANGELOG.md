@@ -15,6 +15,9 @@ release differs from earlier builds of `main`.
 
 ### Added
 
+- `hl remove <app>` of an app in a projects folder adds the folder to `ignore` (and says so), so
+  `hl sync` doesn't add it straight back; `hl add` of that folder later takes it out again.
+
 - `hl init` creates a homelab folder (a short `hl.yml`, `data/`, `.gitignore`) and makes it the
   default; `--home` and `$HL_HOME` pick another. It works out a plan - projects folders (`~/code`,
   `~/projects`, `~/src` when they exist), the proxy (port 8080 when 80 is busy), every web app

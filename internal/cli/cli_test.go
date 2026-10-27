@@ -998,3 +998,29 @@ func TestUpCreatesEnvDataFolders(t *testing.T) {
 		t.Errorf("created %s, outside the app's data folder", outside)
 	}
 }
+
+// An app removed from a projects folder is ignored, so hl sync doesn't add it back; adding it
+// again by hand takes it out of ignore.
+func TestRemoveIgnoresAndAddUnignores(t *testing.T) {
+	f := newFake(t)
+	blog := f.app("blog", webModel2)
+	other := filepath.Join(f.home, "elsewhere")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lab := f.lab("lab", "projects: ['"+filepath.Dir(blog)+"']\napps:\n  blog: {path: '"+blog+"'}\n  out: {path: '"+other+"'}\n")
+	r := f.must("remove", "blog")
+	contains(t, "remove", r.out, "added blog to ignore", "hl set ignore-=blog")
+	cfg, _ := config.Load(lab)
+	if strings.Join(cfg.Ignore, ",") != "blog" {
+		t.Errorf("ignore = %v", cfg.Ignore)
+	}
+	r = f.must("remove", "out") // not in a projects folder: ignore is left alone
+	lacks(t, "remove out", r.out, "ignore")
+
+	r = f.must("add", blog)
+	contains(t, "add", r.out, "removed blog from ignore")
+	if cfg, _ := config.Load(lab); len(cfg.Ignore) != 0 {
+		t.Errorf("ignore after add = %v", cfg.Ignore)
+	}
+}

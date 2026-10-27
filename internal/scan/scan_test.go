@@ -215,3 +215,19 @@ apps:
 		t.Errorf("order: adds first, skips last:\n%s", all)
 	}
 }
+
+func TestIgnoreEntry(t *testing.T) {
+	for _, name := range []string{"blog", "my [old] app", "a*b?c", `back\slash`} {
+		e := IgnoreEntry(name)
+		if ok, err := filepath.Match(e, name); !ok || err != nil {
+			t.Errorf("%q: %q doesn't match it (%v)", name, e, err)
+		}
+		if ok, _ := filepath.Match(e, name+"x"); ok {
+			t.Errorf("%q: %q matches more than the name", name, e)
+		}
+	}
+	cfg := &config.Config{Dir: "/lab", Projects: []string{"/code"}}
+	if !InProjects(cfg, "/code/blog") || InProjects(cfg, "/elsewhere/blog") || InProjects(cfg, "/code") {
+		t.Error("InProjects")
+	}
+}

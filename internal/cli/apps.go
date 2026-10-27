@@ -128,6 +128,16 @@ the mapped ones; env.NAME= with no value leaves that variable out.`,
 			if err := config.AddApp(cfg.Dir, name, &a); err != nil {
 				return err
 			}
+			// Added by hand after hl remove (or hl set ignore+=): hl sync may see it again.
+			for _, e := range cfg.Ignore {
+				if ok, _ := filepath.Match(e, filepath.Base(dir)); ok && (e == filepath.Base(dir) || e == scan.IgnoreEntry(filepath.Base(dir))) {
+					if err := config.Edit(cfg.Dir, config.HomelabScope, []config.Change{{Key: "ignore", Value: e, Op: config.OpRemove}}); err != nil {
+						warn("%s stays in ignore: %v", e, err)
+					} else {
+						say("removed %s from ignore", e)
+					}
+				}
+			}
 			if cfg.Routing(&a) == config.RoutingNone {
 				say("added %s%s%s (not behind the proxy)", bold, name, reset)
 			} else {
@@ -236,6 +246,15 @@ func removeCmd() *cobra.Command {
 				say("removed %s; its data is still in %s", name, cfg.DataDir(name))
 			} else {
 				say("removed %s", name)
+			}
+			// In a projects folder, hl sync would add it straight back: ignore it.
+			if dir := cfg.AppDir(cfg.Apps[name]); exists(dir) && scan.InProjects(cfg, dir) && !scan.Ignored(cfg, filepath.Base(dir)) {
+				entry := scan.IgnoreEntry(filepath.Base(dir))
+				if err := config.Edit(cfg.Dir, config.HomelabScope, []config.Change{{Key: "ignore", Value: entry, Op: config.OpAdd}}); err != nil {
+					warn("hl sync may add it again: %v", err)
+				} else {
+					say("added %s to ignore, so hl sync doesn't add it again (undo: hl set ignore-=%s)", entry, entry)
+				}
 			}
 			return nil
 		},
