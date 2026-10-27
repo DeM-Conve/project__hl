@@ -441,32 +441,15 @@ func editApps(dir string, edit func(apps *yaml.Node) error) error {
 	})
 }
 
-// Template is the hl.yml `hl init` writes.
+// Template is the start of the hl.yml `hl init` writes: only what every homelab needs. WriteNew
+// adds projects, strip_prefix and the proxy settings that differ from the defaults; every other
+// setting is in the README ("hl.yml reference"), not here.
 const Template = defaults.SchemaComment + `
-# hl homelab: the proxy, and the apps behind it. Edit freely; hl reads it on every command.
+# hl homelab. hl commands change it (hl add, hl set, hl projects, ...); every setting is in
+# the README. hl reads it on every command.
 
 version: 1
 
-# name: lab2   # only to run a second homelab on the same Docker (projects hl-lab2-<app>)
-
-proxy:
-  # 127.0.0.1 = this machine only; 0.0.0.0 = reachable from your network.
-  bind: 127.0.0.1
-  port: 80
-  # path: apps at http://<domain>/<app>/ (the app must support a base path, see README)
-  # host: apps at http://<app>.<domain> (works with any app)
-  routing: path
-  domain: localhost
-  # Traefik's dashboard at http://traefik.<domain>, no password. Off unless set; on a bind
-  # other than 127.0.0.1 it also needs dashboard_public: true.
-  # dashboard: true
-
-# Settings passed to every app, e.g. the time zone. An app's own env wins.
-# env:
-#   TZ: UTC
-
-# Added with ` + "`hl add <folder>`" + `. Per app you can set: routing, prefix, host,
-# service, port, compose, env_files and env (see README).
 apps: {}
 `
 

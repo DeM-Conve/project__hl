@@ -61,3 +61,15 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    like `up`, `rebuild` and `update`.
 6. ~~Windows~~ - decided 2026-10-23 (same): not supported; hl says so and suggests WSL 2.
 7. ~~CLI tests~~ - done 2026-10-23: `internal/cli` is tested with a fake `docker` on PATH.
+8. **`hl init` without a terminal and without `--yes`** applies its plan (as before the plan
+   and single question came in), while `hl sync` refuses and asks for `--yes`. Keep the
+   difference, or make init require `--yes` too?
+9. **Auto-mapped env vs. the app's own `.env`**: a mapped value (say `DATA_LOCATION:
+   ${HL_DATA}`) is in `apps.<app>.env`, which wins over the app's `.env`. Should the mapping
+   leave out variables the app's `.env` already sets?
+10. **Env for apps already in `hl.yml`**: add, init and sync map env only for apps they add;
+    `hl sync` doesn't offer the mapping for apps added earlier. Should it (as an `~ update`)?
+11. **`scan_depth` from the command line**: `hl projects`/`hl ignore`/`hl strip-prefix` cover the
+    lists; `scan_depth` still needs `hl edit` unless the top-level `hl set` covers it.
+12. **Picking apps on a terminal**: `hl init` used to offer the apps found as a checklist; now it
+    shows the plan and asks once, and `--apps a,b` picks. Is that enough?

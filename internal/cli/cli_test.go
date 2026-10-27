@@ -33,7 +33,7 @@ func TestFreshUserJourney(t *testing.T) {
 
 	r = f.must("add", blog)
 	contains(t, "add", r.out, "added blog (service web, port 80)", "url: http://localhost/blog/")
-	contains(t, "hl.yml", f.read(filepath.Join(lab, "hl.yml")), "blog:", "service: web", "port: 80", "# 127.0.0.1 = this machine only")
+	contains(t, "hl.yml", f.read(filepath.Join(lab, "hl.yml")), "blog:", "service: web", "port: 80", "# hl homelab.")
 
 	f.reset()
 	r = f.must("up")

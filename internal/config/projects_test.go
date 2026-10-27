@@ -18,13 +18,13 @@ func TestWriteNewFillsAnswersAndKeepsComments(t *testing.T) {
 	}
 	b, _ := os.ReadFile(filepath.Join(dir, FileName))
 	text := string(b)
-	for _, want := range []string{"# 127.0.0.1 = this machine only", "# Folders with your projects", "apps: {}"} {
+	for _, want := range []string{"# hl homelab.", "# Folders with your projects", "apps: {}", "bind: 0.0.0.0", "port: 8080", "routing: host"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("hl.yml lost %q:\n%s", want, text)
 		}
 	}
-	if strings.Index(text, "projects:") > strings.Index(text, "apps:") {
-		t.Errorf("projects should come before apps:\n%s", text)
+	if strings.Index(text, "projects:") > strings.Index(text, "proxy:") || strings.Index(text, "proxy:") > strings.Index(text, "apps:") {
+		t.Errorf("order should be projects, proxy, apps:\n%s", text)
 	}
 	c, err := Load(dir)
 	if err != nil {
@@ -39,6 +39,38 @@ func TestWriteNewFillsAnswersAndKeepsComments(t *testing.T) {
 	home, _ := os.UserHomeDir()
 	if got := c.ProjectDirs(); got[0] != filepath.Join(home, "code") || got[1] != filepath.Join(filepath.Dir(dir), "more projects") {
 		t.Errorf("ProjectDirs = %q", got)
+	}
+}
+
+func TestWriteNewIsMinimal(t *testing.T) {
+	dir := t.TempDir()
+	pd := ProxyDefaults()
+	// Defaults spelled out are left out; only what differs is written.
+	s := InitSettings{Bind: pd.Bind, Port: pd.Port, Routing: pd.Routing, Projects: []string{"~/code"}, StripPrefix: []string{"project__"}}
+	if err := WriteNew(dir, s); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, FileName))
+	text := string(b)
+	for _, unwanted := range []string{"proxy:", "bind:", "dashboard", "env:", "name:"} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("a new hl.yml should not have %q:\n%s", unwanted, text)
+		}
+	}
+	for _, want := range []string{"version: 1", "projects: [~/code]", "strip_prefix: [project__]", "apps: {}"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("hl.yml lacks %q:\n%s", want, text)
+		}
+	}
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := s.Config(dir); c.Proxy != want.Proxy || strings.Join(c.Projects, ",") != strings.Join(want.Projects, ",") {
+		t.Errorf("loaded %+v, planned %+v", c, want)
+	}
+	if err := WriteNew(t.TempDir(), InitSettings{Port: 8081}); err != nil {
+		t.Fatal(err)
 	}
 }
 

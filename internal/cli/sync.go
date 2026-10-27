@@ -139,10 +139,10 @@ func printPlan(out io.Writer, cfg *config.Config, plan []scan.Action) {
 		case scan.Add:
 			fmt.Fprintf(w, "  + add\t%s\t%s\t%s\n", a.Name, a.Path, pinned(a.Service, a.Port))
 			for _, kv := range scan.EnvList(a.Env) {
-				fmt.Fprintf(w, "\t\t\tenv %s\n", kv)
+				fmt.Fprintf(w, "\t\t  env %s\n", kv)
 			}
 			if a.Note != "" {
-				fmt.Fprintf(w, "\t\t\tnote: %s\n", a.Note)
+				fmt.Fprintf(w, "\t\t  note: %s\n", a.Note)
 			}
 		case scan.Remove:
 			fmt.Fprintf(w, "  - remove\t%s\t%s\tfolder gone; %s stays\n", a.Name, a.Path, relTo(cfg.Dir, cfg.DataDir(a.Name)))

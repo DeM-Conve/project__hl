@@ -75,8 +75,18 @@ type InitSettings struct {
 	StripPrefix []string
 }
 
-// WriteNew writes a new <dir>/hl.yml from Template with s filled in. It
-// refuses to overwrite an existing file.
+// Config is the homelab these settings make, defaults filled in, without writing anything:
+// what `hl init` plans with before it asks.
+func (s InitSettings) Config(dir string) *Config {
+	c := &Config{Dir: dir, Projects: s.Projects, StripPrefix: s.StripPrefix,
+		Proxy: Proxy{Bind: s.Bind, Port: s.Port, Routing: s.Routing}}
+	c.defaults()
+	return c
+}
+
+// WriteNew writes a new, short <dir>/hl.yml: Template with the projects folders, strip_prefix
+// and the proxy settings of s that differ from the defaults. It refuses to overwrite an
+// existing file.
 func WriteNew(dir string, s InitSettings) error {
 	path := filepath.Join(dir, FileName)
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
@@ -91,24 +101,25 @@ func WriteNew(dir string, s InitSettings) error {
 		return err
 	}
 	return editDoc(dir, func(root *yaml.Node) error {
-		proxy := mapValue(root, "proxy")
-		if proxy == nil || proxy.Kind != yaml.MappingNode {
-			return fmt.Errorf("%s: no proxy section", path)
-		}
-		if s.Bind != "" {
-			setScalar(proxy, "bind", s.Bind, "!!str")
-		}
-		if s.Port != 0 {
-			setScalar(proxy, "port", strconv.Itoa(s.Port), "!!int")
-		}
-		if s.Routing != "" {
-			setScalar(proxy, "routing", s.Routing, "!!str")
-		}
 		if len(s.Projects) > 0 {
 			setProjects(root, s.Projects)
 		}
 		if len(s.StripPrefix) > 0 {
 			setList(root, "strip_prefix", s.StripPrefix, stripPrefixComment)
+		}
+		pd := ProxyDefaults()
+		proxy := &yaml.Node{Kind: yaml.MappingNode}
+		if s.Bind != "" && s.Bind != pd.Bind {
+			setScalar(proxy, "bind", s.Bind, "!!str")
+		}
+		if s.Port != 0 && s.Port != pd.Port {
+			setScalar(proxy, "port", strconv.Itoa(s.Port), "!!int")
+		}
+		if s.Routing != "" && s.Routing != pd.Routing {
+			setScalar(proxy, "routing", s.Routing, "!!str")
+		}
+		if len(proxy.Content) > 0 {
+			beforeApps(root, &yaml.Node{Kind: yaml.ScalarNode, Value: "proxy"}, proxy)
 		}
 		return nil
 	})
@@ -188,15 +199,19 @@ func setList(root *yaml.Node, key string, values []string, comment string) {
 			return
 		}
 	}
-	k := &yaml.Node{Kind: yaml.ScalarNode, Value: key, HeadComment: comment}
-	// Before apps:, so the file reads top-down: proxy, projects, apps.
+	beforeApps(root, &yaml.Node{Kind: yaml.ScalarNode, Value: key, HeadComment: comment}, seq)
+}
+
+// beforeApps adds key: val to the top-level mapping just before apps:, so the file reads
+// top-down: settings, then apps.
+func beforeApps(root, key, val *yaml.Node) {
 	at := len(root.Content)
 	for i := 0; i < len(root.Content); i += 2 {
 		if root.Content[i].Value == "apps" {
 			at = i
 		}
 	}
-	rest := append([]*yaml.Node{k, seq}, root.Content[at:]...)
+	rest := append([]*yaml.Node{key, val}, root.Content[at:]...)
 	root.Content = append(root.Content[:at:at], rest...)
 }
 

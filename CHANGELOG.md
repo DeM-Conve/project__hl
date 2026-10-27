@@ -15,12 +15,15 @@ release differs from earlier builds of `main`.
 
 ### Added
 
-- `hl init` creates a homelab folder (`hl.yml`, `data/`, `.gitignore`) and makes it the default;
-  `--home` and `$HL_HOME` pick another. On a terminal it asks a few questions (projects folders,
-  routing, this machine or the network, another port if the default one is busy) and offers the
-  apps it finds as a checklist; `--projects`, `--routing`, `--bind`, `--port`, `--apps` and
-  `--yes` answer them in scripts. It checks Docker and compose first, and on an existing homelab
-  never overwrites `hl.yml` but offers the new apps.
+- `hl init` creates a homelab folder (a short `hl.yml`, `data/`, `.gitignore`) and makes it the
+  default; `--home` and `$HL_HOME` pick another. It works out a plan - projects folders (`~/code`,
+  `~/projects`, `~/src` when they exist), the proxy (port 8080 when 80 is busy), every web app
+  found with its service, port and env, and the folders it skips and why - shows it and asks
+  once; `--projects`, `--routing`, `--bind`, `--port`, `--apps`, `--strip-prefix` and `--no-env`
+  change the plan and `--yes` applies it without asking. It checks Docker and compose first, and
+  on an existing homelab never overwrites `hl.yml` but adds the new apps. The `hl.yml` it writes
+  holds only the projects folders, the proxy settings that differ from the defaults, and the
+  apps; every other setting is documented in the README.
 - `projects:` in `hl.yml`: folders whose subfolders with a compose file are apps; `ignore:`
   patterns, a `.hlignore` file or `scan_depth` control what is picked up.
 - `hl sync` keeps `hl.yml` in step with the projects folders: adds new apps, removes ones whose
