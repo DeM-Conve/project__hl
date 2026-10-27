@@ -72,6 +72,23 @@ func exists(path string) bool {
 // prepared is the app's project with hl's override written and layered on,
 // and the data folders its volumes use created.
 func prepared(ctx context.Context, cfg *config.Config, name string) (*compose.Project, error) {
+	pa, err := prepare(ctx, cfg, name)
+	if err != nil {
+		return nil, err
+	}
+	return pa.Project, nil
+}
+
+// preparedApp is a prepared project with what hl read to prepare it.
+type preparedApp struct {
+	*compose.Project
+	Model *compose.Model
+	// Service is the one behind the proxy, "" with routing none.
+	Service string
+}
+
+// prepare is prepared, keeping the model and the routed service.
+func prepare(ctx context.Context, cfg *config.Config, name string) (*preparedApp, error) {
 	a, err := cfg.App(name)
 	if err != nil {
 		return nil, err
@@ -120,7 +137,11 @@ func prepared(ctx context.Context, cfg *config.Config, name string) (*compose.Pr
 		return nil, err
 	}
 	p.Files = append(p.Files, f)
-	return p, nil
+	routed := ""
+	if g.Routing != config.RoutingNone {
+		routed = g.Service
+	}
+	return &preparedApp{Project: p, Model: m, Service: routed}, nil
 }
 
 // writeGenerated writes a generated file atomically, and only when it changed.

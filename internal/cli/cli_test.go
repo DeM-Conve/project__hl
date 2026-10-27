@@ -266,14 +266,77 @@ func TestUpWait(t *testing.T) {
 		ctr("hl-a", "web", "running", "Up (healthy)", filepath.Join(lab, ".hl", "a", "override.yml")),
 		ctr("hl-a", "db", "running", "Up (unhealthy)", filepath.Join(lab, ".hl", "a", "override.yml")),
 	)
-	r := f.hl("up", "--wait", "--wait-timeout", "30s")
+	// --wait-all waits for every service in the one up call.
+	r := f.hl("up", "--wait-all", "--wait-timeout", "30s")
 	if r.code != 1 {
 		t.Fatalf("want a failure: %s", r)
 	}
-	contains(t, "up --wait", r.errOut, "a: not running and healthy: db", "hint: see `hl logs a db`")
-	contains(t, "up --wait", r.out, "last 20 log lines of a/db", "password authentication failed")
+	contains(t, "up --wait-all", r.errOut, "a: not running and healthy: db", "hint: see `hl logs a db`")
+	contains(t, "up --wait-all", r.out, "last 20 log lines of a/db", "password authentication failed")
 	if l := f.find("logs --no-color --tail 20 db"); len(l) != 1 {
 		t.Errorf("logs of the unhealthy service: %v", f.calls())
+	}
+	if u := f.find("--project-name hl-a ", "up --detach --wait --wait-timeout 30"); len(u) != 1 || strings.HasSuffix(u[0].String(), " web") {
+		t.Errorf("--wait-all: want one up that waits for everything: %v", u)
+	}
+}
+
+// --wait waits for the routed service and what it depends on, not for unrelated sidecars.
+func TestUpWaitSkipsSidecars(t *testing.T) {
+	f := newFake(t)
+	// web (routed) -> api -> db; backup is a sidecar that depends on db but nothing depends on it.
+	model := `{"services":{"web":{"ports":[{"target":80,"published":"8080"}],"depends_on":{"api":{"condition":"service_started"}}},` +
+		`"api":{"depends_on":{"db":{"condition":"service_healthy"}}},"db":{},"backup":{"depends_on":{"db":{}}}}}`
+	a := f.app("a", model)
+	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n")
+	override := filepath.Join(lab, ".hl", "a", "override.yml")
+	f.containers(
+		ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
+		ctr("hl-a", "web", "running", "Up (healthy)", override),
+		ctr("hl-a", "api", "running", "Up", override),
+		ctr("hl-a", "db", "running", "Up (healthy)", override),
+		ctr("hl-a", "backup", "running", "Up 2 minutes (health: starting)", override),
+	)
+	// compose would fail waiting for the sidecar, but hl doesn't ask it to.
+	f.on(rule{Match: []string{"--project-name hl-a ", "--wait", "backup"}, Stderr: "container hl-a-backup-1 is starting\n", Exit: 1})
+	r := f.must("up", "a", "--wait", "--wait-timeout", "30s")
+	contains(t, "up --wait", r.out, "waiting for api, db, web")
+	ups := f.find("--project-name hl-a ", "up --detach")
+	if len(ups) != 2 || strings.Contains(ups[0].String(), "--wait") ||
+		!strings.HasSuffix(ups[1].String(), "up --detach --wait --wait-timeout 30 api db web") {
+		t.Fatalf("want up (all services), then up --wait for web and its dependencies: %v", ups)
+	}
+	contains(t, "status after up", r.out, "starting: backup") // status still shows the sidecar
+
+	// A dependency that doesn't come up is reported; the sidecar isn't.
+	f = newFake(t)
+	a = f.app("a", model)
+	lab = f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n")
+	override = filepath.Join(lab, ".hl", "a", "override.yml")
+	f.containers(
+		ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
+		ctr("hl-a", "web", "running", "Up (healthy)", override),
+		ctr("hl-a", "db", "running", "Up (unhealthy)", override),
+		ctr("hl-a", "backup", "running", "Up (health: starting)", override),
+	)
+	f.on(rule{Match: []string{"--project-name hl-a ", "--wait", "api db web"}, Stderr: "container hl-a-db-1 is unhealthy\n", Exit: 1})
+	r = f.hl("rebuild", "a", "--wait")
+	if r.code != 1 {
+		t.Fatalf("want a failure: %s", r)
+	}
+	contains(t, "rebuild --wait", r.errOut, "a: not running and healthy: db\n")
+	lacks(t, "rebuild --wait", r.errOut+r.out, "a/backup")
+	if u := f.find("--project-name hl-a ", "up --detach --build"); len(u) != 1 || strings.Contains(u[0].String(), "--wait") {
+		t.Errorf("rebuild builds once, without waiting: %v", u)
+	}
+
+	// An app that isn't behind the proxy has no service that matters more: --wait waits for all.
+	f = newFake(t)
+	a = f.app("a", model)
+	f.lab("lab", "apps:\n  a: {path: '"+a+"', routing: none}\n")
+	f.must("up", "a", "--wait")
+	if u := f.find("--project-name hl-a ", "up --detach --wait"); len(u) != 1 || strings.Contains(u[0].String(), " web") {
+		t.Errorf("routing none: %v", u)
 	}
 }
 

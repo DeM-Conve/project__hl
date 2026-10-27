@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,20 +26,30 @@ import (
 
 // waitFlags are --wait and --wait-timeout, for commands that start apps.
 type waitFlags struct {
-	wait    bool
-	timeout time.Duration
+	wait, all bool
+	timeout   time.Duration
 }
 
 func (w *waitFlags) add(c *cobra.Command) {
-	c.Flags().BoolVar(&w.wait, "wait", false, "wait until the apps are running and healthy; show the logs of any that aren't")
+	c.Flags().BoolVar(&w.wait, "wait", false, "wait until each app's service behind the proxy, and the services it depends on, run and are healthy; show the logs of any that aren't")
+	c.Flags().BoolVar(&w.all, "wait-all", false, "like --wait, but wait for every service of the app, sidecars too")
 	c.Flags().DurationVar(&w.timeout, "wait-timeout", defaults.WaitTimeout, "how long --wait waits for each app")
 }
 
+// on reports whether hl waits at all.
+func (w *waitFlags) on() bool { return w != nil && (w.wait || w.all) }
+
 func (w *waitFlags) args(args ...string) []string {
-	if w.wait {
-		args = append(args, "--wait", "--wait-timeout", strconv.Itoa(int(w.timeout.Seconds())))
+	return append(args, "--wait", "--wait-timeout", strconv.Itoa(int(w.timeout.Seconds())))
+}
+
+// services are the services --wait waits for: the routed one and what it depends on, or nil
+// for all of them (--wait-all, or an app that isn't behind the proxy).
+func (w *waitFlags) services(pa *preparedApp) []string {
+	if w.all || pa.Service == "" {
+		return nil
 	}
-	return args
+	return pa.Model.WithDeps(pa.Service)
 }
 
 // failures collects the apps a multi-app command couldn't handle, so one
@@ -95,35 +106,53 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 	if err := inv.mine(cfg, cfg.ProjectName(name), name); err != nil {
 		return err
 	}
-	p, err := prepared(ctx, cfg, name)
+	pa, err := prepare(ctx, cfg, name)
 	if err != nil {
 		return err
 	}
+	p := pa.Project
 	step(name)
-	if w != nil {
-		args = w.args(args...)
+	// --wait: compose starts every service, then waits only for the ones that matter, so a
+	// sidecar with a slow healthcheck doesn't fail an app that already serves.
+	var waitFor []string
+	if w.on() {
+		if waitFor = w.services(pa); waitFor == nil {
+			args = w.args(args...)
+		}
 	}
 	if err := p.Run(ctx, args...); err != nil {
 		if errors.Is(err, interrupt.ErrInterrupted) {
 			return err
 		}
-		if w != nil && w.wait {
-			return unhealthy(ctx, cfg, p, name, err)
+		if w.on() && waitFor == nil {
+			return unhealthy(ctx, p, name, err, nil)
 		}
 		return fmt.Errorf("%s: %w", name, err)
+	}
+	if waitFor != nil {
+		say("%swaiting for %s (--wait-all waits for every service)%s", dim, strings.Join(waitFor, ", "), reset)
+		if err := p.Run(ctx, append(w.args("up", "--detach"), waitFor...)...); err != nil {
+			if errors.Is(err, interrupt.ErrInterrupted) {
+				return err
+			}
+			return unhealthy(ctx, p, name, err, waitFor)
+		}
 	}
 	return nil
 }
 
-// unhealthy explains an app that didn't come up under --wait: which services
-// aren't running or healthy, and their last log lines.
-func unhealthy(ctx context.Context, cfg *config.Config, p *compose.Project, name string, cause error) error {
+// unhealthy explains an app that didn't come up under --wait: which of the services waited
+// for (nil: all) aren't running or healthy, and their last log lines.
+func unhealthy(ctx context.Context, p *compose.Project, name string, cause error, waited []string) error {
 	inv, err := containers(ctx)
 	if err != nil {
 		return fmt.Errorf("%s: %w", name, cause)
 	}
 	var bad []string
 	for _, c := range inv.of(p.Name) {
+		if waited != nil && !slices.Contains(waited, c.service) {
+			continue
+		}
 		if h := health(c); c.state != "running" || h == "unhealthy" || h == "starting" {
 			bad = append(bad, c.service)
 		}

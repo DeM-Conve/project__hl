@@ -1,6 +1,28 @@
 package compose
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
+
+func TestWithDeps(t *testing.T) {
+	var m Model
+	model := `{"services": {
+		"web": {"depends_on": {"api": {"condition": "service_started", "required": true}}},
+		"api": {"depends_on": {"db": {"condition": "service_healthy"}, "cache": {}}},
+		"db": {}, "cache": {"depends_on": {"api": {}}},
+		"backup": {"depends_on": {"db": {}}}}}`
+	if err := json.Unmarshal([]byte(model), &m); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(m.WithDeps("web"), " "); got != "api cache db web" {
+		t.Errorf("WithDeps(web) = %s (a cycle is followed once; backup isn't a dependency)", got)
+	}
+	if got := strings.Join(m.WithDeps("db", "gone"), " "); got != "db gone" {
+		t.Errorf("WithDeps(db, gone) = %s", got)
+	}
+}
 
 func TestExposed(t *testing.T) {
 	one := &Model{Services: map[string]Service{"web": {Ports: []Port{{Target: 3000}}}, "db": {}}}

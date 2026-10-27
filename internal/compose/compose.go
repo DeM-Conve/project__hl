@@ -189,6 +189,33 @@ type Model struct {
 type Service struct {
 	Ports    []Port                     `json:"ports"`
 	Networks map[string]json.RawMessage `json:"networks"`
+	// DependsOn: compose's resolved model always has the long (map) form.
+	DependsOn map[string]json.RawMessage `json:"depends_on"`
+}
+
+// WithDeps is services and every service they depend on (depends_on, followed through),
+// sorted; names the model doesn't have are kept as they are.
+func (m *Model) WithDeps(services ...string) []string {
+	seen := map[string]bool{}
+	var visit func(string)
+	visit = func(s string) {
+		if seen[s] {
+			return
+		}
+		seen[s] = true
+		for d := range m.Services[s].DependsOn {
+			visit(d)
+		}
+	}
+	for _, s := range services {
+		visit(s)
+	}
+	out := make([]string, 0, len(seen))
+	for s := range seen {
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
 }
 
 type Port struct {

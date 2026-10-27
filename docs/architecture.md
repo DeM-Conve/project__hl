@@ -190,8 +190,13 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
   another Docker network or one of the machine's own, each with the fix (a free `172.x.0.0/16`).
 - Multi-app commands (`eachApp`) run every app even when one fails, print each failure as it
   happens and end with "n of m apps failed: ..." (exit 1). An interruption stops the loop.
-- `--wait` (`up`, `rebuild`, `update`) passes `--wait --wait-timeout <s>` to compose; when an app
-  doesn't come up, hl lists its services that aren't running or healthy and prints their last
+- `--wait` (`up`, `rebuild`, `update`) runs the command as usual (every service starts), then
+  `up --detach --wait --wait-timeout <s> <services>` for the routed service and its
+  `depends_on`, followed through (`compose.Model.WithDeps`, from the model `prepare` already
+  read), so a sidecar with a slow healthcheck doesn't fail an app that serves. `--wait-all`, and
+  `--wait` on an app with routing `none` (no service matters more), pass `--wait --wait-timeout
+  <s>` to the command itself, waiting for everything. When an app doesn't come up, hl lists the
+  waited-for services that aren't running or healthy and prints their last
   `defaults.FailLogTail` log lines.
 - `down`/`stop` with no app stops every app that has containers, then the proxy; apps and a proxy
   that aren't there are skipped, so it is safe to repeat. An app hl can no longer prepare (folder

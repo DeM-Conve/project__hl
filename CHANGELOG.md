@@ -42,8 +42,10 @@ release differs from earlier builds of `main`.
 - `hl status` has a HEALTH column: `healthy`, `starting: <services>`, `unhealthy: <services>`,
   or `-` for apps without healthchecks.
 - `--wait` and `--wait-timeout` (default 2m) on `hl up`, `hl rebuild` and `hl update`: wait until
-  every app is running and healthy, and for one that isn't, name its services and show their
-  last log lines.
+  each app's service behind the proxy and the services it depends on (`depends_on`) are running
+  and healthy, and for an app that isn't, name those services and show their last log lines. A
+  sidecar nothing depends on (say, a backup job with a long healthcheck interval) no longer fails
+  `--wait`; `--wait-all` waits for every service.
 - `hl logs` with no app shows every app's logs at once, each line prefixed by its app; `-n`/`--tail`
   sets how many lines (default 200).
 - `hl update` says which apps it skipped (not a git repo, uncommitted changes) and why.
