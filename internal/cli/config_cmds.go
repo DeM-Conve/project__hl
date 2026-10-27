@@ -48,7 +48,7 @@ func scopesHelp() string {
 func setCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "set [<app>|proxy] key=value...",
-		Short: "Change settings of an app, the proxy or every app (keeps hl.yml's comments; checks the result first)",
+		Short: "Change settings of an app, the proxy or the homelab (keeps hl.yml's comments; checks the result first)",
 		Long: `Change settings in hl.yml without opening it. ` + scopesHelp() + `
 Lists are comma-separated and replaced as a whole (projects=~/code,~/src); key+=value adds
 entries and key-=value removes them (ignore+=old, compose-=compose.dev.yml). Switches take true
@@ -84,7 +84,7 @@ written if the result is valid; hl says which command applies the change.
 func unsetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "unset [<app>|proxy] key...",
-		Short: "Remove settings of an app, the proxy or every app, back to their defaults",
+		Short: "Remove settings of an app, the proxy or the homelab, back to their defaults",
 		Long: `Remove settings from hl.yml, so their defaults apply again (e.g. an app's
 routing falls back to proxy.routing). ` + scopesHelp() + `
 env.NAME removes one env setting, env removes them all.
@@ -331,7 +331,7 @@ func completeSetKeys(setting bool) func(*cobra.Command, []string, string) ([]str
 func editCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
-		Short: "Open hl.yml in your editor (the fallback for what hl set/unset don't cover); saved only once it checks out",
+		Short: "Open hl.yml in your editor (a fallback: hl set/unset change every setting); saved only once it checks out",
 		Long: `Open hl.yml in $VISUAL or $EDITOR (default: ` + defaults.DefaultEditor + `). You edit a copy (` + defaults.EditDraft + `);
 when the editor closes hl checks it and replaces hl.yml only if it has no problems.
 Otherwise it lists them and offers to open the editor again, so hl.yml is never left broken.`,
