@@ -129,6 +129,21 @@ func EditApp(dir, name string, changes []Change) error {
 	})
 }
 
+// ApplyApp applies changes to a the way `hl set <app>` applies them to hl.yml: the same keys,
+// types and list operations (what `hl add <folder> key=value...` takes).
+func ApplyApp(a *App, changes []Change) error {
+	var n yaml.Node
+	if err := n.Encode(a); err != nil {
+		return err
+	}
+	for _, c := range changes {
+		if err := applyChange(&n, appFields(), c); err != nil {
+			return err
+		}
+	}
+	return n.Decode(a)
+}
+
 // section is the mapping under key in m, added before apps: when missing.
 func section(m *yaml.Node, key string) *yaml.Node {
 	if n := lookup(m, key); n != nil {

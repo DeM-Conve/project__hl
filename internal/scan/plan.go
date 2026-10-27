@@ -81,13 +81,13 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Act
 		switch {
 		case f.Name == "":
 			act.Kind, act.Name = Skip, f.Path
-			act.Reason = fmt.Sprintf("no usable app name - hl add %s --name <name>", quote(f.Dir))
+			act.Reason = fmt.Sprintf("no usable app name - hl add %s name=<name>", quote(f.Dir))
 		case reserved(f.Name):
 			act.Kind = Skip
-			act.Reason = fmt.Sprintf("%s is a name hl keeps for itself - hl add %s --name <other>", f.Name, quote(f.Dir))
+			act.Reason = fmt.Sprintf("%s is a name hl keeps for itself - hl add %s name=<other>", f.Name, quote(f.Dir))
 		case taken[f.Name]:
 			act.Kind = Skip
-			act.Reason = fmt.Sprintf("an app named %s already exists - hl add %s --name <other>", f.Name, quote(f.Dir))
+			act.Reason = fmt.Sprintf("an app named %s already exists - hl add %s name=<other>", f.Name, quote(f.Dir))
 		default:
 			app := &config.App{Path: f.Path}
 			svc, port, err := detect(cfg, f.Name, app, model)
@@ -97,7 +97,7 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Act
 				act.Reason = fmt.Sprintf("%v; add it with hl add %s", err, quote(f.Dir))
 			case svc != "" && !LooksWeb(svc, port):
 				act.Kind = Skip
-				act.Reason = fmt.Sprintf("not a web app? service %s on port %d - add it with hl add %s --routing none "+
+				act.Reason = fmt.Sprintf("not a web app? service %s on port %d - add it with hl add %s routing=none "+
 					"(not behind the proxy) or hl add %[3]s (routed), or skip it for good with hl set ignore+=%s",
 					svc, port, quote(f.Dir), quote(filepath.Base(f.Dir)))
 			}

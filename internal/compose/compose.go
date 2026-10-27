@@ -280,7 +280,7 @@ func (m *Model) Exposed() (string, error) {
 	case 1:
 		return published[0], nil
 	case 0:
-		return "", fmt.Errorf("no service publishes a port - pass --service and --port")
+		return "", fmt.Errorf("no service publishes a port - name the one to route: service=<name> port=<container port>")
 	}
 	for _, want := range defaults.ExposedServices {
 		for _, name := range published {
@@ -290,7 +290,7 @@ func (m *Model) Exposed() (string, error) {
 		}
 	}
 	sort.Strings(published)
-	return "", fmt.Errorf("several services publish ports (%s) - pass --service", strings.Join(published, ", "))
+	return "", fmt.Errorf("several services publish ports (%s) - name the one to route: service=<name>", strings.Join(published, ", "))
 }
 
 // TargetPort is the container port a service publishes first.
@@ -300,7 +300,7 @@ func (m *Model) TargetPort(service string) (int, error) {
 		return 0, fmt.Errorf("no service %q in the compose files", service)
 	}
 	if len(s.Ports) == 0 || s.Ports[0].Target == 0 {
-		return 0, fmt.Errorf("service %q publishes no port - pass --port", service)
+		return 0, fmt.Errorf("service %q publishes no port - name its container port: port=<port>", service)
 	}
 	return s.Ports[0].Target, nil
 }

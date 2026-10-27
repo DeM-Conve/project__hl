@@ -145,12 +145,15 @@ running proxy predates the current config (compose's `config-hash` label vs `doc
 
 `compose.Model.Exposed`: the only service that publishes a port; among several, the first of
 `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` that exists; otherwise an error asking for
-`--service`. `TargetPort` is the container (`target`) port of that service's first published port.
+`service=`. `TargetPort` is the container (`target`) port of that service's first published port.
 `hl add` (`cli.pickServicePort`) asks instead when there is more than one candidate service, or
 the service publishes several distinct container ports: a numbered list on a terminal (the
 shared `prompter` from `prompt.go`), with `Exposed`'s pick (or the first port) as the default;
 without a terminal (`stdinTerminal`, `golang.org/x/term`) it takes `Exposed`'s pick with a note, and fails naming
-`--service` only when no service has a preferred name (or `--port` when the service publishes several). Flags skip the question.
+`service=` only when no service has a preferred name (or `port=` when the service publishes several). Settings given to
+`hl add` skip the question. `hl add <folder> key=value...` takes `hl set <app>`'s keys (applied to the new
+`config.App` by `config.ApplyApp`, the same parsing as `hl set`) plus `name`; `env.NAME=` with no value is
+left out of the mapped env.
 `hl add` writes the picked `service` and `port` into `hl.yml` so later changes to the app's compose
 file don't silently move the route; `prepared` only detects them when `hl.yml` leaves them empty.
 Routing `none` needs neither.
@@ -183,7 +186,7 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
 `apps.<app>.env`, where they are ordinary settings. `<X>_BASE_PATH` -> `${HL_PREFIX}` with path
 routing; `<X>_URL` -> `${HL_URL}` only when `<X>_BASE_PATH` exists too and routing isn't `none`;
 `DATA_LOCATION`/`BACKUP_LOCATION` by name. A failing `--variables` call (older compose) only
-warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
+warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-mapped.
 
 ## Command notes
 
@@ -362,7 +365,7 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   a new folder gets the service and port `hl add` would pick (`Exposed`/`TargetPort`), or a skip
   with the reason and the `hl add` command to run instead (name taken, ambiguous services, compose
   error, or not a web app: `scan.LooksWeb` - the service has none of `defaults.ExposedServices`'
-  names and its port isn't in `defaults.WebPorts` - which suggests `--routing none` and
+  names and its port isn't in `defaults.WebPorts` - which suggests `routing=none` and
   `hl set ignore+=`). A kept app with a pinned `service` is checked against its model: service gone -> detect
   both again; pinned port not among the service's published targets -> pin its first one. Apps
   with nothing pinned are detected on every run anyway and are left alone.

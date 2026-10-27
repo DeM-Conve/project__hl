@@ -128,7 +128,7 @@ hl open my-app                  # http://localhost/my-app/
 ```
 
 If the app's page loads but its links, styles or redirects are broken, it needs its base path:
-see [path routing](#routing) or use `hl add --routing host`. To try hl without an app of your
+see [path routing](#routing) or use host routing (`hl set my-app routing=host`). To try hl without an app of your
 own, use the two apps in [examples/](examples/).
 
 Later, when a project folder appears or is deleted, `hl sync` brings `hl.yml` up to date: it
@@ -209,7 +209,7 @@ offers your app names and, where a command takes one, the app's services.
 | `none` | not behind the proxy | databases, workers, apps that keep their own ports |
 
 Set the default for the homelab with `proxy.routing` (`hl set proxy routing=host`), and override
-it per app with `routing:` (`hl set my-app routing=host`, or `hl add --routing host`). A `proxy.port` other than 80 is added to the URLs
+it per app with `routing:` (`hl set my-app routing=host`, or `hl add <folder> routing=host`). A `proxy.port` other than 80 is added to the URLs
 (`http://localhost:8080/<app>/`).
 
 **Path routing.** The proxy matches `/<app>` and everything under `/<app>/`, redirects `/<app>`
@@ -392,7 +392,7 @@ removed.
 preferred names (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`) and publishes a port that isn't
 a common HTTP one (see [Built-in values](#built-in-values)) may be a database or a cache, which the
 HTTP proxy can't serve. Such a folder is listed with the commands to use instead:
-`hl add <folder> --routing none` to run it without the proxy, `hl add <folder>` to route it
+`hl add <folder> routing=none` to run it without the proxy, `hl add <folder>` to route it
 anyway, or `hl set ignore+=<folder name>` to stop seeing it.
 
 ### `version` and editor support
@@ -421,8 +421,8 @@ no app's `hl-<app>` may equal `proxy.project`), and `hl up proxy` and the like m
 | Key | Default | What it does |
 | --- | --- | --- |
 | `path` | required | The app's folder: absolute, `~/...`, or relative to the homelab folder. |
-| `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and stops asking for `--service` only when none has one of those names. `hl add` writes it here. |
-| `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `--port`). `hl add` writes it here. |
+| `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and stops asking for `service=<name>` only when none has one of those names. `hl add` writes it here. |
+| `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `port=<port>`). `hl add` writes it here. |
 | `routing` | `proxy.routing` | `path`, `host` or `none`. |
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
 | `host` | `<name>.<domain>` | Host routing: the host name. |
@@ -459,8 +459,9 @@ app's compose file uses, and write the ones that follow the common self-hosting 
 
 Anything else is left alone: a `<X>_URL` without a matching `<X>_BASE_PATH` (say, the URL of an
 upstream service) and `DB_DATA_LOCATION` and the like (named volumes are under `data/<app>/`
-already). `--no-env` turns the mapping off, `hl add --env KEY=VALUE` sets a value of your own (it
-wins over a mapped one), and `hl unset <app> env.<NAME>` drops one later.
+already). `hl add <folder> env.NAME=value` sets a value of your own (it wins over a mapped one),
+`env.NAME=` with no value leaves that variable out, and `hl unset <app> env.<NAME>` drops one
+later. `hl init` and `hl sync` take `--no-env` to map nothing.
 
 ### Built-in values
 
@@ -511,7 +512,7 @@ every app when none is named; `up`, `down`, `restart`, `rebuild`, `logs` and `sh
 | --- | --- |
 | `hl init [folder]` | Set up a homelab folder (default: the current one) with a short `hl.yml`, `data/` and `.gitignore`, and make it the default. First checks Docker, compose and that the proxy port is free (if 80 is taken it uses 8080). Then it shows its plan - the homelab folder, the projects folders (`~/code`, `~/projects`, `~/src` when they exist), the proxy, each web app found with its service, port and [env](#env-hl-fills-in), and the folders it skips and why - and asks once. Flags change the plan: `--projects`, `--routing`, `--bind`, `--port`, `--apps a,b` (or `none`), `--strip-prefix project__` (app names without that folder prefix), `--no-env`. `--yes`, or stdin that isn't a terminal, applies it without asking. Never overwrites an existing `hl.yml`; on one it adds the new apps instead. |
 | `hl sync` | Make `hl.yml` follow the `projects` folders. Shows a plan first: new folders with a compose file are added (service, port and [env](#env-hl-fills-in) detected like `hl add`; `--no-env` skips the env), apps whose folder is gone are removed (stopped if running; their data stays), apps whose pinned service or port left their compose file are re-detected, and folders it can't add are listed with the `hl add` command to use. Asks before applying; `--yes` applies without asking, `--dry-run` only shows. |
-| `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`, `--env KEY=VALUE` (repeatable; sets `apps.<name>.env` and wins over the mapped values), `--no-env` (don't [fill in env](#env-hl-fills-in) from the compose file's variables). When several services or ports could be the one to route, it asks on a terminal; without one it takes the service with a usual web name (with a note) and otherwise names the flag to pass. |
+| `hl add <folder> [key=value...]` | Add an app. Takes the settings `hl set <app>` takes, plus `name`: `hl add ~/code/wiki name=wiki routing=host service=web port=8080 env.TZ=UTC`. `name` defaults to the folder's name (less a `strip_prefix`); `env.NAME=value` sets a variable and wins over the [mapped ones](#env-hl-fills-in), `env.NAME=` leaves a mapped one out; lists such as `compose=a.yml,b.yml` are comma-separated. When several services or ports could be the one to route, it asks on a terminal; without one it takes the service with a usual web name (with a note) and otherwise says which setting to pass (`service=`, `port=`). |
 | `hl set <app> key=value...` | Change an app's settings in `hl.yml`: `routing`, `prefix`, `host`, `port`, `service`, `path`, `compose` and `env_files` (comma-separated), `env.NAME`. Keeps comments; writes only a valid result. `hl up <app>` applies it. |
 | `hl set proxy key=value...` | Change the proxy's settings: every `proxy.*` key, e.g. `hl set proxy port=8080 bind=0.0.0.0 subnet=172.31.0.0/16`; switches take `true`/`false`. hl says what applies it (`hl up proxy`, or `hl down` then `hl up` for `network`, `subnet` or `project`). |
 | `hl set key=value...` | With no app: the homelab's own settings. `env.NAME` is the shared `env` every app gets, e.g. `hl set env.TZ=Europe/Berlin` (an app's own `env` wins; `hl up` applies it). `projects`, `ignore`, `scan_depth` and `strip_prefix` tell `hl init` and `hl sync` where apps are and how to name them (`hl sync` applies them): `=` replaces a list, `+=` adds entries and `-=` removes them (`hl set projects+=~/src ignore-=old`); a projects folder must exist and is written with `~` or relative to the homelab, like `hl init` does. `name` gives the homelab its [own Docker names](#name-several-homelabs-on-one-docker); hl refuses it while any of its apps or its proxy runs. |
@@ -626,7 +627,7 @@ already runs an app or proxy under the same name. Give one of the homelabs a
 compose plugin.
 
 **`hl add` can't tell which service to route to.** Several services publish ports and none has a
-common name. Pass `--service <name>` (and `--port` if it publishes several).
+common name. Pass `service=<name>` (and `port=<port>` if it publishes several): `hl add <folder> service=web`.
 
 **The page loads but is unstyled, or links and redirects go to `http://localhost/...` without the
 app's prefix.** The app doesn't know its base path. Set it from `${HL_PREFIX}`

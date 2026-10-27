@@ -403,7 +403,7 @@ func TestAddPicksByNumberAndFlagsWin(t *testing.T) {
 		t.Errorf("hl.yml:\n%s", got)
 	}
 	// Flags: no question at all.
-	out, err := run(t, "", "add", appDir, "--name", "my-app-2", "--service", "web", "--port", "80")
+	out, err := run(t, "", "add", appDir, "name=my-app-2", "service=web", "port=80")
 	if err != nil || strings.Contains(out, "choose") {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -415,15 +415,15 @@ func TestAddWithoutTerminalNamesTheFlag(t *testing.T) {
 	before := hlYML(t, home)
 	// web is a usual web name, so it is picked; its two ports still need --port.
 	out, err := run(t, "", "add", appDir)
-	if err == nil || !strings.Contains(err.Error(), "service web publishes several ports (80, 443) - pass --port") ||
-		!strings.Contains(out, "several services publish ports (db, web); picked web - pass --service to route another") {
+	if err == nil || !strings.Contains(err.Error(), "service web publishes several ports (80, 443) - name the container port") ||
+		!strings.Contains(out, "several services publish ports (db, web); picked web - add service=<name> to route another") {
 		t.Errorf("err = %v\n%s", err, out)
 	}
-	_, err = run(t, "", "add", appDir, "--service", "web")
-	if err == nil || !strings.Contains(err.Error(), "service web publishes several ports (80, 443) - pass --port, e.g. --port 80") {
+	_, err = run(t, "", "add", appDir, "service=web")
+	if err == nil || !strings.Contains(err.Error(), "service web publishes several ports (80, 443) - name the container port, e.g. port=80") {
 		t.Errorf("err = %v", err)
 	}
-	_, err = run(t, "", "add", appDir, "--service", "nope")
+	_, err = run(t, "", "add", appDir, "service=nope")
 	if err == nil || !strings.Contains(err.Error(), `no service "nope"`) {
 		t.Errorf("err = %v", err)
 	}
@@ -489,7 +489,7 @@ func TestAddAndCheckRefuseReservedNames(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, config.FileName), []byte("version: 1\napps: {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := run(t, "", "add", appDir, "--name", "proxy"); err == nil || !strings.Contains(err.Error(), "reserved") {
+	if out, err := run(t, "", "add", appDir, "name=proxy"); err == nil || !strings.Contains(err.Error(), "reserved") {
 		t.Errorf("add --name proxy: %v\n%s", err, out)
 	}
 }

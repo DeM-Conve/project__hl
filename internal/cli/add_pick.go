@@ -35,7 +35,7 @@ func pickServicePort(m *compose.Model, a *config.App, in io.Reader) error {
 		sort.Strings(published)
 		switch len(published) {
 		case 0:
-			_, err := m.Exposed() // its message names --service and --port
+			_, err := m.Exposed() // its message names service= and port=
 			return err
 		case 1:
 			a.Service = published[0]
@@ -47,11 +47,11 @@ func pickServicePort(m *compose.Model, a *config.App, in io.Reader) error {
 			}
 			if !stdinTerminal(in) {
 				if uerr != nil {
-					return fmt.Errorf("several services publish ports (%s) and none has a usual web name (%s) - pass --service, e.g. --service %s",
+					return fmt.Errorf("several services publish ports (%s) and none has a usual web name (%s) - name the one to route, e.g. service=%s",
 						strings.Join(published, ", "), strings.Join(defaults.ExposedServices, ", "), published[def])
 				}
 				// No one to ask: take the usual web name, and say how to pick another.
-				fmt.Fprintf(stdout, "%snote:%s several services publish ports (%s); picked %s - pass --service to route another\n",
+				fmt.Fprintf(stdout, "%snote:%s several services publish ports (%s); picked %s - add service=<name> to route another\n",
 					yellow, reset, strings.Join(published, ", "), usual)
 				a.Service = usual
 				break
@@ -76,13 +76,13 @@ func pickServicePort(m *compose.Model, a *config.App, in io.Reader) error {
 		ports := targetPorts(s)
 		switch len(ports) {
 		case 0:
-			_, err := m.TargetPort(a.Service) // its message names --port
+			_, err := m.TargetPort(a.Service) // its message names port=
 			return err
 		case 1:
 			a.Port = ports[0]
 		default:
 			if !stdinTerminal(in) {
-				return fmt.Errorf("service %s publishes several ports (%s) - pass --port, e.g. --port %d",
+				return fmt.Errorf("service %s publishes several ports (%s) - name the container port, e.g. port=%d",
 					a.Service, joinInts(ports), ports[0])
 			}
 			opts := make([]string, len(ports))

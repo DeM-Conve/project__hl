@@ -22,7 +22,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   instead of the `hl proxy` group; `hl config`, `hl ps`, `hl path` and `--wait-all` are gone
   (`hl show <app> --compose`, `hl show`, `hl status`); `hl update` is `hl rebuild --pull`;
   `hl projects`/`hl ignore`/`hl strip-prefix` are `hl set key+=`/`-=`, and `hl set` also takes
-  `scan_depth` and `name`.
+  `scan_depth` and `name`; `hl add` takes `key=value` settings like `hl set` instead of flags.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install

@@ -124,8 +124,11 @@ release differs from earlier builds of `main`.
 - `hl add`, `hl init` and `hl sync` fill in an app's `env` from the variables its compose file
   uses (`docker compose config --variables`): `<X>_BASE_PATH` gets `${HL_PREFIX}` (path
   routing), the matching `<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and
-  `BACKUP_LOCATION` `${HL_DATA}/backups`. They print what they mapped; `--no-env` turns it off.
-- `hl add --env KEY=VALUE` (repeatable) sets an app's env as it is added, over the mapped values.
+  `BACKUP_LOCATION` `${HL_DATA}/backups`. They print what they mapped; `hl init` and `hl sync`
+  take `--no-env` to map nothing, `hl add <folder> env.NAME=` leaves one variable out.
+- `hl add <folder> key=value...` takes the settings `hl set <app>` takes, plus `name`:
+  `hl add ~/code/wiki routing=host service=web port=8080 env.TZ=UTC`. `env.NAME=value` wins over
+  the mapped values.
 - `strip_prefix:` in `hl.yml` (and `hl init --strip-prefix`): folder-name prefixes left out of
   app names, so folder `project__blog` becomes app `blog` in `hl init`, `hl sync` and `hl add`.
 - `hl set` changes the homelab's own settings too: `projects`, `ignore`, `scan_depth`,
@@ -136,6 +139,10 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- **Breaking:** `hl add` takes `key=value` settings instead of flags: `--name x` is `name=x`,
+  `--routing`, `--prefix`, `--host`, `--service`, `--port` and `--compose` are `routing=`,
+  `prefix=`, `host=`, `service=`, `port=` and `compose=`, `--env K=V` is `env.K=V`, and
+  `--no-env` is gone (`env.K=` leaves one mapped variable out; `hl unset <app> env` drops them all).
 - **Breaking:** `hl projects`, `hl ignore` and `hl strip-prefix` are gone: `hl set projects+=<folder>`,
   `hl set ignore-=<pattern>`, `hl set strip_prefix=<prefix>` and `hl unset <key>` do what their
   `add`/`remove` did, and `hl show` lists them.
@@ -157,10 +164,10 @@ release differs from earlier builds of `main`.
 - The Traefik dashboard is off unless `proxy.dashboard: true` is set.
 - `hl init` and `hl sync` add only folders that look like web apps (a preferred service name or a
   common HTTP port); others, like a database on its own port, are listed with the `hl add`
-  command to use (`--routing none` to run it without the proxy).
+  command to use (`routing=none` to run it without the proxy).
 - `hl add` without a terminal no longer stops when several services publish ports and one has a
   usual web name (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`): it routes that one and says
-  so. It still asks for `--service` when none has such a name.
+  so. It still asks for `service=` when none has such a name.
 - `hl restart` starts the proxy first, like `hl up` and `hl rebuild`.
 - Error hints name the command that fixes a setting (`hl set proxy port=8000`, `hl unset proxy subnet`,
   `hl set my-app service=...`) instead of the `hl.yml` key to edit; `hl edit` stays as the fallback.

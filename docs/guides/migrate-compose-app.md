@@ -32,9 +32,9 @@ hl add ~/code/my-app
 ```
 
 `hl add` prints the service and container port it will route to. If it picked the wrong one, run
-`hl remove my-app` and add it again with `--service` and `--port`. If the app can't run under a
-path prefix, add `--routing host` (see [base path](base-path-app.md)). Apps with nothing to route
-(a worker, a database you reach directly) take `--routing none`; their published ports stay.
+`hl set my-app service=<name> port=<port>`. If the app can't run under a path prefix,
+`hl set my-app routing=host` (see [base path](base-path-app.md)). Apps with nothing to route
+(a worker, a database you reach directly) take `routing=none`; their published ports stay.
 
 ## 3. Copy the data
 

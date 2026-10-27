@@ -75,7 +75,7 @@ Some apps can't run under a prefix at all (single-page apps built with absolute 
 no option, for example). Use host routing for those:
 
 ```sh
-hl add ~/code/my-app --routing host     # http://my-app.localhost
+hl add ~/code/my-app routing=host       # http://my-app.localhost
 ```
 
 or set `routing: host` on an app you already added. Host routing needs nothing from the app, but
