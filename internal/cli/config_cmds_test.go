@@ -424,9 +424,11 @@ func TestAddWithoutTerminalNamesTheFlag(t *testing.T) {
 	fakeDocker(t, twoServices)
 	home, appDir := homelab(t, "version: 1\napps: {}\n")
 	before := hlYML(t, home)
-	_, err := run(t, "", "add", appDir)
-	if err == nil || !strings.Contains(err.Error(), "several services publish ports (db, web) - pass --service, e.g. --service web") {
-		t.Errorf("err = %v", err)
+	// web is a usual web name, so it is picked; its two ports still need --port.
+	out, err := run(t, "", "add", appDir)
+	if err == nil || !strings.Contains(err.Error(), "service web publishes several ports (80, 443) - pass --port") ||
+		!strings.Contains(out, "several services publish ports (db, web); picked web - pass --service to route another") {
+		t.Errorf("err = %v\n%s", err, out)
 	}
 	_, err = run(t, "", "add", appDir, "--service", "web")
 	if err == nil || !strings.Contains(err.Error(), "service web publishes several ports (80, 443) - pass --port, e.g. --port 80") {

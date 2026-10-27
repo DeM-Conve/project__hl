@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -17,14 +17,16 @@ import (
 	"github.com/DeM-Conve/project__hl/internal/scan"
 )
 
-// initOptions are hl init's flags; each answers one of its questions.
+// initOptions are hl init's flags; each changes one line of its plan.
 type initOptions struct {
 	projects []string
 	routing  string
 	bind     string
 	port     int
 	apps     []string
+	strip    []string
 	yes      bool
+	noEnv    bool
 }
 
 func initCmd() *cobra.Command {
@@ -32,30 +34,35 @@ func initCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "init [folder]",
 		Short: "Set up a homelab folder (default: the current one), find your apps, and make it the default",
-		Long: `Set up a homelab folder: write a commented hl.yml, find the apps in your
-projects folders and add the ones you pick, and make it the default homelab.
+		Long: `Set up a homelab folder: write a short hl.yml, find the apps in your projects
+folders, and make it the default homelab.
 
-On a terminal hl init asks where things go (Enter takes the default). Every
-question has a flag, and when stdin isn't a terminal (or with --yes) it asks
-nothing: flags and defaults are used, and every app found is added.
+hl init works out a plan from its flags and defaults - the homelab folder, the
+projects folders (default: ` + strings.Join(defaults.CandidateProjects, ", ") + ` in your home, those that exist),
+the proxy, every app found with its service, port and env, and the folders it
+skips - shows it, and asks once before writing anything. --yes, or stdin that
+isn't a terminal, applies it without asking. To change the plan, run it again
+with other flags.
 
-On an existing homelab hl.yml is never overwritten; init offers to add apps
-that are new in the projects folders instead.`,
-		Example: `  hl init                                   # answer a few questions
-  hl init ~/homelab --projects ~/code --yes # no questions
-  hl init --projects ~/code --apps blog,wiki --routing host --bind 0.0.0.0 --port 8080`,
+On an existing homelab hl.yml is kept; init adds the apps that are new in the
+projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
+		Example: `  hl init                                   # plan for the current folder, then ask
+  hl init ~/homelab --projects ~/code --yes # no question
+  hl init --projects ~/code --strip-prefix project__ --apps blog,wiki --routing host --port 8080`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(cmd.InOrStdin(), cmd.OutOrStdout(), args, o)
 		},
 	}
 	f := c.Flags()
-	f.StringSliceVar(&o.projects, "projects", nil, "folders with your projects; each subfolder with a compose file is an app")
+	f.StringSliceVar(&o.projects, "projects", nil, "folders with your projects; each subfolder with a compose file is an app (default: "+strings.Join(defaults.CandidateProjects, ", ")+" in your home)")
 	f.StringVar(&o.routing, "routing", "", "path or host (default: "+config.ProxyDefaults().Routing+")")
 	f.StringVar(&o.bind, "bind", "", "address the proxy listens on: "+config.ProxyDefaults().Bind+" = this machine only, "+defaults.BindNetwork+" = your network")
-	f.IntVar(&o.port, "port", 0, fmt.Sprintf("host port of the proxy (default: %d)", config.ProxyDefaults().Port))
-	f.StringSliceVar(&o.apps, "apps", nil, "apps to add from the projects folders, by name, or "+pickNone+" (default: all found)")
-	f.BoolVarP(&o.yes, "yes", "y", false, "ask nothing: use flags and defaults")
+	f.IntVar(&o.port, "port", 0, fmt.Sprintf("host port of the proxy (default: %d, or %d when that one is in use)", config.ProxyDefaults().Port, defaults.AltPort))
+	f.StringSliceVar(&o.apps, "apps", nil, "apps to add from the projects folders, by name, or "+pickNone+" (default: every web app found)")
+	f.BoolVarP(&o.yes, "yes", "y", false, "apply the plan without asking")
+	f.BoolVar(&o.noEnv, "no-env", false, "don't fill in the apps' env from their compose variables")
+	f.StringSliceVar(&o.strip, "strip-prefix", nil, "folder-name prefixes left out of app names (project__blog -> blog)")
 	return c
 }
 
@@ -65,118 +72,121 @@ that are new in the projects folders instead.`,
 var portInUse = addrInUse
 
 func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
-	interactive := !o.yes && stdinTerminal(in)
-	var p *prompter
-	if interactive {
-		p = newPrompter(in, out)
-	}
 	say := func(format string, a ...any) { fmt.Fprintf(out, format+"\n", a...) }
+	note := func(format string, a ...any) { say("%snote:%s "+format, append([]any{yellow, reset}, a...)...) }
 
-	// Where the homelab goes.
 	dir := "."
 	if len(args) == 1 {
 		dir = args[0]
-	} else if interactive {
-		wd, _ := os.Getwd()
-		dir = p.ask("Homelab folder (hl.yml, app data)", wd)
 	}
 	dir, err := filepath.Abs(config.ExpandHome(dir))
 	if err != nil {
 		return err
 	}
-	existing := false
-	if _, err := os.Stat(filepath.Join(dir, config.FileName)); err == nil {
-		existing = true
+	existing := exists(filepath.Join(dir, config.FileName))
+	if o.routing != "" && o.routing != config.RoutingPath && o.routing != config.RoutingHost {
+		return &usageError{err: fmt.Errorf("--routing: %q is not %s or %s", o.routing, config.RoutingPath, config.RoutingHost), cmd: "hl init"}
+	}
+	if o.bind != "" && net.ParseIP(o.bind) == nil {
+		return &usageError{err: fmt.Errorf("--bind: %q is not an IP address", o.bind), cmd: "hl init"}
+	}
+	if o.port < 0 || o.port > 65535 {
+		return &usageError{err: fmt.Errorf("--port: %d is not a port", o.port), cmd: "hl init"}
 	}
 
 	dockerOK := preflight(out)
 
+	// The homelab as it will be: loaded, or made from the flags and defaults.
+	var cfg *config.Config
+	var s config.InitSettings
+	var saveProjects, saveStrip bool
 	if existing {
-		say("%s already exists - left as it is; looking for new apps instead", filepath.Join(dir, config.FileName))
+		if cfg, err = config.Load(dir); err != nil {
+			return err
+		}
 		for _, fl := range []struct {
 			set  bool
 			name string
 		}{{o.routing != "", "--routing"}, {o.bind != "", "--bind"}, {o.port != 0, "--port"}} {
 			if fl.set {
-				say("%snote:%s %s is ignored for an existing homelab - edit %s instead", yellow, reset, fl.name, config.FileName)
+				note("%s is ignored for an existing homelab - change it with hl set or hl edit", fl.name)
 			}
-		}
-		cfg, err := config.Load(dir)
-		if err != nil {
-			return err
 		}
 		if len(cfg.Projects) > 0 && o.projects != nil {
-			say("%snote:%s --projects is ignored: %s already lists projects folders", yellow, reset, config.FileName)
+			note("--projects is ignored: %s already lists projects folders - change them with hl projects", config.FileName)
 		}
 		if len(cfg.Projects) == 0 {
-			projects, err := askProjects(p, out, dir, o.projects)
-			if err != nil {
+			if cfg.Projects, err = initProjects(dir, o.projects); err != nil {
 				return err
 			}
-			if len(projects) > 0 {
-				if err := config.SetProjects(dir, projects); err != nil {
-					return err
-				}
-				say("projects folders saved in %s: %s", config.FileName, strings.Join(projects, ", "))
-			}
+			saveProjects = len(cfg.Projects) > 0
+		}
+		switch {
+		case o.strip == nil:
+		case len(cfg.StripPrefix) > 0:
+			note("--strip-prefix is ignored: %s already has strip_prefix - change it with hl strip-prefix", config.FileName)
+		default:
+			cfg.StripPrefix, saveStrip = o.strip, true
 		}
 	} else {
 		pd := config.ProxyDefaults()
-		projects, err := askProjects(p, out, dir, o.projects)
-		if err != nil {
+		s = config.InitSettings{Routing: o.routing, Bind: o.bind, Port: o.port, StripPrefix: o.strip}
+		if s.Projects, err = initProjects(dir, o.projects); err != nil {
 			return err
 		}
-		s := config.InitSettings{Projects: projects, Routing: o.routing, Bind: o.bind, Port: o.port}
 		if s.Routing == "" {
 			s.Routing = pd.Routing
-			if interactive {
-				opts := []string{config.RoutingPath, config.RoutingHost}
-				labels := []string{
-					config.RoutingPath + ": apps at http://" + pd.Domain + "/<app>/ (the app must support a base path)",
-					config.RoutingHost + ": apps at http://<app>." + pd.Domain + " (works with any app)",
-				}
-				s.Routing = opts[p.choose("How should apps be reached?", labels, index(opts, pd.Routing))]
-			}
-		}
-		if s.Routing != config.RoutingPath && s.Routing != config.RoutingHost {
-			return fmt.Errorf("--routing: %q is not %s or %s", s.Routing, config.RoutingPath, config.RoutingHost)
 		}
 		if s.Bind == "" {
 			s.Bind = pd.Bind
-			if interactive {
-				opts := []string{pd.Bind, defaults.BindNetwork}
-				labels := []string{"this machine only (" + pd.Bind + ")", "other devices on your network too (" + defaults.BindNetwork + ")"}
-				s.Bind = opts[p.choose("Who can open the apps?", labels, 0)]
-			}
 		}
-		if net.ParseIP(s.Bind) == nil {
-			return fmt.Errorf("--bind: %q is not an IP address", s.Bind)
-		}
-		portFlag := s.Port != 0
 		if s.Port == 0 {
 			s.Port = pd.Port
-		}
-		if portInUse(s.Bind, s.Port) {
-			if interactive {
-				say("%sport %d is in use%s on %s", yellow, s.Port, reset, s.Bind)
-				for {
-					n, err := strconv.Atoi(p.ask("Port for the proxy", strconv.Itoa(defaults.AltPort)))
-					if err == nil && n > 0 && n < 65536 {
-						s.Port = n
-						break
-					}
-					say("type a port number")
-				}
-			} else if portFlag {
-				say("%swarning:%s port %d is in use on %s - free it before hl up", yellow, reset, s.Port, s.Bind)
-			} else {
-				say("%swarning:%s port %d is in use on %s - free it, or run init again with --port %d", yellow, reset, s.Port, s.Bind, defaults.AltPort)
+			if portInUse(s.Bind, s.Port) && !portInUse(s.Bind, defaults.AltPort) {
+				note("port %d is in use on %s - the proxy gets port %d (pass --port to choose another)", s.Port, s.Bind, defaults.AltPort)
+				s.Port = defaults.AltPort
 			}
 		}
-		if s.Port <= 0 || s.Port > 65535 {
-			return fmt.Errorf("--port: %d is not a port", s.Port)
+		if portInUse(s.Bind, s.Port) {
+			say("%swarning:%s port %d is in use on %s - free it before hl up, or pass --port", yellow, reset, s.Port, s.Bind)
 		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		cfg = s.Config(dir)
+	}
+
+	adds, err := initPlan(out, cfg, o, dockerOK)
+	if err != nil {
+		return err
+	}
+	toAdd := 0
+	for _, a := range adds {
+		if a.Kind == scan.Add {
+			toAdd++
+		}
+	}
+
+	// Ask once, when there is something to write.
+	if !existing || saveProjects || saveStrip || toAdd > 0 {
+		if !o.yes && stdinTerminal(in) && !newPrompter(in, out).confirm("Set it up like this?", true) {
+			say("nothing written - run hl init again with other flags to change the plan (hl init --help)")
+			return nil
+		}
+	}
+
+	if existing {
+		if saveProjects {
+			if err := config.SetProjects(dir, cfg.Projects); err != nil {
+				return err
+			}
+			say("projects folders saved in %s: %s", config.FileName, strings.Join(cfg.Projects, ", "))
+		}
+		if saveStrip {
+			if err := config.SetList(dir, "strip_prefix", cfg.StripPrefix); err != nil {
+				return err
+			}
+			say("strip_prefix saved in %s: %s", config.FileName, strings.Join(cfg.StripPrefix, ", "))
+		}
+	} else {
+		if err := os.MkdirAll(dir, defaults.DataDirMode); err != nil {
 			return err
 		}
 		if err := config.WriteNew(dir, s); err != nil {
@@ -184,72 +194,158 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		}
 		say("wrote %s", filepath.Join(dir, config.FileName))
 	}
-
-	if err := os.MkdirAll(filepath.Join(dir, "data"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, defaults.DataDir), defaults.DataDirMode); err != nil {
 		return err
 	}
 	gi := filepath.Join(dir, ".gitignore")
 	if _, err := os.Stat(gi); err != nil {
-		_ = os.WriteFile(gi, []byte("# App data (databases, uploads) and files hl generates.\ndata/\n.hl/\n"), 0o644)
+		_ = os.WriteFile(gi, []byte("# App data (databases, uploads) and files hl generates.\n"+defaults.DataDir+"/\n"+defaults.StateDir+"/\n"), defaults.FileMode)
 	}
 	if err := config.SetDefaultHome(dir); err != nil {
 		return err
 	}
 	say("default homelab: %s", dir)
 
-	cfg, err := config.Load(dir)
-	if err != nil {
+	if cfg, err = config.Load(dir); err != nil {
 		return err
 	}
-	added, err := initApps(p, out, cfg, o.apps, dockerOK)
-	if err != nil {
+	if err := applyPlan(out, cfg, adds); err != nil {
 		return err
 	}
 	switch {
-	case len(added) > 0: // applyPlan said how to start them
+	case toAdd > 0: // applyPlan said how to start them
 	case len(cfg.Apps) > 0:
 		say("next: hl up")
+	case len(cfg.Projects) == 0:
+		say("next: hl projects add <folder> (then hl sync), or hl add <app folder>")
 	default:
 		say("next: hl add <app folder>")
 	}
 	return nil
 }
 
-// askProjects returns the projects folders as they go into hl.yml: the flag,
-// else the answer (suggesting folders that exist), else none.
-func askProjects(p *prompter, out io.Writer, homelab string, flag []string) ([]string, error) {
-	answer := flag
-	for {
-		if answer == nil && p != nil {
-			s := p.ask("Folders with your projects, comma-separated (empty for none)", strings.Join(candidateProjects(), ", "))
-			answer = []string{}
-			for _, f := range strings.Split(s, ",") {
-				if f = strings.TrimSpace(f); f != "" {
-					answer = append(answer, f)
-				}
-			}
-		}
-		var stored, missing []string
-		for _, f := range answer {
-			abs, err := filepath.Abs(config.ExpandHome(f))
-			if err != nil {
-				return nil, err
-			}
-			if st, err := os.Stat(abs); err != nil || !st.IsDir() {
-				missing = append(missing, f)
-				continue
-			}
-			stored = append(stored, storedPath(homelab, abs))
-		}
-		if len(missing) == 0 {
-			return stored, nil
-		}
-		if p == nil || flag != nil {
-			return nil, fmt.Errorf("projects folder %s not found", strings.Join(missing, ", "))
-		}
-		fmt.Fprintf(out, "not found: %s\n", strings.Join(missing, ", "))
-		answer = nil
+// initPlan finds the new apps in the projects folders, prints the plan, and returns the apps to
+// add (the --apps ones, else every one hl can add).
+func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool) ([]scan.Action, error) {
+	w := func(label, format string, a ...any) {
+		fmt.Fprintf(out, "  %-10s %s\n", label, fmt.Sprintf(format, a...))
 	}
+	fmt.Fprintf(out, "\n%shl init plan%s\n", bold, reset)
+	if exists(cfg.File()) {
+		w("homelab", "%s (hl.yml kept)", cfg.Dir)
+	} else {
+		w("homelab", "%s (new hl.yml, data/)", cfg.Dir)
+	}
+	if len(cfg.Projects) == 0 {
+		w("projects", "none - pass --projects <folder>, or later hl projects add <folder>")
+	} else {
+		w("projects", "%s", strings.Join(cfg.Projects, ", "))
+	}
+	if len(cfg.StripPrefix) > 0 {
+		w("names", "without %s", strings.Join(cfg.StripPrefix, ", "))
+	}
+	reach := "this machine only"
+	if ip := net.ParseIP(cfg.Proxy.Bind); ip != nil && !ip.IsLoopback() {
+		reach = "your network too"
+	}
+	w("proxy", "%s:%d (%s), %s routing: apps at %s/", cfg.Proxy.Bind, cfg.Proxy.Port, reach, cfg.Proxy.Routing,
+		cfg.URL("<app>", &config.App{}))
+
+	var plan []scan.Action
+	if len(cfg.Projects) > 0 {
+		d, err := scan.Compare(cfg)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range d.MissingRoots {
+			fmt.Fprintf(out, "%swarning:%s projects folder %s not found\n", yellow, reset, r)
+		}
+		switch {
+		case len(d.New) == 0:
+			w("apps", "no new apps in %s", strings.Join(cfg.Projects, ", "))
+		case !dockerOK:
+			w("apps", "found %s, but hl needs docker to read their compose files - fix the above, then run hl sync",
+				plural(len(d.New), "folder", "folders"))
+		default:
+			plan = scan.PlanAdds(cfg, d, modelFunc(cfg), varsFunc(cfg, o.noEnv))
+		}
+	}
+
+	var chosen []scan.Action
+	var left []string
+	switch {
+	case o.apps == nil:
+		chosen = plan
+	case len(o.apps) == 1 && o.apps[0] == pickNone:
+		for _, a := range plan {
+			if a.Kind == scan.Add {
+				left = append(left, a.Name)
+			}
+		}
+	default:
+		byName := map[string]scan.Action{}
+		for _, a := range plan {
+			if a.Kind == scan.Add {
+				byName[a.Name] = a
+			}
+		}
+		want := map[string]bool{}
+		for _, n := range o.apps {
+			if _, ok := byName[n]; !ok {
+				return nil, withHint(fmt.Errorf("--apps: %s is not a new app in the projects folders", n), "run hl init without --apps to see the plan")
+			}
+			want[n] = true
+		}
+		for _, a := range plan {
+			if a.Kind == scan.Add && !want[a.Name] {
+				left = append(left, a.Name)
+			} else {
+				chosen = append(chosen, a)
+			}
+		}
+	}
+	// Adds first, then what is skipped and why.
+	sort.SliceStable(chosen, func(i, j int) bool { return chosen[i].Kind == scan.Add && chosen[j].Kind != scan.Add })
+	adds := 0
+	for _, a := range chosen {
+		if a.Kind == scan.Add {
+			adds++
+		}
+	}
+	if len(plan) > 0 {
+		w("apps", "%s to add", plural(adds, "app", "apps"))
+		printPlan(out, cfg, chosen)
+	}
+	if len(left) > 0 {
+		w("left out", "%s (--apps) - add later with hl sync, or skip for good with hl ignore add <folder name> or a %s file",
+			strings.Join(left, ", "), defaults.IgnoreFile)
+	}
+	fmt.Fprintln(out)
+	return chosen, nil
+}
+
+// initProjects returns the projects folders as they go into hl.yml: the flag's (each must
+// exist), else the usual ones (defaults.CandidateProjects) that exist in the user's home.
+func initProjects(homelab string, flag []string) ([]string, error) {
+	if flag == nil {
+		return candidateProjects(), nil
+	}
+	var stored, missing []string
+	for _, f := range flag {
+		abs, err := filepath.Abs(config.ExpandHome(f))
+		if err != nil {
+			return nil, err
+		}
+		if st, err := os.Stat(abs); err != nil || !st.IsDir() {
+			missing = append(missing, f)
+			continue
+		}
+		stored = append(stored, storedPath(homelab, abs))
+	}
+	if len(missing) > 0 {
+		return nil, withHint(fmt.Errorf("projects folder %s not found", strings.Join(missing, ", ")), "pass folders that exist to --projects")
+	}
+	return stored, nil
 }
 
 // candidateProjects are the generic projects folders that exist in the
@@ -285,79 +381,6 @@ func storedPath(homelab, abs string) string {
 	return abs
 }
 
-// initApps adds apps found in the projects folders: the ones picked on a
-// terminal, else the --apps ones, else all.
-func initApps(p *prompter, out io.Writer, cfg *config.Config, want []string, dockerOK bool) ([]string, error) {
-	if len(cfg.Projects) == 0 {
-		return nil, nil
-	}
-	d, err := scan.Compare(cfg)
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range d.MissingRoots {
-		fmt.Fprintf(out, "%swarning:%s projects folder %s not found\n", yellow, reset, r)
-	}
-	if len(d.New) == 0 {
-		fmt.Fprintf(out, "no new apps in %s\n", strings.Join(cfg.Projects, ", "))
-		return nil, nil
-	}
-	if !dockerOK {
-		fmt.Fprintf(out, "found %s, but hl needs docker to read their compose files - fix the above, then run hl sync\n",
-			plural(len(d.New), "app", "apps"))
-		return nil, nil
-	}
-	var adds []scan.Action
-	for _, a := range scan.PlanAdds(cfg, d, modelFunc(cfg)) {
-		if a.Kind == scan.Add {
-			adds = append(adds, a)
-		} else {
-			fmt.Fprintf(out, "  ! skip %s (%s): %s\n", a.Name, a.Path, a.Reason)
-		}
-	}
-	if len(adds) == 0 {
-		return nil, nil
-	}
-	var chosen []scan.Action
-	switch {
-	case p != nil && want == nil:
-		items := make([]string, len(adds))
-		for i, a := range adds {
-			items[i] = fmt.Sprintf("%-20s %s  (%s)", a.Name, a.Path, pinned(a.Service, a.Port))
-		}
-		for _, i := range p.pick(fmt.Sprintf("Found %s. Add which?", plural(len(adds), "app", "apps")), items) {
-			chosen = append(chosen, adds[i])
-		}
-	case want == nil:
-		chosen = adds
-	case len(want) == 1 && want[0] == pickNone:
-	default:
-		byName := map[string]scan.Action{}
-		for _, a := range adds {
-			byName[a.Name] = a
-		}
-		for _, n := range want {
-			a, ok := byName[n]
-			if !ok {
-				return nil, fmt.Errorf("--apps: %s is not a new app in the projects folders", n)
-			}
-			chosen = append(chosen, a)
-		}
-	}
-	if err := applyPlan(out, cfg, chosen); err != nil {
-		return nil, err
-	}
-	names := make([]string, len(chosen))
-	for i, a := range chosen {
-		names[i] = a.Name
-	}
-	if left := len(adds) - len(chosen); left > 0 {
-		fmt.Fprintf(out, "left out %s - add later with hl sync, or skip for good with ignore: in %s or a %s file\n",
-			plural(left, "app", "apps"), config.FileName, defaults.IgnoreFile)
-	}
-	return names, nil
-}
-
 // preflight runs the docker checks of hl doctor and says what to fix. It
 // reports whether docker can be used to read the apps' compose files.
 func preflight(out io.Writer) bool {
@@ -380,13 +403,4 @@ func preflight(out io.Writer) bool {
 	ver := strings.TrimSpace(string(v))
 	check(err == nil && composeAtLeast(ver, 2, 24), "docker compose v2.24+ ("+ver+")", "update the docker compose plugin")
 	return ok
-}
-
-func index(list []string, s string) int {
-	for i, v := range list {
-		if v == s {
-			return i
-		}
-	}
-	return 0
 }

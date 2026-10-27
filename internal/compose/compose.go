@@ -246,6 +246,25 @@ func (p *Project) Model(ctx context.Context) (*Model, error) {
 	return &m, nil
 }
 
+// Variables are the names of the variables the project's compose files use (`docker compose
+// config --variables`, compose v2.24+), sorted.
+func (p *Project) Variables(ctx context.Context) ([]string, error) {
+	out, err := p.Output(ctx, "config", "--variables", "--format", "json")
+	if err != nil {
+		return nil, fmt.Errorf("listing the variables of the compose files in %s: %w", p.Dir, err)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(out, &m); err != nil {
+		return nil, fmt.Errorf("reading docker compose config --variables: %w", err)
+	}
+	names := make([]string, 0, len(m))
+	for n := range m {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
 func indent(s string) string { return "  " + strings.ReplaceAll(s, "\n", "\n  ") }
 
 // Exposed picks the service the proxy should forward to: the only one that

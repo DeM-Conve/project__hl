@@ -377,6 +377,8 @@ func builtinDefaults() [][2]string {
 		{"up.wait_fail_log_lines", itoa(defaults.FailLogTail)},
 		{"doctor.latest_release", defaults.LatestReleaseURL + " (timeout " + defaults.UpdateCheckTimeout.String() + ")"},
 		{"add.preferred_services", strings.Join(defaults.ExposedServices, ", ")},
+		{"add.env_map", envMapSummary()},
+		{"sync.web_ports", joinInts(defaults.WebPorts) + " (or a preferred service name)"},
 		{"open.browser", defaults.OpenerLinux + " (Linux), " + defaults.OpenerMac + " (macOS)"},
 	}
 }

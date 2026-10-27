@@ -64,7 +64,8 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
 ## Names
 
 - App names match `^[a-z0-9][a-z0-9._-]*$` (dots allowed, e.g. `my-app.io`). `hl add` derives one
-  from the folder name (`config.NameFor`: `My App` -> `my-app`).
+  from the folder name (`config.NameFor`: `My App` -> `my-app`), after `config.Stripped` drops the
+  first `strip_prefix` it starts with (`project__blog` -> `blog`); `scan.AppName` does the same for init/sync.
 - A homelab's optional top-level `name` prefixes its Docker names: projects `hl-<name>-<id>`,
   default proxy project and network `hl-<name>-proxy` (`Config.ProjectName`, `ProxyProject`).
   Without it they are `hl-<id>` and `hl-proxy` as before, so existing setups keep their names.
@@ -149,7 +150,8 @@ running proxy predates the current config (compose's `config-hash` label vs `doc
 `hl add` (`cli.pickServicePort`) asks instead when there is more than one candidate service, or
 the service publishes several distinct container ports: a numbered list on a terminal (the
 shared `prompter` from `prompt.go`), with `Exposed`'s pick (or the first port) as the default;
-without a terminal (`stdinTerminal`, `golang.org/x/term`) it fails naming `--service`/`--port`. Flags skip the question.
+without a terminal (`stdinTerminal`, `golang.org/x/term`) it takes `Exposed`'s pick with a note, and fails naming
+`--service` only when no service has a preferred name (or `--port` when the service publishes several). Flags skip the question.
 `hl add` writes the picked `service` and `port` into `hl.yml` so later changes to the app's compose
 file don't silently move the route; `prepared` only detects them when `hl.yml` leaves them empty.
 Routing `none` needs neither.
@@ -174,6 +176,15 @@ no `TZ` is added. `config.HostTimeZone` is a variable so tests can fix it; the p
 
 These are only interpolation variables: an app sees them in its containers only if its own compose
 file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
+
+**Auto-mapped env** (`scan.AutoEnv`, rules in `internal/defaults`: `EnvBasePathSuffix`,
+`EnvURLSuffix`, `EnvByName`): `hl add`, and `hl init`/`hl sync` for each new app
+(`scan.PlanAdds` with a `VarsFunc`), run `docker compose config --variables --format json`
+(`compose.Project.Variables`; only the names are used) and write the matching values into
+`apps.<app>.env`, where they are ordinary settings. `<X>_BASE_PATH` -> `${HL_PREFIX}` with path
+routing; `<X>_URL` -> `${HL_URL}` only when `<X>_BASE_PATH` exists too and routing isn't `none`;
+`DATA_LOCATION`/`BACKUP_LOCATION` by name. A failing `--variables` call (older compose) only
+warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
 
 ## Command notes
 
@@ -267,10 +278,15 @@ normalises indentation to two spaces).
 
 - `hl add`/`hl remove` (`config.AddApp`, `RemoveApp`) touch only the `apps:` mapping (`apps: {}`
   from the template is turned into a block mapping).
+- `hl projects`, `hl ignore`, `hl strip-prefix` (`internal/cli/scan_cmds.go`, one `listCmd`
+  each) rewrite one top-level list with `config.SetList` (`config/projects.go`): a flow list kept
+  in place with its comment, a new key put before `apps:`, an empty list removes the key, and the
+  result is run through `config.Check` before it is written. `projects add` stores a folder the
+  way `hl init` does (`storedPath`); `remove` matches the written entry or the resolved path.
 - `hl set`/`hl unset` (`config.Edit`, `internal/config/set.go`) change keys of one scope: an
   app (`config.EditApp`), the proxy (`config.ProxyScope`, i.e. `proxy`, the reserved app name,
   so never an app) or the shared settings (`config.HomelabScope`, no first argument; only `env`:
-  `name` renames every Docker object, `projects`/`ignore`/`scan_depth` belong to init/sync).
+  `name` renames every Docker object, `projects`/`ignore`/`strip_prefix` have their own commands, `scan_depth` needs `hl edit`).
   Keys and their types come from the `App`/`Proxy`/`Config` structs by reflection (ints parsed,
   bools as true/false, lists split on commas, map fields as `env.NAME`). A missing `proxy:` or
   shared `env:` is added above `apps:`. A replaced value keeps the old one's comments. The new
@@ -321,7 +337,7 @@ version and OS/architecture for bug reports; `hl version --short` prints only th
 
 ## Projects folders: `hl init` and `hl sync`
 
-hl.yml's `projects`, `ignore` and `scan_depth` (a separate block in `config.Config`; edits in
+hl.yml's `projects`, `ignore`, `scan_depth` and `strip_prefix` (a separate block in `config.Config`; edits in
 `config/projects.go`) drive both commands. Their defaults (`.hlignore`, the always-ignored name
 patterns, scan depth 1, the folders init suggests, init's fallback port and network bind) are in
 `internal/defaults`; the compose file names are `defaults.ComposeFiles`.
@@ -337,7 +353,9 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
 - **`scan.Plan`** adds Docker through a `ModelFunc` (`docker compose config` via `cli.project`):
   a new folder gets the service and port `hl add` would pick (`Exposed`/`TargetPort`), or a skip
   with the reason and the `hl add` command to run instead (name taken, ambiguous services, compose
-  error). A kept app with a pinned `service` is checked against its model: service gone -> detect
+  error, or not a web app: `scan.LooksWeb` - the service has none of `defaults.ExposedServices`'
+  names and its port isn't in `defaults.WebPorts` - which suggests `--routing none` and
+  `hl ignore add`). A kept app with a pinned `service` is checked against its model: service gone -> detect
   both again; pinned port not among the service's published targets -> pin its first one. Apps
   with nothing pinned are detected on every run anyway and are left alone.
 - **Applying**: adds go through `config.AddApp` with `path` = the projects entry as written joined
@@ -347,14 +365,22 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   hl.yml's comments.
 - **`hl status`** calls `syncHint`, which runs only `scan.Compare` (no Docker), and prints one line
   when there are new folders or gone apps.
-- **`hl init`**: questions only when stdin is a terminal and `--yes` isn't given (`prompt.go`,
-  plain bufio, Enter = default, end of input = default). Pre-flight runs the doctor's docker checks;
-  without a working docker it still writes hl.yml but leaves app detection to `hl sync`. Port check:
-  `net.Listen` on bind:port; only "address in use" counts as busy (a normal user may not open
-  port 80, Docker can). A new hl.yml is the `Template` with the answers set through the yaml node
-  tree (`config.WriteNew`, `O_EXCL`, so it never overwrites); projects folders are stored relative
-  inside the homelab, with `~` inside the user's home, else absolute. On an existing hl.yml init only
-  saves `projects` if there are none and offers the new apps (`scan.PlanAdds`).
+- **`hl init`** plans first and writes nothing until it is confirmed: the settings come from flags
+  and defaults only (`--projects`, else `defaults.CandidateProjects` that exist in the home folder;
+  the default port, or `defaults.AltPort` when that is busy and free), `InitSettings.Config` makes
+  the homelab in memory, `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,
+  env, skips; `--apps` narrows the adds) and prints the plan with `printPlan`. Then one
+  `confirm` (`prompt.go`, plain bufio, Enter = yes) when stdin is a terminal and `--yes` isn't
+  given, and only when there is something to write; "no" writes nothing. Pre-flight runs the
+  doctor's docker checks; without a working docker it still writes hl.yml but leaves app
+  detection to `hl sync`. Port check: `net.Listen` on bind:port; only "address in use" counts
+  as busy (a normal user may not open port 80, Docker can). A new hl.yml is the short `Template`
+  (schema line, header comment, `version`, `apps: {}`) plus, through the yaml node tree
+  (`config.WriteNew`, `O_EXCL`, so it never overwrites), `projects`, `strip_prefix` and a
+  `proxy` block with only the bind, port and routing that differ from the defaults; projects
+  folders are stored relative inside the homelab, with `~` inside the user's home, else
+  absolute. On an existing hl.yml init only saves `projects`/`strip_prefix` if there are none
+  and adds the new apps.
 
 ## Tests of the CLI
 

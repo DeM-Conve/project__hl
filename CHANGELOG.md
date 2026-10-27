@@ -15,12 +15,15 @@ release differs from earlier builds of `main`.
 
 ### Added
 
-- `hl init` creates a homelab folder (`hl.yml`, `data/`, `.gitignore`) and makes it the default;
-  `--home` and `$HL_HOME` pick another. On a terminal it asks a few questions (projects folders,
-  routing, this machine or the network, another port if the default one is busy) and offers the
-  apps it finds as a checklist; `--projects`, `--routing`, `--bind`, `--port`, `--apps` and
-  `--yes` answer them in scripts. It checks Docker and compose first, and on an existing homelab
-  never overwrites `hl.yml` but offers the new apps.
+- `hl init` creates a homelab folder (a short `hl.yml`, `data/`, `.gitignore`) and makes it the
+  default; `--home` and `$HL_HOME` pick another. It works out a plan - projects folders (`~/code`,
+  `~/projects`, `~/src` when they exist), the proxy (port 8080 when 80 is busy), every web app
+  found with its service, port and env, and the folders it skips and why - shows it and asks
+  once; `--projects`, `--routing`, `--bind`, `--port`, `--apps`, `--strip-prefix` and `--no-env`
+  change the plan and `--yes` applies it without asking. It checks Docker and compose first, and
+  on an existing homelab never overwrites `hl.yml` but adds the new apps. The `hl.yml` it writes
+  holds only the projects folders, the proxy settings that differ from the defaults, and the
+  apps; every other setting is documented in the README.
 - `projects:` in `hl.yml`: folders whose subfolders with a compose file are apps; `ignore:`
   patterns, a `.hlignore` file or `scan_depth` control what is picked up.
 - `hl sync` keeps `hl.yml` in step with the projects folders: adds new apps, removes ones whose
@@ -118,6 +121,16 @@ release differs from earlier builds of `main`.
   `~/.local/bin` (or `/usr/local/bin` as root).
 - Example apps in `examples/` and guides in `docs/guides/`: base paths, moving an existing compose
   app into hl, reaching apps from your network, backups, putting hl behind HTTPS.
+- `hl add`, `hl init` and `hl sync` fill in an app's `env` from the variables its compose file
+  uses (`docker compose config --variables`): `<X>_BASE_PATH` gets `${HL_PREFIX}` (path
+  routing), the matching `<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and
+  `BACKUP_LOCATION` `${HL_DATA}/backups`. They print what they mapped; `--no-env` turns it off.
+- `hl add --env KEY=VALUE` (repeatable) sets an app's env as it is added, over the mapped values.
+- `strip_prefix:` in `hl.yml` (and `hl init --strip-prefix`): folder-name prefixes left out of
+  app names, so folder `project__blog` becomes app `blog` in `hl init`, `hl sync` and `hl add`.
+- `hl projects`, `hl ignore` and `hl strip-prefix`, each with `add`, `remove` and `list`: change
+  the lists that tell `hl init` and `hl sync` where apps are and how to name them, keeping
+  `hl.yml`'s comments and checking the result before writing.
 
 ### Changed
 
@@ -126,6 +139,12 @@ release differs from earlier builds of `main`.
   the command, all listed at once with their lines. Run `hl config check` before upgrading and
   fix what it lists.
 - The Traefik dashboard is off unless `proxy.dashboard: true` is set.
+- `hl init` and `hl sync` add only folders that look like web apps (a preferred service name or a
+  common HTTP port); others, like a database on its own port, are listed with the `hl add`
+  command to use (`--routing none` to run it without the proxy).
+- `hl add` without a terminal no longer stops when several services publish ports and one has a
+  usual web name (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`): it routes that one and says
+  so. It still asks for `--service` when none has such a name.
 - `hl restart` starts the proxy first, like `hl up`, `hl rebuild` and `hl update`.
 - Error hints name the command that fixes a setting (`hl set proxy port=8000`, `hl unset proxy subnet`,
   `hl set my-app service=...`) instead of the `hl.yml` key to edit; `hl edit` stays as the fallback.

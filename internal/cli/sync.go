@@ -18,12 +18,12 @@ import (
 )
 
 func syncCmd() *cobra.Command {
-	var yes, dry bool
+	var yes, dry, noEnv bool
 	c := &cobra.Command{
 		Use:   "sync",
 		Short: "Make hl.yml follow your projects folders: add new apps, remove ones whose folder is gone",
 		Long: `Compare the projects folders in hl.yml (projects:) with its apps and show a plan:
-  + add     a new subfolder with a compose file (service and port detected like hl add)
+  + add     a new subfolder with a compose file (service, port and env detected like hl add)
   - remove  an app whose folder is gone; its data in data/<app> stays
   ~ update  an app whose pinned service or port is no longer in its compose file
 Folders matching ignore: in hl.yml, hidden ones, and ones with a ` + defaults.IgnoreFile + ` file are
@@ -34,17 +34,18 @@ skipped. Apps outside the projects folders are left alone.`,
 			if err != nil {
 				return err
 			}
-			return runSync(cmd.InOrStdin(), cmd.OutOrStdout(), cfg, yes, dry)
+			return runSync(cmd.InOrStdin(), cmd.OutOrStdout(), cfg, yes, dry, noEnv)
 		},
 	}
 	c.Flags().BoolVarP(&yes, "yes", "y", false, "apply the plan without asking")
 	c.Flags().BoolVar(&dry, "dry-run", false, "only show the plan")
+	c.Flags().BoolVar(&noEnv, "no-env", false, "don't fill in the env of new apps from their compose variables")
 	return c
 }
 
-func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry bool) error {
+func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry, noEnv bool) error {
 	if len(cfg.Projects) == 0 {
-		return fmt.Errorf("no projects folders in %s - add e.g. `projects: [~/code]` to it, or run hl init", config.FileName)
+		return withHint(fmt.Errorf("no projects folders in %s", config.FileName), "add one with hl projects add <folder>, e.g. hl projects add ~/code")
 	}
 	d, err := scan.Compare(cfg)
 	if err != nil {
@@ -53,7 +54,7 @@ func runSync(in io.Reader, out io.Writer, cfg *config.Config, yes, dry bool) err
 	for _, r := range d.MissingRoots {
 		fmt.Fprintf(out, "%swarning:%s projects folder %s not found - its apps are left as they are\n", yellow, reset, r)
 	}
-	plan := scan.Plan(cfg, d, modelFunc(cfg))
+	plan := scan.Plan(cfg, d, modelFunc(cfg), varsFunc(cfg, noEnv))
 	changes := 0
 	for _, a := range plan {
 		if a.Kind != scan.Skip {
@@ -91,12 +92,58 @@ func modelFunc(cfg *config.Config) scan.ModelFunc {
 	}
 }
 
+// varsFunc lists an app's compose variables, for the env hl maps; nil with --no-env.
+func varsFunc(cfg *config.Config, noEnv bool) scan.VarsFunc {
+	if noEnv {
+		return nil
+	}
+	return func(name string, a *config.App) ([]string, error) {
+		p, err := project(cfg, name, a)
+		if err != nil {
+			return nil, err
+		}
+		return p.Variables(context.Background())
+	}
+}
+
+// envMapSummary describes the env auto-mapping rules for `hl config defaults`.
+func envMapSummary() string {
+	parts := []string{
+		"<X>" + defaults.EnvBasePathSuffix + "=" + defaults.EnvBasePathValue + " (path routing)",
+		"<X>" + defaults.EnvURLSuffix + "=" + defaults.EnvURLValue + " (with <X>" + defaults.EnvBasePathSuffix + ")",
+	}
+	return strings.Join(append(parts, scan.EnvList(defaults.EnvByName)...), ", ")
+}
+
+// mapsBasePath reports whether env feeds ${HL_PREFIX} to some variable.
+func mapsBasePath(env map[string]string) bool {
+	for _, v := range env {
+		if strings.Contains(v, "HL_PREFIX") {
+			return true
+		}
+	}
+	return false
+}
+
+// printEnv lists the env hl mapped for an app, one variable a line.
+func printEnv(w io.Writer, indent string, env map[string]string) {
+	for _, kv := range scan.EnvList(env) {
+		fmt.Fprintf(w, "%senv %s\n", indent, kv)
+	}
+}
+
 func printPlan(out io.Writer, cfg *config.Config, plan []scan.Action) {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	for _, a := range plan {
 		switch a.Kind {
 		case scan.Add:
 			fmt.Fprintf(w, "  + add\t%s\t%s\t%s\n", a.Name, a.Path, pinned(a.Service, a.Port))
+			for _, kv := range scan.EnvList(a.Env) {
+				fmt.Fprintf(w, "\t\t  env %s\n", kv)
+			}
+			if a.Note != "" {
+				fmt.Fprintf(w, "\t\t  note: %s\n", a.Note)
+			}
 		case scan.Remove:
 			fmt.Fprintf(w, "  - remove\t%s\t%s\tfolder gone; %s stays\n", a.Name, a.Path, relTo(cfg.Dir, cfg.DataDir(a.Name)))
 		case scan.Update:
@@ -118,15 +165,19 @@ func pinned(service string, port int) string {
 // applyPlan writes the plan into hl.yml. A removed app is stopped first if
 // it still runs; its data folder is never touched.
 func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
-	var added []string
+	var added, noBase []string
 	for _, a := range plan {
 		switch a.Kind {
 		case scan.Add:
-			if err := config.AddApp(cfg.Dir, a.Name, &config.App{Path: a.Path, Service: a.Service, Port: a.Port}); err != nil {
+			if err := config.AddApp(cfg.Dir, a.Name, &config.App{Path: a.Path, Service: a.Service, Port: a.Port, Env: a.Env}); err != nil {
 				return err
 			}
 			added = append(added, a.Name)
+			if !mapsBasePath(a.Env) {
+				noBase = append(noBase, a.Name)
+			}
 			fmt.Fprintf(out, "added %s\n", a.Name)
+			printEnv(out, "  ", a.Env)
 		case scan.Remove:
 			name := cfg.ProjectName(a.Name)
 			if inv, err := containers(context.Background()); err == nil && inv.owner(cfg, name) == "" && len(inv.of(name)) > 0 {
@@ -148,9 +199,10 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 		}
 	}
 	if len(added) > 0 {
-		if cfg.Proxy.Routing == config.RoutingPath {
-			fmt.Fprintf(out, "%snote:%s path routing serves each app under /<app>/; an app must support that base path\n"+
-				"(map ${HL_PREFIX} to its setting in apps.<app>.env), or set routing: host for it.\n", yellow, reset)
+		if len(noBase) > 0 && cfg.Proxy.Routing == config.RoutingPath {
+			fmt.Fprintf(out, "%snote:%s path routing serves each app under /<app>/; an app must support that base path.\n"+
+				"No base-path setting was found for %s: map ${HL_PREFIX} to its setting\n"+
+				"(hl set <app> env.<NAME>='${HL_PREFIX}'), or set routing: host for it.\n", yellow, reset, strings.Join(noBase, ", "))
 		}
 		fmt.Fprintf(out, "start them: hl up %s\n", strings.Join(added, " "))
 	}

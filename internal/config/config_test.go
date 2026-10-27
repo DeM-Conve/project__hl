@@ -150,7 +150,7 @@ func TestAddAndRemoveKeepComments(t *testing.T) {
 		t.Error("adding blog twice should fail")
 	}
 	b, _ := os.ReadFile(filepath.Join(dir, FileName))
-	if !strings.Contains(string(b), "# 127.0.0.1 = this machine only") {
+	if !strings.Contains(string(b), "# hl homelab.") {
 		t.Errorf("comments lost:\n%s", b)
 	}
 	c, err := Load(dir)

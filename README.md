@@ -16,22 +16,32 @@ ordinary compose project that still runs on its own.
 
 ```console
 $ hl init ~/homelab
+✓ docker is installed
+✓ the docker daemon is reachable
+✓ docker compose v2.24+ (2.29.1)
+
+hl init plan
+  homelab    /home/you/homelab (new hl.yml, data/)
+  projects   ~/code
+  proxy      127.0.0.1:80 (this machine only), path routing: apps at http://localhost/<app>/
+  apps       2 apps to add
+  + add   blog     ~/code/blog     web:8080
+  + add   tracker  ~/code/tracker  frontend:80
+                     env TRACKER_BASE_PATH=${HL_PREFIX}
+                     env TRACKER_URL=${HL_URL}
+  ! skip  cache    ~/code/cache    not a web app? service redis on port 6379 - add it with ...
+
+Set it up like this? [Y/n]: y
 wrote /home/you/homelab/hl.yml
 default homelab: /home/you/homelab
-next: hl add <app folder>
-
-$ hl add ~/code/blog
-added blog (service web, port 8080)
-url: http://localhost/blog/
-note: path routing serves it under /blog, with the prefix stripped. The app must build its
-links for that prefix: map ${HL_PREFIX} to its base-path setting in hl.yml (apps.blog.env),
-or use --routing host.
-start it: hl up blog
-
-$ hl add ~/code/tracker
-added tracker (service frontend, port 80)
-url: http://localhost/tracker/
-...
+added blog
+added tracker
+  env TRACKER_BASE_PATH=${HL_PREFIX}
+  env TRACKER_URL=${HL_URL}
+note: path routing serves each app under /<app>/; an app must support that base path.
+No base-path setting was found for blog: map ${HL_PREFIX} to its setting
+(hl set <app> env.<NAME>='${HL_PREFIX}'), or set routing: host for it.
+start them: hl up blog tracker
 
 $ hl up
 ==> proxy
@@ -103,11 +113,12 @@ v2.24 or newer.
 curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh
 hl doctor                       # checks Docker and compose
 
-# 2. set up a homelab folder (config + data): hl init asks where things go, finds the
-#    apps in your projects folder (e.g. ~/code) and lets you pick which to add
+# 2. set up a homelab folder (config + data): hl init finds the apps in your projects
+#    folder (~/code, ~/projects or ~/src), shows its plan and asks once
 hl init ~/homelab
-#    or with no questions:  hl init ~/homelab --projects ~/code --yes
-#    or one app at a time:  hl add ~/code/my-app
+#    other folders, no question:  hl init ~/homelab --projects ~/work --yes
+#    folders named prefix__app:   hl init ~/homelab --strip-prefix prefix__
+#    or one app at a time:        hl add ~/code/my-app
 
 # 3. start everything (the proxy first); --wait also waits for healthchecks
 hl up --wait
@@ -237,12 +248,14 @@ DNS.
 
 ## hl.yml reference
 
-`hl init` writes a commented `hl.yml`. Everything except `apps.<name>.path` is optional; each
-setting's default is in the tables below, and `hl config defaults` prints them with the values in
-effect. You rarely need to open the file: `hl set` and `hl unset` change the proxy
-(`hl set proxy port=8080`), the shared env (`hl set env.TZ=UTC`) and each app
-(`hl set my-app routing=host`); `hl edit` is there for the rest. hl reads and checks the file
-on every command; a problem stops the command (see
+`hl init` writes a short `hl.yml` (its projects folders, any proxy setting you changed with a
+flag, and the apps), and hl commands change it from then on. Everything except
+`apps.<name>.path` is optional; each setting's default is in the tables below, and
+`hl config defaults` prints them with the values in effect. You rarely need to open the file:
+`hl set` and `hl unset` change the proxy (`hl set proxy port=8080`), the shared env
+(`hl set env.TZ=UTC`) and each app (`hl set my-app routing=host`); `hl projects`, `hl ignore` and
+`hl strip-prefix` change the scan settings; `hl edit` is there for the rest. hl reads and checks
+the file on every command; a problem stops the command (see
 [`hl config check`](#version-and-editor-support)).
 
 ```yaml
@@ -338,13 +351,17 @@ A map of variables passed to every app, e.g. `TZ: UTC`. An app's own `env` wins 
 Without a `TZ` here, apps get this machine's time zone (see [Variables hl provides](#variables-hl-provides)).
 `hl set env.TZ=UTC` sets one, `hl unset env.TZ` removes it.
 
-### `projects`, `ignore`, `scan_depth`
+### `projects`, `ignore`, `scan_depth`, `strip_prefix`
 
-Where `hl init` and `hl sync` look for apps. `hl init` writes `projects` from your answer.
+Where `hl init` and `hl sync` look for apps, and how they name them. `hl init` writes
+`projects` from your answer (or `--projects`) and `strip_prefix` from `--strip-prefix`; after
+that `hl projects`, `hl ignore` and `hl strip-prefix` (each with `add` and `remove`) change the
+lists without opening the file.
 
 ```yaml
 projects: [~/code]          # folders with your projects
 ignore: [scratch-*, old]    # folder names sync never picks up
+strip_prefix: [project__]   # folder project__blog becomes app blog
 # scan_depth: 1             # 2 also looks in ~/code/<group>/<app>
 ```
 
@@ -353,12 +370,20 @@ ignore: [scratch-*, old]    # folder names sync never picks up
 | `projects` | none | Folders holding your projects: absolute, `~/...`, or relative to the homelab folder. Each subfolder with a compose file (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) is an app, named after the folder (lowercased). A folder with a compose file is not looked into further. |
 | `ignore` | none | Folder-name patterns (`*`, `?`, `[...]`) to skip. Always skipped as well: hidden folders (`.*`), `node_modules`, `vendor`, `__pycache__`, `venv`. |
 | `scan_depth` | `1` | How many levels below a projects folder to look. |
+| `strip_prefix` | none | Folder-name prefixes left out of app names, by `hl init`, `hl sync` and `hl add` (without `--name`). A folder loses the first one it starts with, unless nothing would be left. Apps already in `hl.yml` keep their names. |
 
 A folder with a `.hlignore` file in it is skipped too, so a library or an experiment can opt out
 without touching `hl.yml`. Ignoring only stops sync from adding a folder; an app already in
 `hl.yml` stays. Apps outside the projects folders (added with `hl add`) are never changed by
 sync, and an app whose projects folder is missing altogether (say, an unmounted drive) is not
 removed.
+
+`hl init` and `hl sync` only add **web apps** on their own: a folder whose service has none of the
+preferred names (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`) and publishes a port that isn't
+a common HTTP one (see [Built-in values](#built-in-values)) may be a database or a cache, which the
+HTTP proxy can't serve. Such a folder is listed with the commands to use instead:
+`hl add <folder> --routing none` to run it without the proxy, `hl add <folder>` to route it
+anyway, or `hl ignore add <folder name>` to stop seeing it.
 
 ### `version` and editor support
 
@@ -379,7 +404,7 @@ the result has no problems, and keep its comments.
 ### `apps.<name>`
 
 App names use lowercase letters, digits, `.`, `_` and `-`, starting with a letter or digit. By
-default `hl add` uses the folder's name. Reserved names (also `hl sync` and `hl init` skip
+default `hl add` uses the folder's name, less a [`strip_prefix`](#projects-ignore-scan_depth-strip_prefix). Reserved names (also `hl sync` and `hl init` skip
 folders with them): `proxy`, whose compose project would be the proxy's, `hl-proxy` (likewise,
 no app's `hl-<app>` may equal `proxy.project`), and the `hl config` subcommands, `check` and
 `defaults`, so `hl config <app>` always reaches the app. `hl config defaults` lists them.
@@ -387,7 +412,7 @@ no app's `hl-<app>` may equal `proxy.project`), and the `hl config` subcommands,
 | Key | Default | What it does |
 | --- | --- | --- |
 | `path` | required | The app's folder: absolute, `~/...`, or relative to the homelab folder. |
-| `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it stops and asks for `--service`. `hl add` writes it here. |
+| `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and stops asking for `--service` only when none has one of those names. `hl add` writes it here. |
 | `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `--port`). `hl add` writes it here. |
 | `routing` | `proxy.routing` | `path`, `host` or `none`. |
 | `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
@@ -409,6 +434,24 @@ no app's `hl-<app>` may equal `proxy.project`), and the `hl config` subcommands,
 
 **Order:** a variable's value comes from, later winning: the app's `.env`, the app's
 `env_files`, your shell, the shared `env`, the app's `env`.
+
+### Env hl fills in
+
+`hl add`, `hl init` and `hl sync` ask `docker compose config --variables` which variables an
+app's compose file uses, and write the ones that follow the common self-hosting conventions
+(Immich, Paperless, linuxserver) into `apps.<name>.env`, saying what they mapped:
+
+| Variable in the compose file | Gets | When |
+| --- | --- | --- |
+| `<X>_BASE_PATH` | `${HL_PREFIX}` | path routing |
+| `<X>_URL`, with the same `<X>` as a `<X>_BASE_PATH` | `${HL_URL}` | path or host routing |
+| `DATA_LOCATION` | `${HL_DATA}` | always |
+| `BACKUP_LOCATION` | `${HL_DATA}/backups` | always |
+
+Anything else is left alone: a `<X>_URL` without a matching `<X>_BASE_PATH` (say, the URL of an
+upstream service) and `DB_DATA_LOCATION` and the like (named volumes are under `data/<app>/`
+already). `--no-env` turns the mapping off, `hl add --env KEY=VALUE` sets a value of your own (it
+wins over a mapped one), and `hl unset <app> env.<NAME>` drops one later.
 
 ### Built-in values
 
@@ -433,6 +476,8 @@ today and not `hl.yml` settings (some have a command-line flag):
 | `code`, `projects`, `src` | projects folders `hl init` suggests, under your home folder, when they exist |
 | `.hlignore` | a folder holding a file with this name is never picked up as an app |
 | `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` | service names `hl add` prefers when several publish ports |
+| `80`, `443`, `3000`, `3001`, `4000`, `4200`, `5000`, `5173`, `8000`, `8008`, `8080`, `8081`, `8088`, `8443`, `8888` | container ports `hl init` and `hl sync` take for a web app; a service with another port and none of the names above is not added by them (see [`projects`](#projects-ignore-scan_depth-strip_prefix)) |
+| `<X>_BASE_PATH`, `<X>_URL`, `DATA_LOCATION`, `BACKUP_LOCATION` | the variables `hl add`, `init` and `sync` fill in ([Env hl fills in](#env-hl-fills-in)) |
 | `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 | GitHub releases API, `3s` | what `hl doctor` asks for the latest release, and how long it waits |
 
@@ -452,9 +497,12 @@ every app when none is named; they carry on past an app that fails and end with
 
 | Command | What it does |
 | --- | --- |
-| `hl init [folder]` | Set up a homelab folder (default: the current one) with `hl.yml`, `data/` and `.gitignore`, and make it the default. First checks Docker, compose and that the proxy port is free. On a terminal it asks for the projects folders, `path` or `host` routing, this machine only or your network, and which of the apps found to add; each has a flag: `--projects`, `--routing`, `--bind`, `--port`, `--apps a,b` (or `none`). With `--yes` or without a terminal it asks nothing and adds every app found. Never overwrites an existing `hl.yml`; on one it offers the new apps instead. |
-| `hl sync` | Make `hl.yml` follow the `projects` folders. Shows a plan first: new folders with a compose file are added (service and port detected like `hl add`), apps whose folder is gone are removed (stopped if running; their data stays), apps whose pinned service or port left their compose file are re-detected, and folders it can't add are listed with the `hl add` command to use. Asks before applying; `--yes` applies without asking, `--dry-run` only shows. |
-| `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`. When several services or ports could be the one to route, it asks on a terminal; without one it names the flag to pass. |
+| `hl init [folder]` | Set up a homelab folder (default: the current one) with a short `hl.yml`, `data/` and `.gitignore`, and make it the default. First checks Docker, compose and that the proxy port is free (if 80 is taken it uses 8080). Then it shows its plan - the homelab folder, the projects folders (`~/code`, `~/projects`, `~/src` when they exist), the proxy, each web app found with its service, port and [env](#env-hl-fills-in), and the folders it skips and why - and asks once. Flags change the plan: `--projects`, `--routing`, `--bind`, `--port`, `--apps a,b` (or `none`), `--strip-prefix project__` (app names without that folder prefix), `--no-env`. `--yes`, or stdin that isn't a terminal, applies it without asking. Never overwrites an existing `hl.yml`; on one it adds the new apps instead. |
+| `hl sync` | Make `hl.yml` follow the `projects` folders. Shows a plan first: new folders with a compose file are added (service, port and [env](#env-hl-fills-in) detected like `hl add`; `--no-env` skips the env), apps whose folder is gone are removed (stopped if running; their data stays), apps whose pinned service or port left their compose file are re-detected, and folders it can't add are listed with the `hl add` command to use. Asks before applying; `--yes` applies without asking, `--dry-run` only shows. |
+| `hl projects [list]`, `hl projects add\|remove <folder>...` | List the `projects` folders (and which are missing), add one (it must exist; stored with `~` or relative to the homelab like `hl init` does), or remove one (by the name in `hl.yml` or its path; its apps stay). Then run `hl sync`. |
+| `hl ignore [list]`, `hl ignore add\|remove <pattern>...` | List, add or remove `ignore` patterns (`*`, `?`, `[...]`); the list also shows the built-in ones. |
+| `hl strip-prefix [list]`, `hl strip-prefix add\|remove <prefix>...` | List, add or remove `strip_prefix` entries. Apps already added keep their names. |
+| `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`, `--env KEY=VALUE` (repeatable; sets `apps.<name>.env` and wins over the mapped values), `--no-env` (don't [fill in env](#env-hl-fills-in) from the compose file's variables). When several services or ports could be the one to route, it asks on a terminal; without one it takes the service with a usual web name (with a note) and otherwise names the flag to pass. |
 | `hl set <app> key=value...` | Change an app's settings in `hl.yml`: `routing`, `prefix`, `host`, `port`, `service`, `path`, `compose` and `env_files` (comma-separated), `env.NAME`. Keeps comments; writes only a valid result. `hl up <app>` applies it. |
 | `hl set proxy key=value...` | Change the proxy's settings: every `proxy.*` key, e.g. `hl set proxy port=8080 bind=0.0.0.0 subnet=172.31.0.0/16`; switches take `true`/`false`. hl says what applies it (`hl proxy up`, or `hl down` then `hl up` for `network`, `subnet` or `project`). |
 | `hl set env.NAME=value...` | With no app: the shared `env` every app gets, e.g. `hl set env.TZ=Europe/Berlin`. An app's own `env` wins. `hl up` applies it. |

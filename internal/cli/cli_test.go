@@ -15,6 +15,7 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/config"
 	"github.com/DeM-Conve/project__hl/internal/interrupt"
+	"github.com/DeM-Conve/project__hl/internal/scan"
 	"github.com/DeM-Conve/project__hl/internal/version"
 )
 
@@ -37,7 +38,7 @@ func TestFreshUserJourney(t *testing.T) {
 
 	r = f.must("add", blog)
 	contains(t, "add", r.out, "added blog (service web, port 80)", "url: http://localhost/blog/")
-	contains(t, "hl.yml", f.read(filepath.Join(lab, "hl.yml")), "blog:", "service: web", "port: 80", "# 127.0.0.1 = this machine only")
+	contains(t, "hl.yml", f.read(filepath.Join(lab, "hl.yml")), "blog:", "service: web", "port: 80", "# hl homelab.")
 
 	f.reset()
 	r = f.must("up")
@@ -116,12 +117,11 @@ func TestAddFlags(t *testing.T) {
 	call := f.find("config --format json")[0]
 	contains(t, "compose files", call.String(), "--file "+filepath.Join(dir, "compose.prod.yml"))
 
-	// Several published services: without a terminal to ask on, the flag to pass.
-	r = f.hl("add", dir)
-	contains(t, "add", r.errOut, "my-tool: several services publish ports (ui, web) - pass --service, e.g. --service web")
+	// Several published services: without a terminal to ask on, the usual web name, with a note.
 	// The folder name becomes a valid app name.
-	r = f.must("add", dir, "--service", "web")
-	contains(t, "add", r.out, "added my-tool (service web, port 80)", "path routing serves it under /my-tool")
+	r = f.must("add", dir)
+	contains(t, "add", r.out, "note: several services publish ports (ui, web); picked web - pass --service to route another",
+		"added my-tool (service web, port 80)", "path routing serves it under /my-tool")
 
 	r = f.must("add", dir, "--name", "db", "--routing", "none", "--compose", "compose.prod.yml")
 	contains(t, "add none", r.out, "not behind the proxy")
@@ -149,7 +149,87 @@ func TestAddFlags(t *testing.T) {
 	}
 	two := f.app("two", `{"services":{"a":{"ports":[{"target":1}]},"b":{"ports":[{"target":2}]}}}`)
 	r = f.hl("add", two)
-	contains(t, "several services", r.errOut, "several services publish ports (a, b) - pass --service")
+	contains(t, "several services", r.errOut, "several services publish ports (a, b) and none has a usual web name (frontend, web, app, nginx, proxy, ui) - pass --service, e.g. --service a")
+}
+
+func TestAddMapsEnv(t *testing.T) {
+	f := newFake(t)
+	dir := f.app("notes", apiModel)
+	f.vars(dir, "NOTES_BASE_PATH", "NOTES_URL", "UPSTREAM_URL", "DATA_LOCATION", "BACKUP_LOCATION", "DB_DATA_LOCATION", "TZ")
+	lab := f.lab("lab", "apps: {}\n")
+
+	r := f.must("add", dir)
+	contains(t, "add", r.out, "env NOTES_BASE_PATH=${HL_PREFIX}", "env NOTES_URL=${HL_URL}",
+		"env DATA_LOCATION=${HL_DATA}", "env BACKUP_LOCATION=${HL_DATA}/backups")
+	lacks(t, "add", r.out, "UPSTREAM_URL", "DB_DATA_LOCATION", "path routing serves it under")
+	cfg, err := config.Load(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(scan.EnvList(cfg.Apps["notes"].Env), " "); got !=
+		"BACKUP_LOCATION=${HL_DATA}/backups DATA_LOCATION=${HL_DATA} NOTES_BASE_PATH=${HL_PREFIX} NOTES_URL=${HL_URL}" {
+		t.Errorf("env = %s", got)
+	}
+	// The mapped values reach compose as interpolation variables.
+	f.reset()
+	f.must("config", "notes")
+	c := f.find("config")[0]
+	if c.Env["HL_PREFIX"] != "/notes" {
+		t.Errorf("HL_* env = %v", c.Env)
+	}
+
+	// --no-env leaves env alone; host routing doesn't map the base path.
+	vars := []string{"NOTES_BASE_PATH", "NOTES_URL", "TZ"}
+	plain, hosted, old := f.app("plain", apiModel), f.app("hosted", apiModel), f.app("old", apiModel)
+	for _, d := range []string{plain, hosted, old} {
+		f.vars(d, vars...)
+	}
+	r = f.must("add", plain, "--no-env", "--routing", "host")
+	lacks(t, "add --no-env", r.out, "env ")
+	r = f.must("add", hosted, "--routing", "host")
+	contains(t, "add host", r.out, "env NOTES_URL=${HL_URL}")
+	lacks(t, "add host", r.out, "NOTES_BASE_PATH")
+	cfg, _ = config.Load(lab)
+	if cfg.Apps["plain"].Env != nil {
+		t.Errorf("plain env = %v", cfg.Apps["plain"].Env)
+	}
+
+	// --env adds values and wins over the mapped ones; a bad one changes nothing.
+	extra := f.app("extra", apiModel)
+	f.vars(extra, vars...)
+	for _, c := range []struct {
+		args []string
+		code int
+		want string
+	}{
+		{[]string{"add", extra, "--env", "NOPE"}, 2, `--env "NOPE": use KEY=VALUE`},
+		{[]string{"add", extra, "--env", "=x"}, 2, "use KEY=VALUE"},
+		{[]string{"add", extra, "--env", "BAD NAME=x"}, 1, "not a valid variable name"},
+	} {
+		if r := f.hl(c.args...); r.code != c.code || !strings.Contains(r.errOut, c.want) {
+			t.Errorf("hl %v: want exit %d and %q, got %s", c.args, c.code, c.want, r)
+		}
+	}
+	r = f.must("add", extra, "--env", "NOTES_URL=https://notes.example.com", "--env", "TZ=Europe/Berlin", "--env", "EMPTY=")
+	contains(t, "add --env", r.out, "env NOTES_URL=https://notes.example.com", "env TZ=Europe/Berlin", "env NOTES_BASE_PATH=${HL_PREFIX}")
+	cfg, _ = config.Load(lab)
+	if e := cfg.Apps["extra"].Env; e["NOTES_URL"] != "https://notes.example.com" || e["TZ"] != "Europe/Berlin" ||
+		e["NOTES_BASE_PATH"] != "${HL_PREFIX}" || len(e) != 4 {
+		t.Errorf("extra env = %v", e)
+	}
+	// --env with --no-env: only the flags.
+	flagged := f.app("flagged", apiModel)
+	f.vars(flagged, vars...)
+	f.must("add", flagged, "--no-env", "--env", "TZ=UTC")
+	cfg, _ = config.Load(lab)
+	if e := cfg.Apps["flagged"].Env; len(e) != 1 || e["TZ"] != "UTC" {
+		t.Errorf("flagged env = %v", e)
+	}
+
+	// Compose too old to list variables: added anyway, with a warning.
+	f.on(rule{Match: []string{"config --variables"}, Stderr: "unknown flag: --variables", Exit: 1})
+	r = f.must("add", old)
+	contains(t, "old compose", r.errOut, "env not mapped")
 }
 
 func TestRemove(t *testing.T) {

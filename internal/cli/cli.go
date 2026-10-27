@@ -213,7 +213,7 @@ app's data (data/<app>/).
 	c.AddCommand(initCmd(), addCmd(), removeCmd(), statusCmd(),
 		upCmd(), downCmd(), restartCmd(), rebuildCmd(), updateCmd(),
 		logsCmd(), psCmd(), openCmd(), shellCmd(), configCmd(), pathCmd(),
-		proxyCmd(), doctorCmd(), versionCmd(), syncCmd(),
+		proxyCmd(), doctorCmd(), versionCmd(), syncCmd(), projectsCmd(), ignoreCmd(), stripPrefixCmd(),
 		setCmd(), unsetCmd(), editCmd(), showCmd())
 	c.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return &usageError{err: err, cmd: cmd.CommandPath()}

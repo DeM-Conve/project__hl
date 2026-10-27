@@ -164,6 +164,32 @@ const (
 	InstallCommand = "curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh"
 )
 
+// Env auto-mapping: `hl add`, `hl init` and `hl sync` read the variables an app's compose
+// file uses (`docker compose config --variables`) and fill in apps.<app>.env for the ones that
+// follow the common self-hosting conventions (Immich, Paperless, linuxserver). --no-env turns it off.
+const (
+	// EnvBasePathSuffix: <X>_BASE_PATH gets EnvBasePathValue, with path routing only.
+	EnvBasePathSuffix = "_BASE_PATH"
+	EnvBasePathValue  = "${HL_PREFIX}"
+	// EnvURLSuffix: <X>_URL gets EnvURLValue, only when the same <X>_BASE_PATH exists (so
+	// URLs of other services, like an upstream API, are left alone).
+	EnvURLSuffix = "_URL"
+	EnvURLValue  = "${HL_URL}"
+)
+
+// EnvByName maps variables by their exact name (any routing). Data the app keeps in bind
+// mounts goes under the app's data folder; named volumes are already there.
+var EnvByName = map[string]string{
+	"DATA_LOCATION":   "${HL_DATA}",
+	"BACKUP_LOCATION": "${HL_DATA}/backups",
+}
+
+// WebPorts are container ports `hl init` and `hl sync` take as a sign of a web app: a new folder
+// whose service has none of the ExposedServices names and whose port isn't one of these is
+// listed with the `hl add` command to use instead of being added (it may be a database or a
+// cache, which the HTTP proxy can't serve).
+var WebPorts = []int{80, 443, 3000, 3001, 4000, 4200, 5000, 5173, 8000, 8008, 8080, 8081, 8088, 8443, 8888}
+
 // Environment variables.
 const (
 	// HomeEnv is the homelab folder, after --home.

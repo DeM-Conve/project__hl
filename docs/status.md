@@ -14,10 +14,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   `hl edit`: `name` (renames every Docker object, so it needs `hl down` first). Error hints name
   the `hl set`/`hl unset` command instead of the `hl.yml` key. Left on purpose: the "edit
   hl.yml, not this file" header of generated files (changing it would change the static
-  config's hash and recreate every running proxy once). Not yet pointed at commands because
-  they are in files another branch is changing (init/add/sync): `hl add`'s base-path note
-  (`apps.go`), `hl sync` with no `projects` (`sync.go`), and init's "edit hl.yml instead" note
-  (`init.go`) - switch them to `hl set`/`hl projects` once that work is merged.
+  config's hash and recreate every running proxy once). `hl add`'s base-path note, `hl sync`
+  with no `projects` and init's notes name `hl set` and `hl projects` too.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install
@@ -75,3 +73,15 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    something sets `TZ`. To keep an image's own default instead, a user can only set an explicit
    zone (`hl set env.TZ=UTC`). Is a way to say "no `TZ` at all" wanted (e.g. an empty
    `env.TZ`, which `hl set` refuses today), or is an explicit zone enough?
+9. **`hl init` without a terminal and without `--yes`** applies its plan (as before the plan
+   and single question came in), while `hl sync` refuses and asks for `--yes`. Keep the
+   difference, or make init require `--yes` too?
+10. **Auto-mapped env vs. the app's own `.env`**: a mapped value (say `DATA_LOCATION:
+   ${HL_DATA}`) is in `apps.<app>.env`, which wins over the app's `.env`. Should the mapping
+   leave out variables the app's `.env` already sets?
+11. **Env for apps already in `hl.yml`**: add, init and sync map env only for apps they add;
+    `hl sync` doesn't offer the mapping for apps added earlier. Should it (as an `~ update`)?
+12. **`scan_depth` from the command line**: `hl projects`/`hl ignore`/`hl strip-prefix` cover the
+    lists; `scan_depth` still needs `hl edit` unless the top-level `hl set` covers it.
+13. **Picking apps on a terminal**: `hl init` used to offer the apps found as a checklist; now it
+    shows the plan and asks once, and `--apps a,b` picks. Is that enough?

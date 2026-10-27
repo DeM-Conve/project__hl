@@ -2,11 +2,13 @@ package scan
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // Kind is what sync does with one app.
@@ -26,16 +28,22 @@ type Action struct {
 	Path    string // the app's folder as in hl.yml
 	Service string // Add/Update: the service and port to pin
 	Port    int
-	Old     string // Update: what was pinned, for display
-	Reason  string // Skip: why, and what to do
+	Old     string            // Update: what was pinned, for display
+	Reason  string            // Skip: why, and what to do
+	Env     map[string]string // Add: env mapped from the compose file's variables (AutoEnv)
+	Note    string            // Add: something to tell the user, e.g. why env wasn't mapped
 }
 
 // ModelFunc resolves an app's compose model (`docker compose config`).
 type ModelFunc func(name string, a *config.App) (*compose.Model, error)
 
-// Plan is what sync would change: adds, then removes, then updates, then skips.
-func Plan(cfg *config.Config, d *Diff, model ModelFunc) []Action {
-	adds := PlanAdds(cfg, d, model)
+// VarsFunc lists the variables an app's compose files use (`docker compose config --variables`).
+type VarsFunc func(name string, a *config.App) ([]string, error)
+
+// Plan is what sync would change: adds, then removes, then updates, then skips. With vars
+// set, each add carries the env AutoEnv maps; nil leaves env alone.
+func Plan(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Action {
+	adds := PlanAdds(cfg, d, model, vars)
 	var out, skips []Action
 	for _, a := range adds {
 		if a.Kind == Skip {
@@ -62,7 +70,7 @@ func Plan(cfg *config.Config, d *Diff, model ModelFunc) []Action {
 
 // PlanAdds is the part of the plan for new folders: an Add with the detected
 // service and port, or a Skip saying why it can't be added.
-func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc) []Action {
+func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc, vars VarsFunc) []Action {
 	var out []Action
 	taken := map[string]bool{}
 	for n := range cfg.Apps {
@@ -83,11 +91,24 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc) []Action {
 		default:
 			app := &config.App{Path: f.Path}
 			svc, port, err := detect(cfg, f.Name, app, model)
-			if err != nil {
+			switch {
+			case err != nil:
 				act.Kind = Skip
 				act.Reason = fmt.Sprintf("%v; add it with hl add %s", err, quote(f.Dir))
+			case svc != "" && !LooksWeb(svc, port):
+				act.Kind = Skip
+				act.Reason = fmt.Sprintf("not a web app? service %s on port %d - add it with hl add %s --routing none "+
+					"(not behind the proxy) or hl add %[3]s (routed), or skip it for good with hl ignore add %s",
+					svc, port, quote(f.Dir), quote(filepath.Base(f.Dir)))
 			}
 			act.Service, act.Port = svc, port
+			if act.Kind == Add && vars != nil {
+				if vs, err := vars(f.Name, app); err != nil {
+					act.Note = fmt.Sprintf("env not mapped: %v", err)
+				} else {
+					act.Env = AutoEnv(vs, cfg.Routing(app))
+				}
+			}
 		}
 		if act.Kind == Add {
 			taken[f.Name] = true
@@ -95,6 +116,22 @@ func PlanAdds(cfg *config.Config, d *Diff, model ModelFunc) []Action {
 		out = append(out, act)
 	}
 	return out
+}
+
+// LooksWeb reports whether a service is likely served over HTTP: it has one of the names hl
+// prefers (defaults.ExposedServices) or a common HTTP port (defaults.WebPorts).
+func LooksWeb(service string, port int) bool {
+	for _, s := range defaults.ExposedServices {
+		if s == service {
+			return true
+		}
+	}
+	for _, p := range defaults.WebPorts {
+		if p == port {
+			return true
+		}
+	}
+	return false
 }
 
 func detect(cfg *config.Config, name string, a *config.App, model ModelFunc) (string, int, error) {

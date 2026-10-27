@@ -9,11 +9,14 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // pickServicePort fills in the app's service and port for `hl add` from the compose model.
 // Flags win. When there is more than one candidate it asks on a terminal (hl's usual pick is
-// the default); without a terminal it stops and names the flag to pass, rather than guess.
+// the default). Without a terminal it takes the service with a usual web name (defaults.ExposedServices)
+// and says so; when no service has one, or a service publishes several ports, it stops and names the
+// flag to pass rather than guess.
 func pickServicePort(m *compose.Model, a *config.App, in io.Reader) error {
 	var p *prompter // one, so its buffered input is shared by both questions
 	ask := func() *prompter {
@@ -38,12 +41,20 @@ func pickServicePort(m *compose.Model, a *config.App, in io.Reader) error {
 			a.Service = published[0]
 		default:
 			def := 0
-			if usual, err := m.Exposed(); err == nil {
+			usual, uerr := m.Exposed()
+			if uerr == nil {
 				def = indexOf(published, usual)
 			}
 			if !stdinTerminal(in) {
-				return fmt.Errorf("several services publish ports (%s) - pass --service, e.g. --service %s",
-					strings.Join(published, ", "), published[def])
+				if uerr != nil {
+					return fmt.Errorf("several services publish ports (%s) and none has a usual web name (%s) - pass --service, e.g. --service %s",
+						strings.Join(published, ", "), strings.Join(defaults.ExposedServices, ", "), published[def])
+				}
+				// No one to ask: take the usual web name, and say how to pick another.
+				fmt.Fprintf(stdout, "%snote:%s several services publish ports (%s); picked %s - pass --service to route another\n",
+					yellow, reset, strings.Join(published, ", "), usual)
+				a.Service = usual
+				break
 			}
 			opts := make([]string, len(published))
 			for i, s := range published {

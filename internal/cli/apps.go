@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeM-Conve/project__hl/internal/config"
 	"github.com/DeM-Conve/project__hl/internal/defaults"
+	"github.com/DeM-Conve/project__hl/internal/scan"
 )
 
 // Commands that manage the homelab folder and hl.yml.
@@ -19,12 +20,23 @@ import (
 func addCmd() *cobra.Command {
 	var a config.App
 	var name string
+	var noEnv bool
+	var envFlags []string
 	c := &cobra.Command{
 		Use:   "add <folder>",
 		Short: "Add an app: a folder with its own compose file",
 		Long: `Add an app to hl.yml. hl finds the service that publishes a port and serves it
 through the proxy instead; the app's files are not changed. Named volumes are
-kept in <homelab>/data/<app>/<volume>.`,
+kept in <homelab>/data/<app>/<volume>.
+
+hl also fills in apps.<app>.env from the variables the compose file uses:
+<X>_BASE_PATH gets ${HL_PREFIX} (path routing), <X>_URL ${HL_URL} (when
+<X>_BASE_PATH exists too), DATA_LOCATION ${HL_DATA} and BACKUP_LOCATION
+${HL_DATA}/backups. --no-env turns that off; --env KEY=VALUE sets one more
+(or another value), and wins over the mapped ones.`,
+		Example: `  hl add ~/code/blog
+  hl add ~/code/wiki --routing host --env TZ=Europe/Berlin --env WIKI_TITLE='My wiki'
+  hl add ~/code/db --routing none --no-env`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
@@ -39,7 +51,7 @@ kept in <homelab>/data/<app>/<volume>.`,
 				return withHint(fmt.Errorf("folder %s not found", dir), "pass the app's folder: the one with its compose file")
 			}
 			if name == "" {
-				name = config.NameFor(filepath.Base(dir))
+				name = config.NameFor(config.Stripped(filepath.Base(dir), cfg.StripPrefix))
 			}
 			if err := config.ValidName(name); err != nil {
 				return withHint(err, "pass a name with --name")
@@ -51,6 +63,9 @@ kept in <homelab>/data/<app>/<volume>.`,
 				if o := cfg.Apps[n]; cfg.AppDir(o) == dir && sameCompose(o.Compose, a.Compose) && (a.Service == "" || a.Service == o.Service) {
 					return withHint(fmt.Errorf("%s is already added as app %q", dir, n), "to add it again, pass --name with --service (another service) or --compose (other files)")
 				}
+			}
+			if a.Env, err = parseEnvFlags(envFlags); err != nil {
+				return err
 			}
 			a.Path = relTo(cfg.Dir, dir)
 			// Check it resolves, and pin the service and port hl picked.
@@ -77,6 +92,16 @@ kept in <homelab>/data/<app>/<volume>.`,
 					return fmt.Errorf("%s: %w", name, err)
 				}
 			}
+			if !noEnv {
+				if vars, err := p.Variables(cmd.Context()); err != nil {
+					warn("env not mapped: %v", err)
+				} else if mapped := scan.AutoEnv(vars, cfg.Routing(&a)); mapped != nil {
+					for k, v := range a.Env { // --env wins
+						mapped[k] = v
+					}
+					a.Env = mapped
+				}
+			}
 			if err := upgradeConfig(cfg.Dir); err != nil {
 				return err
 			}
@@ -89,24 +114,43 @@ kept in <homelab>/data/<app>/<volume>.`,
 				say("added %s%s%s (service %s, port %d)", bold, name, reset, a.Service, a.Port)
 				say("url: %s/", cfg.URL(name, &a))
 			}
-			if cfg.Routing(&a) == config.RoutingPath {
+			printEnv(stdout, "", a.Env)
+			if cfg.Routing(&a) == config.RoutingPath && !mapsBasePath(a.Env) {
 				say("%snote:%s path routing serves it under %s, with the prefix stripped. The app must build its\n"+
-					"links for that prefix: map ${HL_PREFIX} to its base-path setting in hl.yml (apps.%s.env),\n"+
-					"or use --routing host.", yellow, reset, cfg.Prefix(name, &a), name)
+					"links for that prefix: hl set %s env.<ITS_BASE_PATH>='${HL_PREFIX}', or use --routing host.",
+					yellow, reset, cfg.Prefix(name, &a), name)
 			}
 			say("start it: hl up %s", name)
 			return nil
 		},
 	}
 	f := c.Flags()
-	f.StringVar(&name, "name", "", "app name (default: the folder's name)")
+	f.StringVar(&name, "name", "", "app name (default: the folder's name, less a strip_prefix)")
 	f.StringVar(&a.Routing, "routing", "", "path, host or none (default: proxy.routing)")
 	f.StringVar(&a.Prefix, "prefix", "", "URL prefix for path routing (default: /<name>)")
 	f.StringVar(&a.Host, "host", "", "host name for host routing (default: <name>.<domain>)")
 	f.StringVar(&a.Service, "service", "", "service the proxy forwards to (default: the one that publishes a port)")
 	f.IntVar(&a.Port, "port", 0, "that service's port in its container (default: the one it publishes)")
 	f.StringSliceVar(&a.Compose, "compose", nil, "compose files in the folder (default: the one docker compose picks)")
+	f.BoolVar(&noEnv, "no-env", false, "don't fill in env from the compose file's variables (<X>_BASE_PATH, DATA_LOCATION, ...)")
+	f.StringArrayVar(&envFlags, "env", nil, "KEY=VALUE for apps.<app>.env (repeatable; wins over the mapped ones)")
 	return c
+}
+
+// parseEnvFlags turns --env KEY=VALUE flags into a map; nil when there are none.
+func parseEnvFlags(flags []string) (map[string]string, error) {
+	if len(flags) == 0 {
+		return nil, nil
+	}
+	env := map[string]string{}
+	for _, kv := range flags {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok || k == "" {
+			return nil, &usageError{err: fmt.Errorf("--env %q: use KEY=VALUE", kv), cmd: "hl add"}
+		}
+		env[k] = v
+	}
+	return env, nil
 }
 
 func sameCompose(a, b []string) bool { return strings.Join(a, ",") == strings.Join(b, ",") }
