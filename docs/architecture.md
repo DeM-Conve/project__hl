@@ -25,7 +25,7 @@ internal/version        version, commit, build date (ldflags, else Go build info
 
 Dependencies point one way: `cli` -> `gen` -> `compose`, `config` -> `defaults`. `gen` and `config`
 do no Docker calls; `cli` is tested against a fake `docker` (below). Third-party deps are `cobra`, `yaml.v3`
-and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/jsonschema`.
+and `golang.org/x/term` (is stdin a terminal).
 
 ## What every command does first
 
@@ -74,8 +74,7 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
 - Reserved names: one list in `internal/config/reserved.go` (`IsReserved`, `ReservedAppNames`),
   compared by ID. It holds only `proxy` (`defaults.ReservedAppName`): its project would be the
   proxy's default `hl-proxy`, and commands take `proxy` to mean the proxy. `ValidName` (so
-  `Load` and `hl add`) and `scan` (init/sync skip such folders) use it; a cli test checks the
-  schema's `apps.propertyNames.not.enum` lists the same names. `Validate` also rejects an app whose
+  `Load` and `hl add`) and `scan` (init/sync skip such folders) use it. `Validate` also rejects an app whose
   `hl-<id>` equals the proxy's project.
 - `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>` (two apps
   with the same ID are a config error),
@@ -382,10 +381,8 @@ the format before versions (0), which loads as before. `config.Upgrade` adds the
 after any header comment) and the CLI prints a note; it runs before `add`/`remove` and after
 `set`/`unset`. `Validate` refuses a version above `defaults.ConfigVersion`.
 
-**Schema**: `schema/hl.schema.json` (draft-07), published at `defaults.SchemaURL` (its `$id`) for
-people who edit hl.yml by hand; new files no longer reference it (2026-10-27), and `Check` doesn't
-use it (it walks the Go types). `internal/config/schema_test.go` keeps it in step with the code: same keys
-as the Go types, same enums, patterns and defaults, and it accepts the yaml examples in the README and docs/reference.md.
+There is no JSON Schema for hl.yml (removed 2026-10-27): `Check` walks the Go types, and
+nobody is meant to open the file.
 
 **Settings listing** (`config.Settings`, used by `hl show` and `hl show proxy`): the
 homelab-wide fields of `Config` by reflection, the default taken by running `defaults()` on an

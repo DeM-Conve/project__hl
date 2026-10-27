@@ -262,9 +262,6 @@ apps:
 - **`version: 1`** is the format. A file without it keeps working; the first time hl changes the
   file it adds `version: 1` and says so. A file with a newer version than your hl understands is
   refused with a message to update hl.
-- **Schema.** [schema/hl.schema.json](../schema/hl.schema.json) describes the file for editors
-  with a YAML language server, if you edit it by hand; hl doesn't point the file at it (add
-  `# yaml-language-server: $schema=<its raw GitHub URL>` yourself). hl's own check doesn't need it.
 - **Broken by hand.** `hl set`/`hl unset` write only a valid result, so a broken `hl.yml` comes
   from editing it by hand. Every command then refuses with each problem's `hl.yml:line:column`
   and what is wrong; fix those lines in any editor (or `hl unset` a key that shouldn't be

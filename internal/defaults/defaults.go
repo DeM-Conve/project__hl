@@ -255,13 +255,6 @@ var DefaultIgnore = []string{".*", "node_modules", "vendor", "__pycache__", "ven
 // the user's home, when they exist. Only a suggestion: the user is asked.
 var CandidateProjects = []string{"code", "projects", "src"}
 
-// The config format (version, schema; folded in from internal/config).
-const (
-	// ConfigVersion is the hl.yml format this hl writes and reads. Files without a `version:` line
-	// are the older, unversioned format (0) and are upgraded the next time hl edits them.
-	ConfigVersion = 1
-
-	// SchemaURL is where the JSON Schema for hl.yml is published (its $id). hl writes no
-	// reference to it; it is for editors of people who edit hl.yml by hand.
-	SchemaURL = "https://raw.githubusercontent.com/DeM-Conve/project__hl/main/schema/hl.schema.json"
-)
+// ConfigVersion is the hl.yml format this hl writes and reads. Files without a `version:` line
+// are the older, unversioned format (0) and are upgraded the next time hl edits them.
+const ConfigVersion = 1

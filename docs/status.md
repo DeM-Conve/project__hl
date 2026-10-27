@@ -119,11 +119,9 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     on an existing `hl.yml` without `strip_prefix` (or one clashing with another homelab) changes
     nothing and leaves that to `hl set`/`hl doctor`. Should it offer them there too (renaming
     apps or projects that may already run)?
-16. **Keep `schema/hl.schema.json`?** (2026-10-27): `hl init` no longer writes the
-    `yaml-language-server` header, so the schema only serves people who edit hl.yml by hand and
-    add the header themselves. hl's own check doesn't use it; its tests (schema_test.go, the
-    reserved-names test) only keep it in step with the Go types. Kept for now; delete it (and
-    those tests) if `hl edit` users don't need editor completion.
+16. ~~Keep `schema/hl.schema.json`?~~ - decided 2026-10-27 (review round 3): deleted with its
+    tests, together with `hl edit`; it only served editing hl.yml by hand
+    ([requirements.md](requirements.md)).
 17. **`--wait` and an app whose root is a plain 404** (2026-10-27): `--wait` tells "route not
     loaded yet" from Traefik's own body `404 page not found`. An app that answers its root URL
     with exactly that body (Go's default `http.NotFound`) waits until `--wait-timeout` and

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -394,30 +393,6 @@ func TestShowHomelabSettings(t *testing.T) {
 	}
 	if out, err := run(t, "", "show", "--home", home); err != nil || !strings.Contains(out, "flag (--home)") {
 		t.Errorf("%v\n%s", err, out)
-	}
-}
-
-// The schema reserves the same app names as config.
-func TestSchemaReservesTheSameNames(t *testing.T) {
-	want := config.ReservedAppNames()
-	b, err := os.ReadFile("../../schema/hl.schema.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var schema struct {
-		Properties map[string]struct {
-			PropertyNames struct {
-				Not struct {
-					Enum []string `json:"enum"`
-				} `json:"not"`
-			} `json:"propertyNames"`
-		} `json:"properties"`
-	}
-	if err := json.Unmarshal(b, &schema); err != nil {
-		t.Fatal(err)
-	}
-	if got := schema.Properties["apps"].PropertyNames.Not.Enum; strings.Join(got, " ") != strings.Join(want, " ") {
-		t.Errorf("schema reserves %v, want %v", got, want)
 	}
 }
 

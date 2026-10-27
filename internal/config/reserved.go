@@ -8,7 +8,7 @@ import (
 )
 
 // reservedNames are the names an app can't have, each with the reason: the one list that
-// hl.yml, hl add, hl init and hl sync check against (the schema lists the same names).
+// hl.yml, hl add, hl init and hl sync check against.
 var reservedNames = map[string]string{
 	defaults.ReservedAppName: fmt.Sprintf("its compose project would be %s, the proxy's, and `hl up %s` and the like mean the proxy",
 		ProjectName(defaults.ReservedAppName), defaults.ReservedAppName),

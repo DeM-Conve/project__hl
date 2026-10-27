@@ -97,8 +97,8 @@ in hl may assume the maintainer's setup.
   broken by hand gets its problem lines and a hint instead.
 - [x] **Versioned config**: `version: 1` at the top of hl.yml; older files keep working and are
   upgraded with a message, never silently.
-- [x] **JSON Schema** for hl.yml (published in the repo; since 2026-10-27 init no longer writes a
-  `# yaml-language-server` line - nobody needs to open hl.yml - so it serves `hl edit` users only).
+- [ ] ~~**JSON Schema** for hl.yml~~: dropped 2026-10-27 with `hl edit` - nobody needs to open
+  hl.yml, and hl's own check doesn't use a schema.
 
 ## 4. The proxy: one Traefik file (P0)
 
