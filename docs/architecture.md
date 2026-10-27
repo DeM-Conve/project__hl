@@ -236,7 +236,13 @@ warns. Kept apps are never re-mapped.
   app with routing `none` (no service matters more) passes `--wait --wait-timeout <s>` to the
   command itself, waiting for everything. When an app doesn't come up, hl lists the
   waited-for services that aren't running or healthy and prints their last
-  `defaults.FailLogTail` log lines.
+  `defaults.FailLogTail` log lines. Once a routed app's services are healthy, `waitRoute` asks
+  the proxy for the app's URL (sent to the address the proxy really publishes, `publishedAddr`,
+  with the URL's `Host` header) every `defaults.RouteWaitInterval` until the answer is anything
+  but Traefik's own 404 for an unknown route (`defaults.ProxyNotFound`; the app's own 404
+  counts as an answer). Traefik loads a new route a moment after the container is up, so a
+  request right after `--wait` used to get that 404. Past the `--wait-timeout` (counted from
+  the start of the wait) it fails with a hint. Tests replace `routeReady`.
 - `down`/`stop` with no app stops every app that has containers, then the proxy; apps and a proxy
   that aren't there are skipped, so it is safe to repeat. An app hl can no longer prepare (folder
   gone) is stopped by project name alone (`downByName`). `remove` does the same for the app

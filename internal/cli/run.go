@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os/exec"
 	"slices"
 	"sort"
@@ -148,6 +150,7 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 		}
 	}
 	if waitFor != nil {
+		deadline := time.Now().Add(w.timeout)
 		say("%swaiting for %s%s", dim, strings.Join(waitFor, ", "), reset)
 		if err := p.Run(ctx, append(w.args("up", "--detach"), waitFor...)...); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
@@ -155,8 +158,68 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 			}
 			return unhealthy(ctx, p, name, err, waitFor)
 		}
+		// Healthy containers aren't enough: the proxy picks the route up a moment later.
+		return waitRoute(ctx, cfg, name, deadline)
 	}
 	return nil
+}
+
+// waitRoute asks the proxy for the app's URL until something other than the proxy's own 404
+// answers (any answer of the app counts, its own 404 too), or fails at the deadline.
+func waitRoute(ctx context.Context, cfg *config.Config, name string, deadline time.Time) error {
+	u, err := url.Parse(cfg.URL(name, cfg.Apps[name]) + "/")
+	if err != nil || u.Host == "" {
+		return nil
+	}
+	// Where the proxy really listens (it keeps its address until `hl up proxy`).
+	host, port := cfg.Proxy.Bind, cfg.Proxy.Port
+	if h, p, ok := publishedAddr(ctx, cfg.ProxyProject()); ok {
+		host, port = h, p
+	}
+	if unspecified(host) {
+		host = "localhost"
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	say("%swaiting for the route %s%s", dim, u, reset)
+	for !routeReady(ctx, addr, u.Host, u.Path) {
+		if time.Now().After(deadline) {
+			return withHint(fmt.Errorf("%s: the proxy has no route to %s yet", name, u),
+				"see `hl logs proxy` (`hl set proxy debug=true`, then `hl up proxy`, logs each request); a slow app may need a longer --wait-timeout")
+		}
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-time.After(defaults.RouteWaitInterval):
+		}
+	}
+	return nil
+}
+
+// routeReady is probeRoute; tests replace it.
+var routeReady = probeRoute
+
+// probeRoute sends one request for path with this Host header to the proxy at addr and reports
+// whether the app answered: any response but the proxy's own 404 for an unknown route.
+func probeRoute(ctx context.Context, addr, host, path string) bool {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+path, nil)
+	if err != nil {
+		return false
+	}
+	req.Host = host
+	client := &http.Client{
+		Timeout:       defaults.RouteProbeTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNotFound {
+		return true
+	}
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+	return strings.TrimSpace(string(b)) != defaults.ProxyNotFound
 }
 
 // unhealthy explains an app that didn't come up under --wait: which of the services waited

@@ -123,3 +123,8 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     add the header themselves. hl's own check doesn't use it; its tests (schema_test.go, the
     reserved-names test) only keep it in step with the Go types. Kept for now; delete it (and
     those tests) if `hl edit` users don't need editor completion.
+17. **`--wait` and an app whose root is a plain 404** (2026-10-27): `--wait` tells "route not
+    loaded yet" from Traefik's own body `404 page not found`. An app that answers its root URL
+    with exactly that body (Go's default `http.NotFound`) waits until `--wait-timeout` and
+    fails. Rare for a web app's root; if it bites, the alternative is a response header the
+    override adds to each app's route (which recreates every app's containers once).

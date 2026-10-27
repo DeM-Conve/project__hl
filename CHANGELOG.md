@@ -208,6 +208,11 @@ release differs from earlier builds of `main`.
   `hl up proxy`, it used to print hl.yml's address and URLs on a port nothing served. It now
   shows the running address, the app URLs on that port, and a note: "hl.yml says ...:8088 -
   apply it: hl up proxy, then hl up".
+- `hl up --wait` (and `rebuild --wait`) returns only once the app's URL answers through the
+  proxy: a request right after it used to get Traefik's "404 page not found" for about a second,
+  until the proxy had loaded the new route. Any answer of the app counts, its own 404 too; a
+  route that doesn't show up within `--wait-timeout` fails with a hint. Apps with routing `none`
+  aren't asked.
 - No more silent no-ops: `hl restart <app>` of an app that isn't running says "`<app>` isn't
   running - start it with: `hl up <app>`" (exit 0) instead of printing an empty `==> <app>`
   section; `hl logs` with no app shows only the running apps' logs and says so when none runs;

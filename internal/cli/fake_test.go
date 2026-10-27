@@ -190,16 +190,17 @@ func newFake(t *testing.T) *fake {
 	t.Setenv(fakeDirEnv, f.dir)
 	// A race-detector build sleeps a second at exit; the fake runs dozens of times.
 	t.Setenv("GORACE", "atexit_sleep_ms=0")
-	oldGoos, oldPort, oldNets, oldTerm, oldTZ := goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone
+	oldGoos, oldPort, oldNets, oldTerm, oldTZ, oldRoute := goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone, routeReady
 	t.Cleanup(func() {
-		goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone = oldGoos, oldPort, oldNets, oldTerm, oldTZ
+		goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone, routeReady = oldGoos, oldPort, oldNets, oldTerm, oldTZ, oldRoute
 		homeFlag = ""
 		stdin, stdout, stderr = os.Stdin, os.Stdout, os.Stderr
 	})
 	portInUse = func(string, int) bool { return false }
 	hostSubnets = func() []*net.IPNet { return nil }
 	stdinTerminal = func(io.Reader) bool { return false }
-	config.HostTimeZone = func() (string, string) { return "", "" } // the host's TZ only where a test sets one
+	routeReady = func(context.Context, string, string, string) bool { return true } // no proxy runs; a test sets probeRoute
+	config.HostTimeZone = func() (string, string) { return "", "" }                 // the host's TZ only where a test sets one
 	return f
 }
 

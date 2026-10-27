@@ -200,6 +200,14 @@ const (
 	FailLogTail = 20
 	// WaitTimeout is how long `--wait` waits for an app (--wait-timeout).
 	WaitTimeout = 2 * time.Minute
+	// RouteWaitInterval is how often `--wait`, once an app's containers are healthy, asks the
+	// proxy for the app's URL until the route answers (within --wait-timeout).
+	RouteWaitInterval = 250 * time.Millisecond
+	// RouteProbeTimeout is how long one of those requests may take.
+	RouteProbeTimeout = 2 * time.Second
+	// ProxyNotFound is the body Traefik answers with when no route matches a request: until the
+	// app's route is loaded its URL gets this 404; any other answer comes from the app.
+	ProxyNotFound = "404 page not found"
 	// ComposeMinMajor and ComposeMinMinor: the override uses `!reset`, new in compose v2.24.
 	ComposeMinMajor = 2
 	ComposeMinMinor = 24

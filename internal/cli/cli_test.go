@@ -532,6 +532,62 @@ func TestUpWaitSkipsSidecars(t *testing.T) {
 	}
 }
 
+// --wait returns once the app's route answers through the proxy: Traefik's own 404 means the
+// route isn't loaded yet; any answer of the app (its own 404 too) means it is.
+func TestUpWaitWaitsForTheRoute(t *testing.T) {
+	answers := []struct {
+		code int
+		body string
+	}{{404, "404 page not found\n"}, {404, "404 page not found\n"}, {404, "no such page"}}
+	var n atomic.Int32
+	var never atomic.Bool // the route never shows up
+	var host, path atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host.Store(r.Host)
+		path.Store(r.URL.Path)
+		a := answers[min(int(n.Add(1))-1, len(answers)-1)]
+		if never.Load() {
+			a = answers[0]
+		}
+		w.WriteHeader(a.code)
+		fmt.Fprint(w, a.body)
+	}))
+	defer srv.Close()
+	_, port, _ := strings.Cut(srv.Listener.Addr().String(), ":")
+
+	f := newFake(t)
+	routeReady = probeRoute
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "proxy: {port: 8095}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	// The proxy really listens on the test server's port.
+	f.on(rule{Match: []string{"--format {{.Ports}}"}, Stdout: "127.0.0.1:" + port + "->80/tcp\n"})
+	r := f.must("up", "a", "--wait")
+	contains(t, "up --wait", r.out, "waiting for the route http://localhost:8095/a/")
+	if got := n.Load(); got != 3 {
+		t.Errorf("want 3 requests (two proxy 404s, then the app's own 404), got %d", got)
+	}
+	if host.Load() != "localhost:8095" || path.Load() != "/a/" {
+		t.Errorf("asked for %v%v", host.Load(), path.Load())
+	}
+
+	// A route that never shows up fails at the timeout, with what to check.
+	never.Store(true)
+	r = f.hl("up", "a", "--wait", "--wait-timeout", "1s")
+	if r.code != 1 {
+		t.Fatalf("want a failure: %s", r)
+	}
+	contains(t, "up --wait", r.errOut, "a: the proxy has no route to http://localhost:8095/a/ yet", "hl logs proxy")
+
+	// Not behind the proxy: nothing to ask.
+	f.lab("lab2", "apps:\n  a: {path: '"+a+"', routing: none}\n")
+	n.Store(0)
+	f.must("up", "a", "--wait")
+	if n.Load() != 0 {
+		t.Errorf("routing none asked the proxy")
+	}
+}
+
 func TestShow(t *testing.T) {
 	f := newFake(t)
 	a, b := f.app("a", webModel2), f.app("b", apiModel)
