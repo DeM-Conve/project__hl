@@ -204,6 +204,10 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl status` shows the proxy where it really listens: after `hl set proxy port=8088` without
+  `hl up proxy`, it used to print hl.yml's address and URLs on a port nothing served. It now
+  shows the running address, the app URLs on that port, and a note: "hl.yml says ...:8088 -
+  apply it: hl up proxy, then hl up".
 - `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
   into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl

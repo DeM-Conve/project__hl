@@ -252,6 +252,9 @@ warns. Kept apps are never re-mapped.
   `healthy` (every healthcheck passes), `starting: <services>`, `unhealthy: <services>` (also
   restarting or exited ones), `-` without healthchecks. Without Docker it still prints hl.yml's
   apps, states `?`, and a warning with the hint.
+  A running proxy that publishes another address than hl.yml's (`publishedAddr`, from `docker ps
+  --format {{.Ports}}`, the same check `hl up proxy` uses before replacing it) is shown with that
+  address, the URLs use its port, and a note says how to apply hl.yml's.
 - `logs <app>` (and `logs proxy`) first checks the inventory: a project with no containers at
   all gets "isn't running" and exit 0 instead of compose's empty output (`notRunning`; without
   Docker compose runs and says what is wrong). Services named after the app must be in its model

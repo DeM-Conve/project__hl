@@ -339,9 +339,16 @@ func upProxy(ctx context.Context, cfg *config.Config, args ...string) error {
 // address, where the old one doesn't hold the new one too), so that the new address must be
 // checked before compose replaces it. False when Docker can't tell.
 func moved(ctx context.Context, cfg *config.Config, project string) bool {
+	host, port, ok := publishedAddr(ctx, project)
+	return ok && addrDiffers(cfg, host, port)
+}
+
+// publishedAddr is the host address and port the running proxy publishes, as Docker reports
+// them; ok is false when Docker can't tell or nothing is published.
+func publishedAddr(ctx context.Context, project string) (host string, port int, ok bool) {
 	out, err := docker(ctx, "ps", "--filter", "label="+composeProjectLabel+"="+project, "--format", "{{.Ports}}")
 	if err != nil {
-		return false
+		return "", 0, false
 	}
 	suffix := fmt.Sprintf("->%d/tcp", defaults.ProxyContainerPort)
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
@@ -350,18 +357,25 @@ func moved(ctx context.Context, cfg *config.Config, project string) bool {
 			if !ok {
 				continue
 			}
-			host, port, err := net.SplitHostPort(hostPort)
+			h, p, err := net.SplitHostPort(hostPort)
 			if err != nil {
 				continue
 			}
-			if port != strconv.Itoa(cfg.Proxy.Port) {
-				return true
+			if n, err := strconv.Atoi(p); err == nil {
+				return h, n, true
 			}
-			// Same port: a wildcard address on either side is the proxy's own.
-			return host != cfg.Proxy.Bind && !unspecified(host) && !unspecified(cfg.Proxy.Bind)
 		}
 	}
-	return false
+	return "", 0, false
+}
+
+// addrDiffers reports whether a proxy published on host:port isn't where cfg says it listens.
+func addrDiffers(cfg *config.Config, host string, port int) bool {
+	if port != cfg.Proxy.Port {
+		return true
+	}
+	// Same port: a wildcard address on either side is the proxy's own.
+	return host != cfg.Proxy.Bind && !unspecified(host) && !unspecified(cfg.Proxy.Bind)
 }
 
 func unspecified(host string) bool {

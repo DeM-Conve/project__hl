@@ -319,6 +319,32 @@ func TestStatusShowsHealth(t *testing.T) {
 	contains(t, "status without docker", r.out, "proxy unknown", "a    ?")
 }
 
+// After `hl set proxy port=` without `hl up proxy`, status shows where the proxy really
+// listens, the URLs on that port, and how to apply hl.yml's.
+func TestStatusShowsTheRunningProxyAddress(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "proxy: {port: 8088}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(
+		ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
+		ctr("hl-a", "web", "running", "Up", filepath.Join(lab, ".hl", "a", "override.yml")),
+	)
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Ports}}"}, Stdout: "127.0.0.1:8080->80/tcp\n"})
+	r := f.must("status")
+	contains(t, "status", r.out, "proxy running  127.0.0.1:8080",
+		"note: hl.yml says 127.0.0.1:8088 - apply it: hl up proxy, then hl up", "http://localhost:8080/a/")
+	lacks(t, "status", r.out, "localhost:8088")
+
+	// Applied: no note, hl.yml's port.
+	f = newFake(t)
+	lab = f.lab("lab", "proxy: {port: 8088}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"--format {{.Ports}}"}, Stdout: "0.0.0.0:8088->80/tcp, [::]:8088->80/tcp\n"})
+	r = f.must("status")
+	contains(t, "status", r.out, "proxy running  127.0.0.1:8088", "http://localhost:8088/a/")
+	lacks(t, "status", r.out, "note:")
+}
+
 func TestUpRestartRebuild(t *testing.T) {
 	f := newFake(t)
 	a, b := f.app("a", webModel2), f.app("b", apiModel)
