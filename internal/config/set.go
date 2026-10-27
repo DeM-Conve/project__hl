@@ -40,7 +40,7 @@ const (
 
 // homelabKeys are the top-level settings `hl set` changes without an app: every one but proxy,
 // apps and version (which hl manages).
-var homelabKeys = []string{"env", "name", "projects", "ignore", "scan_depth", "strip_prefix"}
+var homelabKeys = []string{"env", "name", "projects", "ignore", "strip_prefix"}
 
 // AppKeys are the keys `hl set <app>` accepts, sorted; map settings end in "." (env.).
 func AppKeys() []string { return keysOf(appFields()) }

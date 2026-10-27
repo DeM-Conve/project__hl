@@ -286,7 +286,7 @@ warns. Kept apps are never re-mapped.
   source it overrides. With no app it lists the homelab folder and its source (`homeSource`),
   the `proxy.*` entries of `config.Settings` that `hl.yml` sets, the shared env with the `TZ`
   apps get (`config.HostTimeZone` when the shared env has none), the projects folders (and which
-  are missing), `ignore` with the built-in patterns, `scan_depth`, `strip_prefix`, and the apps.
+  are missing), `ignore` with the built-in patterns, `strip_prefix`, and the apps.
   `--compose` runs `docker compose config` on the prepared app (or the proxy's project) instead:
   the whole config as hl runs it. Only the key column is aligned (the source follows the value
   after two spaces, so one long path doesn't push every row; values hl works out itself, an
@@ -346,7 +346,7 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
 - `hl set`/`hl unset` (`config.Edit`, `internal/config/set.go`) change keys of one scope: an
   app (`config.EditApp`), the proxy (`config.ProxyScope`, i.e. `proxy`, the reserved app name,
   so never an app) or the homelab's own settings (`config.HomelabScope`, no first argument:
-  `env`, `name`, `projects`, `ignore`, `scan_depth`, `strip_prefix`).
+  `env`, `name`, `projects`, `ignore`, `strip_prefix`).
   Keys and their types come from the `App`/`Proxy`/`Config` structs by reflection (ints parsed,
   bools as true/false, lists split on commas, map fields as `env.NAME`). A list takes `key=`
   (replace), `key+=` (add the entries not in it, `config.OpAdd`) or `key-=` (remove them, each
@@ -427,14 +427,15 @@ version and OS/architecture for bug reports.
 
 ## Projects folders: `hl init` and `hl sync`
 
-hl.yml's `projects`, `ignore`, `scan_depth` and `strip_prefix` (a separate block in `config.Config`; edits in
+hl.yml's `projects`, `ignore` and `strip_prefix` (a separate block in `config.Config`; edits in
 `config/projects.go`) drive both commands. Their defaults (`.hlignore`, the always-ignored name
-patterns, scan depth 1, the folders init suggests, init's fallback port and network bind) are in
+patterns, the folders init suggests, init's fallback port and network bind) are in
 `internal/defaults`; the compose file names are `defaults.ComposeFiles`.
 
-- **`scan.Compare`** (file system only): lists the subfolders of each projects folder, down to
-  `scan_depth`, that have a compose file (`compose.FindFile`, a name check - never parsed). A
-  folder with a compose file is an app and is not looked into further. Names matching the default
+- **`scan.Compare`** (file system only): lists the direct subfolders of each projects folder
+  that have a compose file (`compose.FindFile`, a name check - never parsed); nested folders are
+  not looked into (`scan_depth` is a removed key since review round 4: a group folder goes into
+  `projects` itself). Names matching the default
   patterns or `ignore:` (`filepath.Match` on the folder name) and folders containing `.hlignore`
   are skipped. It returns new folders (no app uses them, compared after resolving symlinks), apps
   inside a projects folder whose folder is gone, the apps still there, and projects folders that

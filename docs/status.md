@@ -10,7 +10,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   routing, fixed proxy subnet, shared `TZ`), which is how it is tested end to end.
 - **CLI first** (2026-10-27): the goal is that a user never has to open `hl.yml`. `hl set`/`hl unset`
   cover every app key, every `proxy.*` key (`hl set proxy port=8080`) and the shared env
-  (`hl set env.TZ=UTC`), the homelab's own settings (`hl set projects+=~/src`, `scan_depth`,
+  (`hl set env.TZ=UTC`), the homelab's own settings (`hl set projects+=~/src`,
   `name` - refused while anything runs); `hl show [app|proxy]` reads it back; `hl edit` was cut
   (round 3 of the review): a file broken by hand gets its problem lines and a hint to fix them
   in any editor. Error hints name
@@ -23,7 +23,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   instead of the `hl proxy` group; `hl config`, `hl ps`, `hl path` and `--wait-all` are gone
   (`hl show <app> --compose`, `hl show`, `hl status`); `hl update` is `hl rebuild --pull`;
   `hl projects`/`hl ignore`/`hl strip-prefix` are `hl set key+=`/`-=`, and `hl set` also takes
-  `scan_depth` and `name`; `hl add` takes `key=value` settings like `hl set` instead of flags;
+  `name` (`scan_depth` was cut in review round 4: projects folders are scanned one level deep); `hl add` takes `key=value` settings like `hl set` instead of flags;
   `hl remove` ignores an app's folder so `hl sync` doesn't re-add it; the proxy keys are down to
   `bind port routing domain subnet image debug` (`network` and `project` follow `name`), the app keys to `path service port routing host compose env` (`prefix` cut in review round 4: the URL path is `/<app>`); `hl logs` of a stopped app says so; no command aliases
   (`start`, `stop`, `ls`) or `--version`/`version --short`; `hl init` takes only `--projects`,
@@ -44,7 +44,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   and says `existing homelab <dir>`; a new homelab skips other homelabs' proxy ports even when
   stopped; `hl sync` follows a moved/renamed app folder (`~ moved`, rule in
   [requirements.md](requirements.md)) and has no `--dry-run`; `hl set` value errors name the key
-  with the fix as hint and exit 2; `env.FOO` without a value, `scan_depth=0` and `hl add` of a
+  with the fix as hint and exit 2; `env.FOO` without a value and `hl add` of a
   file or a folder without compose file give specific hints.
 - **Fixes from review round 4** (2026-10-27): a bare `hl up` applies the proxy's changed
   settings (then starts every app), so apply hints say `hl up` wherever that is enough; `hl doctor`
@@ -119,8 +119,9 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    leave out variables the app's `.env` already sets?
 11. **Env for apps already in `hl.yml`**: add, init and sync map env only for apps they add;
     `hl sync` doesn't offer the mapping for apps added earlier. Should it (as an `~ update`)?
-12. ~~`scan_depth` from the command line~~ - done 2026-10-27: `hl set scan_depth=2`; the lists
-    are `hl set projects+=...` and the like.
+12. ~~`scan_depth` from the command line~~ - done 2026-10-27, then `scan_depth` was cut (review
+    round 4): projects folders are scanned one level deep; the lists are `hl set projects+=...`
+    and the like.
 13. **Picking apps in `hl init`**: `hl init` used to offer the apps found as a checklist, then
     took `--apps a,b`; since 2026-10-27 it adds every web app it finds and `hl remove <app>`
     (which also ignores the folder for `hl sync`) drops one afterwards. Is that enough, or is a

@@ -237,8 +237,8 @@ func TestEditLists(t *testing.T) {
 		{[]Change{{Key: "ignore", Value: "old,scratch-*"}}, "ignore: [old, scratch-*]\napps:"},
 		{[]Change{{Key: "ignore", Value: "new,old", Op: OpAdd}}, "ignore: [old, scratch-*, new]"},
 		{[]Change{{Key: "ignore", Value: "old", Op: OpRemove}}, "ignore: [scratch-*, new]"},
-		{[]Change{{Key: "scan_depth", Value: "2"}, {Key: "name", Value: "lab2"}}, "scan_depth: 2\nname: lab2\napps:"},
-		{[]Change{{Key: "ignore", Value: "scratch-*,new", Op: OpRemove}}, "version: 1\nscan_depth: 2"},
+		{[]Change{{Key: "strip_prefix", Value: "p__"}, {Key: "name", Value: "lab2"}}, "strip_prefix: [p__]\nname: lab2\napps:"},
+		{[]Change{{Key: "ignore", Value: "scratch-*,new", Op: OpRemove}}, "version: 1\nstrip_prefix: [p__]"},
 	}
 	for _, st := range steps {
 		if err := Edit(dir, HomelabScope, st.changes); err != nil {

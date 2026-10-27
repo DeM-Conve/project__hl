@@ -47,8 +47,6 @@ type Config struct {
 	Projects []string `yaml:"projects,omitempty"`
 	// Folder-name patterns sync skips, on top of defaults.DefaultIgnore.
 	Ignore []string `yaml:"ignore,omitempty"`
-	// How deep below a projects folder to look for apps; 0 = defaults.ScanDepth.
-	ScanDepth int `yaml:"scan_depth,omitempty"`
 	// Folder-name prefixes left out of app names: project__blog becomes app blog.
 	StripPrefix []string `yaml:"strip_prefix,omitempty"`
 	// --- end projects ---

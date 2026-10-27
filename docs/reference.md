@@ -22,7 +22,7 @@ The first argument says what to change: an app's name, `proxy`, or nothing for t
 hl set my-app routing=host host=my-app.example.test   # an app
 hl set proxy port=8080 bind=0.0.0.0                    # the proxy
 hl set env.TZ=Europe/Berlin                            # the homelab: env every app gets
-hl set projects+=~/src ignore+='scratch-*' scan_depth=2
+hl set projects+=~/src ignore+='scratch-*'             # where hl init and hl sync look
 
 hl unset my-app routing env.TZ                         # back to the defaults
 hl unset proxy port
@@ -170,7 +170,7 @@ Without a `TZ` here, apps get this machine's time zone (see
 
 ### Where hl init and hl sync look for apps
 
-`projects`, `ignore`, `scan_depth` and `strip_prefix` tell `hl init` and `hl sync` where your
+`projects`, `ignore` and `strip_prefix` tell `hl init` and `hl sync` where your
 apps are and how to name them. `hl init` writes `projects` from your answer (or `--projects`) and
 `strip_prefix` from `--strip-prefix`. Applied by `hl sync`.
 
@@ -179,15 +179,13 @@ hl set projects=~/code,~/src        # folders with your projects (each must exis
 hl set projects+=~/work             # add one; projects-=~/work removes it
 hl set ignore+='scratch-*,old'      # folder names sync never picks up
 hl set strip_prefix=project__       # folder project__blog becomes app blog
-hl set scan_depth=2                 # also look in ~/code/<group>/<app>
 hl unset ignore                     # back to the default (none)
 ```
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `projects` | none | Folders holding your projects: absolute, `~/...`, or relative to the homelab folder (hl writes them that way). Each subfolder with a compose file (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) is an app, named after the folder (lowercased). A folder with a compose file is not looked into further. |
+| `projects` | none | Folders holding your projects: absolute, `~/...`, or relative to the homelab folder (hl writes them that way). Each subfolder with a compose file (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) is an app, named after the folder (lowercased). Only direct subfolders count: for apps in `~/code/<group>/<app>`, add `~/code/<group>` itself. |
 | `ignore` | none | Folder-name patterns (`*`, `?`, `[...]`) to skip. Always skipped as well: hidden folders (`.*`), `node_modules`, `vendor`, `__pycache__`, `venv`. `hl remove` adds an app's folder name here when the folder is in a projects folder. |
-| `scan_depth` | `1` | How many levels below a projects folder to look; 1 or more. |
 | `strip_prefix` | none | Folder-name prefixes left out of app names, by `hl init`, `hl sync` and `hl add` (without `name=`). A new homelab gets the prefix its folders share, if any. A folder loses the first one it starts with, unless nothing would be left. Apps already in the homelab keep their names. |
 
 A folder with a `.hlignore` file in it is skipped too. Ignoring only stops sync from adding a

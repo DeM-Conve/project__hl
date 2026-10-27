@@ -230,8 +230,6 @@ const (
 const (
 	// IgnoreFile: a folder containing a file with this name is never picked up as an app.
 	IgnoreFile = ".hlignore"
-	// ScanDepth is hl.yml's scan_depth: 1 = only direct subfolders of a projects folder are apps.
-	ScanDepth = 1
 	// AltPort is the proxy port `hl init` suggests when the default one is in use.
 	AltPort = 8080
 	// HomelabDir is the folder, under the user's home, `hl init` sets up when it is given none

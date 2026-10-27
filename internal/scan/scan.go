@@ -35,14 +35,6 @@ type Diff struct {
 // Changes reports whether sync has anything to look at beyond the kept apps.
 func (d *Diff) Changes() int { return len(d.New) + len(d.Gone) }
 
-// Depth is the configured scan depth, or defaults.ScanDepth.
-func Depth(cfg *config.Config) int {
-	if cfg.ScanDepth > 0 {
-		return cfg.ScanDepth
-	}
-	return defaults.ScanDepth
-}
-
 // Ignored reports whether a folder name matches defaults.DefaultIgnore or hl.yml's ignore.
 func Ignored(cfg *config.Config, name string) bool {
 	for _, list := range [][]string{defaults.DefaultIgnore, cfg.Ignore} {
@@ -81,7 +73,7 @@ func Compare(cfg *config.Config) (*Diff, error) {
 			continue
 		}
 		roots = append(roots, root)
-		found, err := folders(cfg, root, written, Depth(cfg))
+		found, err := folders(cfg, root, written)
 		if err != nil {
 			return nil, err
 		}
@@ -109,10 +101,9 @@ func Compare(cfg *config.Config) (*Diff, error) {
 	return d, nil
 }
 
-// folders are the subfolders of dir (down to depth levels) with a compose
-// file, skipping ignored names and folders with an defaults.IgnoreFile. A folder with
-// a compose file is an app; hl doesn't look inside it.
-func folders(cfg *config.Config, dir, written string, depth int) ([]Folder, error) {
+// folders are the subfolders of dir (one level: no nested groups) with a compose file,
+// skipping ignored names and folders with an defaults.IgnoreFile.
+func folders(cfg *config.Config, dir, written string) ([]Folder, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -133,14 +124,6 @@ func folders(cfg *config.Config, dir, written string, depth int) ([]Folder, erro
 		path := filepath.Join(written, name)
 		if _, err := compose.FindFile(sub); err == nil {
 			out = append(out, Folder{Dir: sub, Path: path, Name: AppName(config.Stripped(name, cfg.StripPrefix))})
-			continue
-		}
-		if depth > 1 {
-			more, err := folders(cfg, sub, path, depth-1)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, more...)
 		}
 	}
 	return out, nil

@@ -50,9 +50,6 @@ func (c *Config) validateProjects() error {
 			return fmt.Errorf("ignore: %q is not a valid pattern", p)
 		}
 	}
-	if c.ScanDepth < 0 {
-		return fmt.Errorf("scan_depth: %d must be 1 or more", c.ScanDepth)
-	}
 	for i, p := range c.Projects {
 		if strings.TrimSpace(p) == "" {
 			return fmt.Errorf("projects[%d]: empty folder", i)

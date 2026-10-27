@@ -44,7 +44,8 @@ release differs from earlier builds of `main`.
   holds only the projects folders, the proxy settings that differ from the defaults, and the
   apps; every other setting is documented in the README.
 - `projects:` in `hl.yml`: folders whose subfolders with a compose file are apps; `ignore:`
-  patterns, a `.hlignore` file or `scan_depth` control what is picked up.
+  patterns or a `.hlignore` file control what is picked up. Each projects folder is looked
+  into one level deep.
 - `hl sync` keeps `hl.yml` in step with the projects folders: adds new apps, removes ones whose
   folder is gone (data kept), re-detects a pinned service or port that disappeared. It shows the
   plan first and asks (answer n to only see it; without a terminal it needs `--yes`). `hl status` says when
@@ -140,7 +141,7 @@ release differs from earlier builds of `main`.
   the mapped values.
 - `strip_prefix:` in `hl.yml` (and `hl init --strip-prefix`): folder-name prefixes left out of
   app names, so folder `project__blog` becomes app `blog` in `hl init`, `hl sync` and `hl add`.
-- `hl set` changes the homelab's own settings too: `projects`, `ignore`, `scan_depth`,
+- `hl set` changes the homelab's own settings too: `projects`, `ignore`,
   `strip_prefix` and `name`. A list is replaced with `=`, and `+=` / `-=` add and remove entries
   (`hl set projects+=~/src ignore-=old`, also for an app's `compose`);
   `hl unset ignore` drops one. `name` is refused while any of the homelab's apps or its proxy
@@ -188,6 +189,10 @@ release differs from earlier builds of `main`.
   starts with a `# yaml-language-server: $schema=...` line. It only served editing the file by
   hand; hl checks `hl.yml` itself on every command. Remove that line from an existing `hl.yml`
   if you added it (it is a comment, so it does no harm, but the URL no longer resolves).
+- **Breaking:** the homelab key `scan_depth` is gone: `hl init` and `hl sync` look one level
+  into each projects folder; add a nested group folder to `projects` instead
+  (`hl set projects+=~/code/group`). An `hl.yml` that still has it is refused with a message
+  naming `hl unset scan_depth`.
 - **Breaking:** the app key `prefix` is gone: path routing serves an app at `/<app>`, and
   `hl set <app> name=<new>` changes that (or `hl set <app> routing=host`). An `hl.yml` that still
   has it is refused with a message naming `hl unset <app> prefix`.
@@ -213,7 +218,7 @@ release differs from earlier builds of `main`.
 - **Breaking:** `hl config`, `hl ps`, `hl path` and `--wait-all` are gone. `hl config <app>` is
   `hl show <app> --compose`; `hl config check` is what every command (and `hl doctor`) does
   already; what `hl config defaults` showed that matters is in `hl show` (the `TZ` apps get, the
-  projects folders, `ignore`, `scan_depth`) and `hl show proxy`, the rest in the README's
+  projects folders, `ignore`) and `hl show proxy`, the rest in the README's
   "Built-in values". Use `hl status` or `docker ps` for containers and `hl show` for folders.
   `check` and `defaults` are no longer reserved app names.
 - **Breaking:** the `hl proxy` command group is gone; the proxy is a pseudo-app instead.
@@ -267,8 +272,7 @@ release differs from earlier builds of `main`.
   `hl.yml` that was never written, and exit 1. A problem `hl.yml` already has is still shown
   with its file and line.
 - `hl set env.FOO` (no `=`) asks for the value (`hl set env.FOO=<value>`) instead of calling env
-  an app setting; `hl set scan_depth=0` is refused (it was written and then read as the
-  default); `hl add <folder>` without a compose file hints `hl add <folder> compose=<file>`
+  an app setting; `hl add <folder>` without a compose file hints `hl add <folder> compose=<file>`
   instead of an `hl set` for an app that isn't added yet; `hl add <folder>/compose.yml` says it
   takes the folder. docs/reference.md no longer calls `hl-proxy` a reserved app name: only
   `proxy` is.

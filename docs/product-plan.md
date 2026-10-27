@@ -72,7 +72,8 @@ in hl may assume the maintainer's setup.
 ## 2. Syncing with your projects folder (P0)
 
 - [x] **`projects:` in hl.yml**: one or more folders hl watches for apps (`projects: [~/code]`).
-  An app is a direct subfolder with a compose file (`scan_depth: 2` also looks one level deeper).
+  An app is a direct subfolder with a compose file (`scan_depth` was cut in review round 4: a
+  nested group folder goes into `projects` itself).
 - [x] **`hl sync`**: compares `projects` with `hl.yml` and shows a plan before changing anything:
   new folders with a compose file -> add (service and port detected like `hl add`); apps whose
   folder is gone -> remove from hl.yml (data kept, never deleted); apps whose compose changed

@@ -85,7 +85,7 @@ apps:
 		t.Fatal(err)
 	}
 	l.mkdir("my code/library")      // no compose file
-	l.app("my code/group/deep-app") // below the default depth
+	l.app("my code/group/deep-app") // one level only: nested groups aren't looked into
 
 	d, err := Compare(l.cfg)
 	if err != nil {
@@ -99,12 +99,6 @@ apps:
 	}
 	if strings.Join(d.MissingRoots, ",") != "../missing" {
 		t.Errorf("MissingRoots = %v", d.MissingRoots)
-	}
-
-	l.cfg.ScanDepth = 2
-	d, _ = Compare(l.cfg)
-	if got := names(d.New); got != "deep-app=~/my code/group/deep-app new_site=~/my code/New_Site" {
-		t.Errorf("depth 2: New = %s", got)
 	}
 }
 

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -89,7 +88,7 @@ written if the result is valid; hl says which command applies the change.
   hl set my-app port=8080 env.TZ=UTC
   hl set proxy port=8080 bind=0.0.0.0
   hl set env.TZ=Europe/Berlin
-  hl set projects+=~/src ignore+='scratch-*' scan_depth=2`,
+  hl set projects+=~/src ignore+='scratch-*'`,
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: completeSetKeys(true),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -100,7 +99,7 @@ written if the result is valid; hl says which command applies the change.
 			} else if len(kvs) == 0 {
 				if home, err := homeDir(); err == nil && scope != config.ProxyScope && !config.HasApp(home, scope) {
 					if config.IsHomelabKey(scope) {
-						// hl set env.TZ, scan_depth: a homelab setting without its value.
+						// hl set env.TZ, ignore: a homelab setting without its value.
 						return &usageError{err: withHint(fmt.Errorf("%s needs a value", scope), "hl set %s=<value>", scope), cmd: cmd.CommandPath()}
 					}
 					return unknownScope(home, "set", scope, scope+"=<value>")
@@ -273,12 +272,6 @@ func homelabChanges(ctx context.Context, home string, changes []config.Change) e
 				out = append(out, storedPath(home, abs))
 			}
 			changes[i].Value = strings.Join(out, ",")
-		case "scan_depth":
-			// 0 would read as "not set" (the default): refuse it rather than ignore it.
-			if n, err := strconv.Atoi(c.Value); err == nil && !c.Unset && n < 1 {
-				return &usageError{err: withHint(fmt.Errorf("scan_depth: %d must be 1 or more", n),
-					"`hl unset scan_depth` goes back to the default (%d)", defaults.ScanDepth), cmd: "hl set"}
-			}
 		case "name":
 			if err := nothingRuns(ctx, cfg); err != nil {
 				return err

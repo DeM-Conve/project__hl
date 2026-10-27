@@ -5,12 +5,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
-	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // fakeDocker puts a `docker` on PATH that answers `compose ... config --format json` with
@@ -385,7 +383,7 @@ func TestShowHomelabSettings(t *testing.T) {
 	}
 	for _, want := range []string{
 		"folder  ~/homelab  env ($HL_HOME)", "port", "8080", "http://127.0.0.1:8080",
-		"~/nowhere", "not found", "ignore", "old", "always: .*", "scan_depth", strconv.Itoa(defaults.ScanDepth), "default",
+		"~/nowhere", "not found", "ignore", "old", "always: .*",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("show is missing %q:\n%s", want, out)

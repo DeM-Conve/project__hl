@@ -9,7 +9,7 @@ import (
 	"github.com/DeM-Conve/project__hl/internal/config"
 )
 
-// The homelab's own settings (projects, ignore, scan_depth, strip_prefix, name) through hl set
+// The homelab's own settings (projects, ignore, strip_prefix, name) through hl set
 // and hl unset: lists are replaced with =, changed with += and -=.
 func TestSetHomelabSettings(t *testing.T) {
 	f := newFake(t)
@@ -53,29 +53,43 @@ func TestSetHomelabSettings(t *testing.T) {
 		t.Errorf("remove unknown: %s", r)
 	}
 
-	f.must("set", "ignore+=old,scratch-*", "strip_prefix=project__", "scan_depth=2")
+	f.must("set", "ignore+=old,scratch-*", "strip_prefix=project__")
 	r = f.hl("set", "ignore+=[")
 	if r.code != 2 || !strings.Contains(r.errOut, "not a valid pattern") {
 		t.Errorf("bad pattern: %s", r)
 	}
 	f.must("set", "ignore-=old")
 	cfg := load()
-	if strings.Join(cfg.Ignore, ",") != "scratch-*" || strings.Join(cfg.StripPrefix, ",") != "project__" || cfg.ScanDepth != 2 {
-		t.Errorf("ignore = %q, strip_prefix = %q, scan_depth = %d", cfg.Ignore, cfg.StripPrefix, cfg.ScanDepth)
+	if strings.Join(cfg.Ignore, ",") != "scratch-*" || strings.Join(cfg.StripPrefix, ",") != "project__" {
+		t.Errorf("ignore = %q, strip_prefix = %q", cfg.Ignore, cfg.StripPrefix)
 	}
 	text := f.read(filepath.Join(lab, config.FileName))
 	contains(t, "hl.yml", text, "# my homelab", "# none yet")
-	if strings.Index(text, "scan_depth") > strings.Index(text, "apps:") {
+	if strings.Index(text, "strip_prefix") > strings.Index(text, "apps:") {
 		t.Errorf("new settings go above apps:\n%s", text)
 	}
 	r = f.must("show")
-	contains(t, "show", r.out, "~/my code", "scratch-*", "scan_depth", "2", "project__")
+	contains(t, "show", r.out, "~/my code", "scratch-*", "project__")
 
-	r = f.must("unset", "ignore", "strip_prefix", "scan_depth")
+	r = f.must("unset", "ignore", "strip_prefix")
 	contains(t, "unset", r.out, "unset ignore", "apply it: hl sync")
-	lacks(t, "hl.yml", f.read(filepath.Join(lab, config.FileName)), "ignore", "strip_prefix", "scan_depth")
-	if r := f.hl("set", "scan_depth+=1"); r.code != 2 || !strings.Contains(r.errOut, "scan_depth: is not a list") {
-		t.Errorf("+= on a number: %s", r)
+	lacks(t, "hl.yml", f.read(filepath.Join(lab, config.FileName)), "ignore", "strip_prefix")
+}
+
+// scan_depth is a removed key: projects folders are looked into one level deep.
+func TestScanDepthIsRemoved(t *testing.T) {
+	f := newFake(t)
+	lab := f.lab("lab", "version: 1\nscan_depth: 2\napps: {}\n")
+	r := f.hl("status")
+	contains(t, "status", r.errOut, "scan_depth: removed from hl", "`hl set projects+=<folder>`", "`hl unset scan_depth`")
+	r = f.must("unset", "scan_depth")
+	contains(t, "unset", r.out, "unset scan_depth", "note: scan_depth was not a known setting")
+	if got := f.read(filepath.Join(lab, config.FileName)); got != "version: 1\napps: {}\n" {
+		t.Errorf("hl.yml:\n%s", got)
+	}
+	f.must("status")
+	if r := f.hl("set", "scan_depth=2"); r.code != 2 {
+		t.Errorf("hl set scan_depth= should be refused: %s", r)
 	}
 }
 
@@ -160,7 +174,7 @@ func TestSetUnsetMistakes(t *testing.T) {
 		{[]string{"unset", "a", "prot"}, 2, []string{`unknown setting "prot"`}},
 		{[]string{"set", "a", "port="}, 2, []string{"no value"}},
 		{[]string{"set", "env.FOO"}, 2, []string{"error: env.FOO needs a value\nhint: hl set env.FOO=<value>\n"}},
-		{[]string{"set", "scan_depth=0"}, 2, []string{"scan_depth: 0 must be 1 or more", "hl unset scan_depth"}},
+		{[]string{"set", "scan_depth=2"}, 2, []string{`no app or homelab setting called "scan_depth"`}},
 		// A wrong value: the full key, the fix as the hint, no place in hl.yml.
 		{[]string{"set", "a", "routing=hots"}, 2, []string{"error: apps.a.routing: \"hots\" is not path, host or none\nhint: did you mean \"host\"?\n"}},
 		{[]string{"set", "a", "port=0"}, 2, []string{"error: apps.a.port: 0 is not a port\nhint: use a number from 1 to 65535\n"}},

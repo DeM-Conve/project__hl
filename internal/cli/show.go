@@ -259,11 +259,6 @@ func showHomelab(cfg *config.Config) error {
 		ignore = "-"
 	}
 	fmt.Fprintf(w, "  ignore\t%s  %s\n", ignore, from("always: "+strings.Join(defaults.DefaultIgnore, ", ")+", folders with a "+defaults.IgnoreFile))
-	depth, depthFrom := cfg.ScanDepth, config.FileName
-	if depth == 0 {
-		depth, depthFrom = defaults.ScanDepth, "default"
-	}
-	fmt.Fprintf(w, "  scan_depth\t%d  %s\n", depth, from(depthFrom))
 	if len(cfg.StripPrefix) > 0 {
 		fmt.Fprintf(w, "  strip_prefix\t%s  %s\n", strings.Join(cfg.StripPrefix, ", "), from(config.FileName))
 	}
