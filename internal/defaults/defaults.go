@@ -229,6 +229,9 @@ const (
 	AltPort = 8080
 	// BindNetwork is the proxy.bind `hl init` writes for "reachable from your network".
 	BindNetwork = "0.0.0.0"
+	// HomelabDir is the folder, under the user's home, `hl init` sets up when it is given none
+	// and finds no homelab (--home, $HL_HOME, an hl.yml at or above the current folder, the default).
+	HomelabDir = "homelab"
 )
 
 // DefaultIgnore are folder-name patterns (filepath.Match) sync always skips;

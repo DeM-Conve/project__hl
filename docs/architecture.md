@@ -366,7 +366,9 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   hl.yml's comments.
 - **`hl status`** calls `syncHint`, which runs only `scan.Compare` (no Docker), and prints one line
   when there are new folders or gone apps.
-- **`hl init`** plans first and writes nothing until it is confirmed: the settings come from flags
+- **`hl init`** sets up the folder given, else the one `config.Home` finds (so a second run adds
+  new apps to it), else `~/homelab` (`defaults.HomelabDir`) - never the current folder by itself
+  (`initDir`). It plans first and writes nothing until it is confirmed: the settings come from flags
   and defaults only (`--projects`, else `defaults.CandidateProjects` that exist in the home folder;
   the default port, or `defaults.AltPort` when that is busy and free), `InitSettings.Config` makes
   the homelab in memory, `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,

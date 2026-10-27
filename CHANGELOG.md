@@ -16,7 +16,7 @@ release differs from earlier builds of `main`.
 ### Added
 
 - `hl init` creates a homelab folder (a short `hl.yml`, `data/`, `.gitignore`) and makes it the
-  default; `--home` and `$HL_HOME` pick another. It works out a plan - projects folders (`~/code`,
+  default; without a folder it uses the homelab hl already uses, else `~/homelab`. It works out a plan - projects folders (`~/code`,
   `~/projects`, `~/src` when they exist), the proxy (port 8080 when 80 is busy), every web app
   found with its service, port and env, and the folders it skips and why - shows it and asks
   once; `--projects`, `--routing`, `--bind`, `--port`, `--apps`, `--strip-prefix` and `--no-env`
@@ -151,6 +151,9 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl init` without a folder no longer sets up the current folder: run in your home folder it
+  wrote `hl.yml`, `data/` and `.gitignore` there. It now uses the homelab hl already uses, else
+  `~/homelab`; `hl init .` still sets up the current folder.
 - Folders inside `data/<app>/` that the app's env points at (like an auto-mapped
   `BACKUP_LOCATION`) are created by hl before the app starts; Docker created them owned by root,
   so an app running as you couldn't write its backups.

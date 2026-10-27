@@ -420,3 +420,63 @@ func TestSyncWithoutProjects(t *testing.T) {
 		t.Errorf("got %v", err)
 	}
 }
+
+// chdir changes the working folder for the rest of the test.
+func chdir(t *testing.T, dir string) {
+	t.Helper()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+}
+
+func TestInitDefaultFolder(t *testing.T) {
+	home := initSyncEnv(t)
+	chdir(t, home)
+
+	// No folder, no homelab yet: ~/homelab, never the current folder.
+	out, err := runHL(t, "", "init", "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	lab := filepath.Join(home, "homelab")
+	if !exists(filepath.Join(lab, config.FileName)) {
+		t.Errorf("init without a folder should set up ~/homelab:\n%s", out)
+	}
+	for _, f := range []string{config.FileName, "data", ".gitignore"} {
+		if exists(filepath.Join(home, f)) {
+			t.Errorf("init wrote %s into the current folder", f)
+		}
+	}
+
+	// Again, from anywhere: the homelab hl uses, not a new one.
+	other := filepath.Join(home, "elsewhere")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, other)
+	if out, err = runHL(t, "", "init", "--yes"); err != nil || !strings.Contains(out, "hl.yml kept") || !strings.Contains(out, lab) {
+		t.Errorf("%v\n%s", err, out)
+	}
+	if exists(filepath.Join(other, config.FileName)) {
+		t.Error("init wrote hl.yml into the current folder")
+	}
+
+	// Inside a homelab folder: that one. Named explicitly: the current folder.
+	second := filepath.Join(home, "second")
+	if out, err = runHL(t, "", "init", second, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	chdir(t, second)
+	if out, err = runHL(t, "", "init", "--yes"); err != nil || !strings.Contains(out, "homelab    "+second+" (hl.yml kept)") {
+		t.Errorf("%v\n%s", err, out)
+	}
+	chdir(t, other)
+	if out, err = runHL(t, "", "init", ".", "--yes"); err != nil || !exists(filepath.Join(other, config.FileName)) {
+		t.Errorf("hl init . sets up the current folder: %v\n%s", err, out)
+	}
+}

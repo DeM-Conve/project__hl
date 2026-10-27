@@ -33,9 +33,13 @@ func initCmd() *cobra.Command {
 	var o initOptions
 	c := &cobra.Command{
 		Use:   "init [folder]",
-		Short: "Set up a homelab folder (default: the current one), find your apps, and make it the default",
+		Short: "Set up a homelab folder (default: ~/" + defaults.HomelabDir + "), find your apps, and make it the default",
 		Long: `Set up a homelab folder: write a short hl.yml, find the apps in your projects
 folders, and make it the default homelab.
+
+Without a folder, init uses the homelab hl already uses (--home, $` + defaults.HomeEnv + `, an
+hl.yml at or above the current folder, or the default), else ~/` + defaults.HomelabDir + `.
+It never turns the current folder into a homelab unless you name it (hl init .).
 
 hl init works out a plan from its flags and defaults - the homelab folder, the
 projects folders (default: ` + strings.Join(defaults.CandidateProjects, ", ") + ` in your home, those that exist),
@@ -46,7 +50,7 @@ with other flags.
 
 On an existing homelab hl.yml is kept; init adds the apps that are new in the
 projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
-		Example: `  hl init                                   # plan for the current folder, then ask
+		Example: `  hl init                                   # plan for ~/homelab, then ask
   hl init ~/homelab --projects ~/code --yes # no question
   hl init --projects ~/code --strip-prefix project__ --apps blog,wiki --routing host --port 8080`,
 		Args: cobra.MaximumNArgs(1),
@@ -75,11 +79,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 	say := func(format string, a ...any) { fmt.Fprintf(out, format+"\n", a...) }
 	note := func(format string, a ...any) { say("%snote:%s "+format, append([]any{yellow, reset}, a...)...) }
 
-	dir := "."
-	if len(args) == 1 {
-		dir = args[0]
-	}
-	dir, err := filepath.Abs(config.ExpandHome(dir))
+	dir, err := initDir(args)
 	if err != nil {
 		return err
 	}
@@ -322,6 +322,24 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool) (
 	}
 	fmt.Fprintln(out)
 	return chosen, nil
+}
+
+// initDir is the homelab folder init sets up: the one given; else the homelab hl already
+// uses (--home, $HL_HOME, an hl.yml at or above the current folder, the recorded default), so
+// running init again adds new apps to it; else ~/homelab (defaults.HomelabDir). Never the
+// current folder by itself: `cd ~ && hl init` must not turn the home folder into a homelab.
+func initDir(args []string) (string, error) {
+	if len(args) == 1 {
+		return filepath.Abs(config.ExpandHome(args[0]))
+	}
+	if home, err := config.Home(homeFlag); err == nil {
+		return home, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", withHint(err, "name the homelab folder: hl init <folder>")
+	}
+	return filepath.Join(home, defaults.HomelabDir), nil
 }
 
 // initProjects returns the projects folders as they go into hl.yml: the flag's (each must
