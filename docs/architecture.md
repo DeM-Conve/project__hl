@@ -326,7 +326,8 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   before `apps:`. Before editing, the CLI (`homelabChanges`) writes `projects` folders like
   `hl init` does (`storedPath`; each must exist; `-=` matches the written entry or the resolved
   path) and refuses `name` while any of this homelab's projects has containers (`nothingRuns`),
-  since it renames every project and network. For an app with no `compose` list, `compose+=`/
+  since it renames every project and network. An app's `path=` is resolved against the current
+  folder and written with `storedPath` too (`editScope`). For an app with no `compose` list, `compose+=`/
   `compose-=` (in `hl set` and `hl add`) get a replace with the file `compose.FindFile` picks put
   in front (`seedCompose`, not printed as a change), so the list starts from it. `hl set <app>
   name=<new>` (alone) is a rename (`renameApp`): `ValidName`, no such app, no containers of the

@@ -79,6 +79,42 @@ func TestSetHomelabSettings(t *testing.T) {
 	}
 }
 
+// hl set <app> path= takes a folder relative to the current one, like hl add, and writes it
+// like hl init writes folders (relative inside the homelab, ~/ inside the home).
+func TestSetPathRelativeToCurrentFolder(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	b := f.app("b", webModel2)
+	lab := f.lab("lab", "version: 1\napps:\n  a: {path: '"+a+"'}\n")
+	sub := filepath.Join(lab, "sub")
+	if err := os.MkdirAll(filepath.Join(lab, "apps", "c"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(lab, "apps", "c", "compose.yml"), []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, sub)
+	rel, err := filepath.Rel(sub, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := f.must("set", "a", "path="+rel)
+	contains(t, "set path", r.out, "set apps.a.path = ~/my code/b")
+	if cfg, err := config.Load(lab); err != nil || cfg.AppDir(cfg.Apps["a"]) != b {
+		t.Fatalf("path: %v %+v", err, cfg.Apps["a"])
+	}
+	f.must("set", "a", "path=../apps/c")
+	if cfg, _ := config.Load(lab); cfg.Apps["a"].Path != filepath.Join("apps", "c") {
+		t.Errorf("inside the homelab: %q", cfg.Apps["a"].Path)
+	}
+	if r := f.hl("set", "a", "path=nope"); r.code != 1 || !strings.Contains(r.errOut, filepath.Join(sub, "nope")) {
+		t.Errorf("a missing folder is named as resolved: %s", r)
+	}
+}
+
 func TestSetNameOnlyWhileNothingRuns(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)

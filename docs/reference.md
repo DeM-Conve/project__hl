@@ -54,7 +54,7 @@ those names.
 | Key | Default | What it does |
 | --- | --- | --- |
 | `name` | the folder's name, less a `strip_prefix` | The app's name. On `hl add` it names the new app; `hl set <app> name=<new>` (on its own) renames one: it keeps its settings, and its `data/<app>/` and `.hl/<app>/` move along. Refused while the app has containers (`hl down <app>` first), when `data/<new>/` exists, and for a name `hl add` would refuse. The new name changes the default `prefix` and `host`, and the Docker project. |
-| `path` | required | The app's folder: absolute, `~/...`, or relative to the homelab folder. |
+| `path` | required | The app's folder. `hl set <app> path=<folder>` takes it relative to the current folder (like `hl add`) and writes it relative to the homelab folder when inside it, else as `~/...` or absolute. |
 | `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and asks for `service=<name>` only when none has one of those names. `hl add` writes it. |
 | `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `port=<port>`). `hl add` writes it. |
 | `routing` | `proxy.routing` | `path`, `host` or `none` (not behind the proxy). |

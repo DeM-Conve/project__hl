@@ -300,6 +300,18 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 			return nil
 		}
 	}
+	if isApp {
+		for i, c := range changes {
+			if c.Key == "path" && !c.Unset && c.Value != "" {
+				// Like hl add: relative to the current folder, written like hl init writes folders.
+				abs, err := filepath.Abs(config.ExpandHome(c.Value))
+				if err != nil {
+					return err
+				}
+				changes[i].Value = storedPath(home, abs)
+			}
+		}
+	}
 	edits := changes
 	if isApp {
 		// compose+= on an app that names no compose file starts from the one compose picks.

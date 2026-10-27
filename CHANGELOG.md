@@ -207,6 +207,8 @@ release differs from earlier builds of `main`.
 - `hl set`, `hl unset` and every other command that changes `hl.yml` (add, remove, sync, init)
   keep its blank lines; they used to remove all of them, so one setting rewrote the whole file's
   layout.
+- `hl set <app> path=<folder>` takes a relative folder from the current folder, like `hl add`
+  and `hl set projects+=`; it used to write it as given, so hl read it relative to the homelab.
 - `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
   into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl
