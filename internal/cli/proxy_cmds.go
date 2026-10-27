@@ -53,7 +53,7 @@ func proxyFiles(cfg *config.Config) (gen.ProxyFiles, []string, error) {
 	if d := cfg.ProxyDynamicFile(); d != "" {
 		st, err := os.Stat(d)
 		if err != nil || st.IsDir() {
-			return files, nil, fmt.Errorf("proxy.dynamic: %s is not a file - create it, or remove proxy.dynamic from hl.yml", d)
+			return files, nil, fmt.Errorf("proxy.dynamic: %s is not a file - create it, or stop using one: `hl unset proxy dynamic`", d)
 		}
 		files.Dynamic = d
 	}
@@ -69,7 +69,7 @@ func proxyFiles(cfg *config.Config) (gen.ProxyFiles, []string, error) {
 	}
 	b, err := os.ReadFile(files.Static)
 	if err != nil {
-		return files, nil, fmt.Errorf("proxy.config: can't read %s - create it, or remove proxy.config from hl.yml to use the generated one", files.Static)
+		return files, nil, fmt.Errorf("proxy.config: can't read %s - create it, or use the generated one: `hl unset proxy config`", files.Static)
 	}
 	ping, problems, warnings := gen.CheckTraefik(b, cfg.Proxy, files.Dynamic)
 	if len(problems) > 0 {
@@ -92,8 +92,8 @@ func proxyClash(cfg *config.Config) error {
 			name, dir, ok := strings.Cut(line, "|")
 			if ok && dir != "" && !samePath(dir, cfg.ProxyDir()) {
 				return fmt.Errorf("the proxy project %q is run by another homelab (%s) - to run this one beside it, "+
-					"set a different proxy.project, proxy.network and proxy.port in %s (if that homelab is gone: docker rm -f %s)",
-					p.Project, filepath.Dir(filepath.Dir(dir)), filepath.Join(cfg.Dir, config.FileName), name)
+					"give it its own: `hl set proxy project=<name>-proxy network=<name>-proxy port=<free port>` (if that homelab is gone: docker rm -f %s)",
+					p.Project, filepath.Dir(filepath.Dir(dir)), name)
 			}
 		}
 	}
@@ -106,9 +106,9 @@ func proxyClash(cfg *config.Config) error {
 	case p.Project:
 		return nil
 	case "":
-		return fmt.Errorf("the Docker network %q exists but wasn't created by hl's proxy - remove it (docker network rm %s) or set another proxy.network", p.Network, p.Network)
+		return fmt.Errorf("the Docker network %q exists but wasn't created by hl's proxy - remove it (docker network rm %s) or use another: `hl set proxy network=<name>`", p.Network, p.Network)
 	default:
-		return fmt.Errorf("the Docker network %q belongs to compose project %q (another homelab?) - set a different proxy.network in hl.yml", p.Network, owner)
+		return fmt.Errorf("the Docker network %q belongs to compose project %q (another homelab?) - use another: `hl set proxy network=<name>`", p.Network, owner)
 	}
 }
 
@@ -274,7 +274,7 @@ func imageAdvice(image string, known bool) string {
 	if !known {
 		return fmt.Sprintf("can't tell which Traefik version proxy.image %q is; hl is tested with %s", image, tested)
 	}
-	return fmt.Sprintf("proxy.image %s is older than %s, the version hl is tested with - remove proxy.image from hl.yml to use it", image, tested)
+	return fmt.Sprintf("proxy.image %s is older than %s, the version hl is tested with - use it: `hl unset proxy image`", image, tested)
 }
 
 // doctorProxy checks the proxy's config files, that its project and network

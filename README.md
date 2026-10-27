@@ -198,14 +198,21 @@ offers your app names and, where a command takes one, the app's services.
 | `host` | `http://<app>.localhost` | any app |
 | `none` | not behind the proxy | databases, workers, apps that keep their own ports |
 
-Set the default for the homelab with `proxy.routing`, and override it per app with `routing:`
-(or `hl add --routing host`). A `proxy.port` other than 80 is added to the URLs
+Set the default for the homelab with `proxy.routing` (`hl set proxy routing=host`), and override
+it per app with `routing:` (`hl set my-app routing=host`, or `hl add --routing host`). A `proxy.port` other than 80 is added to the URLs
 (`http://localhost:8080/<app>/`).
 
 **Path routing.** The proxy matches `/<app>` and everything under `/<app>/`, redirects `/<app>`
 to `/<app>/`, strips the prefix, and sends it along as `X-Forwarded-Prefix`. So the app serves
 from `/` as usual, but the links it builds (assets, redirects, absolute URLs) must include the
-prefix. Most apps have a setting for that; feed it from `hl.yml`:
+prefix. Most apps have a setting for that; feed it from hl (single quotes keep your shell from
+expanding `${...}`):
+
+```sh
+hl set my-app 'env.MY_APP_BASE_PATH=${HL_PREFIX}' 'env.MY_APP_URL=${HL_URL}'
+```
+
+which leaves this in `hl.yml`:
 
 ```yaml
 apps:
@@ -285,7 +292,7 @@ Compose project and network names are global to a Docker daemon. Without `name`,
 `hl-<app>` and the proxy as `hl-proxy` on the network `hl-proxy`, as they always have. With
 `name: lab2`, apps run as `hl-lab2-<app>`, and the proxy's project and network default to
 `hl-lab2-proxy`. Give the second homelab its own `proxy.port` too (two proxies can't both listen
-on port 80), for example:
+on port 80). `name` is the one setting `hl set` leaves to `hl edit`: it renames every project, so run `hl down` first, then `hl edit`, then `hl up`. For example:
 
 ```yaml
 name: lab2
@@ -452,7 +459,7 @@ every app when none is named; they carry on past an app that fails and end with
 | `hl set proxy key=value...` | Change the proxy's settings: every `proxy.*` key, e.g. `hl set proxy port=8080 bind=0.0.0.0 subnet=172.31.0.0/16`; switches take `true`/`false`. hl says what applies it (`hl proxy up`, or `hl down` then `hl up` for `network`, `subnet` or `project`). |
 | `hl set env.NAME=value...` | With no app: the shared `env` every app gets, e.g. `hl set env.TZ=Europe/Berlin`. An app's own `env` wins. `hl up` applies it. |
 | `hl unset [<app>\|proxy] key...` | Remove settings of an app, the proxy (`hl unset proxy port`) or the shared env (`hl unset env.TZ`) so their defaults apply again; `env.NAME` removes one variable, `env` all. |
-| `hl edit` | Open `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
+| `hl edit` | The fallback for what `hl set`/`hl unset` don't cover (such as `name`, or several changes at once): open `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
 | `hl remove <app>` | Stop the app and remove it from `hl.yml`. Its data in `data/<app>` stays. |
 | `hl status` (`ls`) | The proxy's state (and the dashboard's URL when it is on), then every app's STATE (`up 2/2`, `partial 1/2`, `down`, or `other homelab`), HEALTH (`healthy`, `starting: <services>`, `unhealthy: <services>`, or `-` when the app has no healthchecks), URL and folder. Says when `hl sync` has something to do. |
 | `hl up [app...]` (`start`) | Start apps, the proxy first; builds images that don't exist yet. Before starting the proxy it checks the port is free (naming the program or container that holds it) and that `proxy.subnet` doesn't overlap another network. `--wait` waits until the service behind the proxy and the services it depends on (`depends_on`) are running and healthy - not sidecars nothing depends on, which may take longer - and for an app that isn't, names those services and shows their last 20 log lines; `--wait-all` waits for every service (also what `--wait` does for an app with routing `none`); `--wait-timeout` (default `2m`) is how long it waits for each app. Ends with the `hl status` table. |
@@ -551,12 +558,12 @@ Start with `hl doctor`: it checks Docker, compose, `hl.yml` and every app.
 
 **`port 80 on 127.0.0.1 is already in use by ...`** (or docker's `port is already allocated` /
 `address already in use`). Something else listens on the proxy's port; hl names the program or
-container when it can. Stop it, or set `proxy.port: 8080` (URLs become
+container when it can. Stop it, or move the proxy: `hl set proxy port=8080` (URLs become
 `http://localhost:8080/<app>/`). If it is another homelab's proxy, see
 [`name`](#name-several-homelabs-on-one-docker).
 
 **`proxy.subnet ... overlaps ...`.** The fixed subnet is used by another Docker network or by one
-of this machine's networks. Pick the free subnet the hint suggests, or remove `proxy.subnet`.
+of this machine's networks. Pick the free subnet the hint suggests (`hl set proxy subnet=...`), or let Docker pick one: `hl unset proxy subnet`.
 
 **`hl.yml` problems after an upgrade.** hl checks `hl.yml` strictly on every command. Run
 `hl config check`: it lists every problem with its line and a fix (unknown keys get a "did you

@@ -127,6 +127,8 @@ release differs from earlier builds of `main`.
   fix what it lists.
 - The Traefik dashboard is off unless `proxy.dashboard: true` is set.
 - `hl restart` starts the proxy first, like `hl up`, `hl rebuild` and `hl update`.
+- Error hints name the command that fixes a setting (`hl set proxy port=8000`, `hl unset proxy subnet`,
+  `hl set my-app service=...`) instead of the `hl.yml` key to edit; `hl edit` stays as the fallback.
 
 ### Fixed
 

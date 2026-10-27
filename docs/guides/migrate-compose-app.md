@@ -64,7 +64,7 @@ hl logs my-app
 Check the app works at its new URL. Things that commonly need a setting now:
 
 - **Its own URL** (for links in emails, OAuth redirect URIs, CSRF origin checks): set it from
-  `${HL_URL}` in `hl.yml` (`env:`), and update redirect URIs registered with OAuth providers.
+  `${HL_URL}` (`hl set my-app 'env.MY_APP_URL=${HL_URL}'`), and update redirect URIs registered with OAuth providers.
 - **Base path**, with path routing: see [the base-path guide](base-path-app.md).
 
 ## 5. Clean up

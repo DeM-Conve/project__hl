@@ -20,14 +20,14 @@ func project(cfg *config.Config, name string, a *config.App) (*compose.Project, 
 	dir := cfg.AppDir(a)
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		return nil, withHint(fmt.Errorf("%s: app folder %s not found", name, dir),
-			"fix apps.%s.path in %s, or `hl remove %s` if the app is gone", name, cfg.File(), name)
+			"point it at the folder: `hl set %s path=<folder>`, or `hl remove %s` if the app is gone", name, name)
 	}
 	var files []string
 	if len(a.Compose) == 0 {
 		f, err := compose.FindFile(dir)
 		if err != nil {
 			return nil, withHint(fmt.Errorf("%s: %w", name, err),
-				"add a compose file to the folder, or list yours in apps.%s.compose in %s", name, cfg.File())
+				"add a compose file to the folder, or name yours: `hl set %s compose=<file>[,<file>...]`", name)
 		}
 		files = []string{f}
 	} else {
@@ -35,7 +35,7 @@ func project(cfg *config.Config, name string, a *config.App) (*compose.Project, 
 			f = filepath.Join(dir, f)
 			if _, err := os.Stat(f); err != nil {
 				return nil, withHint(fmt.Errorf("%s: compose file %s not found", name, f),
-					"fix apps.%s.compose in %s (file names are relative to the app's folder)", name, cfg.File())
+					"fix the list: `hl set %s compose=<file>[,<file>...]` (relative to the app's folder), or `hl unset %s compose` for the default", name, name)
 			}
 			files = append(files, f)
 		}
@@ -48,7 +48,7 @@ func project(cfg *config.Config, name string, a *config.App) (*compose.Project, 
 	for _, f := range cfg.EnvFiles(a) {
 		if !exists(f) {
 			return nil, withHint(fmt.Errorf("%s: env file %s not found", name, f),
-				"create it, or fix apps.%s.env_files in %s (relative to the homelab folder)", name, cfg.File())
+				"create it, or fix the list: `hl set %s env_files=<file>[,<file>...]` (relative to the homelab folder) or `hl unset %s env_files`", name, name)
 		}
 		envFiles = append(envFiles, f)
 	}
@@ -114,18 +114,18 @@ func prepare(ctx context.Context, cfg *config.Config, name string) (*preparedApp
 	if g.Routing != config.RoutingNone {
 		if g.Service == "" {
 			if g.Service, err = m.Exposed(); err != nil {
-				return nil, withHint(fmt.Errorf("%s: %w", name, err), "set apps.%s.service in %s", name, cfg.File())
+				return nil, withHint(fmt.Errorf("%s: %w", name, err), "pick it: `hl set %s service=<service>`", name)
 			}
 		}
 		if g.Port == 0 {
 			if g.Port, err = m.TargetPort(g.Service); err != nil {
-				return nil, withHint(fmt.Errorf("%s: %w", name, err), "set apps.%s.port in %s", name, cfg.File())
+				return nil, withHint(fmt.Errorf("%s: %w", name, err), "say which: `hl set %s port=<port inside the container>`", name)
 			}
 		}
 	}
 	override, dirs, err := gen.Override(g, m)
 	if err != nil {
-		return nil, withHint(err, "set apps.%s.service in %s to one of the app's services", name, cfg.File())
+		return nil, withHint(err, "pick one of the app's services: `hl set %s service=<service>` (`hl config %s` lists them)", name, name)
 	}
 	for _, d := range append(dirs, cfg.StateDir(name)) {
 		if err := os.MkdirAll(d, defaults.DataDirMode); err != nil {

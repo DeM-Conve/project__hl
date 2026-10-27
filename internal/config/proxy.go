@@ -36,10 +36,10 @@ func (c *Config) validateProxy() error {
 	if p.Config != "" {
 		// These only shape the file hl generates; with your own file, set them there.
 		if p.AccessLog {
-			return fmt.Errorf("proxy.access_log has no effect with proxy.config - set accessLog in %s instead", p.Config)
+			return fmt.Errorf("proxy.access_log has no effect with proxy.config - set accessLog in %s instead, and `hl unset proxy access_log`", p.Config)
 		}
 		if p.LogLevel != "" {
-			return fmt.Errorf("proxy.log_level has no effect with proxy.config - set log.level in %s instead", p.Config)
+			return fmt.Errorf("proxy.log_level has no effect with proxy.config - set log.level in %s instead, and `hl unset proxy log_level`", p.Config)
 		}
 	}
 	return nil

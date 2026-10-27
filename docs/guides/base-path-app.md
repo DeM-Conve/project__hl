@@ -38,7 +38,13 @@ The `:-` default keeps `docker compose up` on its own working exactly as before.
 hl add ~/code/base-path-app          # or the examples/base-path-app folder of this repository
 ```
 
-Then add `env` to the app in `hl.yml`, next to what `hl add` wrote:
+Then give the app the variable (single quotes, so your shell leaves `${HL_PREFIX}` for hl):
+
+```sh
+hl set base-path-app 'env.BASE_PATH_APP_BASE_PATH=${HL_PREFIX}'
+```
+
+`hl.yml` now has it next to what `hl add` wrote:
 
 ```yaml
 apps:

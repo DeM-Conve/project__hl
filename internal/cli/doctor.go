@@ -115,7 +115,7 @@ func doctor(ctx context.Context) error {
 	p := cfg.Proxy
 	if ip := net.ParseIP(p.Bind); ip != nil && !ip.IsLoopback() {
 		c.warn(fmt.Sprintf("the proxy listens on %s: apps are reachable from your network, without a password", p.Bind),
-			"set proxy.bind: "+defaults.Bind+" if that isn't what you want")
+			"if that isn't what you want: `hl set proxy bind="+defaults.Bind+"`")
 	}
 	if p.Dashboard {
 		if p.DashboardPublic {
@@ -147,7 +147,7 @@ func doctor(ctx context.Context) error {
 			for _, n := range cfg.Names() {
 				if other := inv.owner(cfg, cfg.ProjectName(n)); other != "" {
 					c.fail(fmt.Sprintf("app %s: Docker project %s belongs to the homelab in %s", n, cfg.ProjectName(n), other),
-						"give this homelab a `name:` in hl.yml")
+						"give this homelab a name of its own ("+nameHowTo+")")
 				}
 			}
 		}

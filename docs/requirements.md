@@ -83,7 +83,7 @@ hl serves plain HTTP. To reach the apps over HTTPS, run a TLS-terminating proxy 
 trust (Caddy, nginx, a NAS or router feature, a tunnel) in front of hl:
 
 1. Keep hl on loopback and move it off port 80 if the TLS proxy needs it:
-   `proxy: {bind: 127.0.0.1, port: 8080}`.
+   `hl set proxy bind=127.0.0.1 port=8080`.
 2. Point the TLS proxy at `http://127.0.0.1:8080`, passing the original `Host` header (and
    `X-Forwarded-Proto: https`) so host routing and the apps' own links keep working.
 3. Give each app its public URL through `env` where it builds absolute links (for example

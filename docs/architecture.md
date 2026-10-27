@@ -246,7 +246,8 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
   out apps already typed; `logs` and `shell` complete the app's services after the app name.
 - Output: colours only on a terminal (`golang.org/x/term`; `/dev/null` is not one) and never with
   `NO_COLOR` set. Commands write through `cli.stdout`/`stderr`, set from cobra's writers.
-- Errors (`cli.report`): `error: <what failed>`, then `hint: <what to do>` when known - from a
+- Errors (`cli.report`): hints that fix a setting name the `hl set`/`hl unset` command, not the
+  `hl.yml` key (only `name` points to `hl edit`, `cli.nameHowTo`). `error: <what failed>`, then `hint: <what to do>` when known - from a
   `hintError` the code attached, or read from docker's own error output (`dockerHint`: daemon
   down, permission, port allocated, old compose, pool overlap, missing network, name conflict,
   pull denied, disk full). Exit codes: 0 ok, 1 failure, 2 usage (cobra's unknown command/flag

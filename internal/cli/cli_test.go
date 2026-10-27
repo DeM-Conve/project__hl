@@ -592,7 +592,7 @@ func TestProxyCommands(t *testing.T) {
 	if r.code != 1 {
 		t.Fatalf("subnet clash: %s", r)
 	}
-	contains(t, "subnet clash", r.errOut, "proxy.subnet 172.29.0.0/16 overlaps Docker network mine (172.29.5.0/24)", "set proxy.subnet: 172.31.0.0/16")
+	contains(t, "subnet clash", r.errOut, "proxy.subnet 172.29.0.0/16 overlaps Docker network mine (172.29.5.0/24)", "`hl set proxy subnet=172.31.0.0/16`", "`hl unset proxy subnet`")
 
 	f.lab("lab", "proxy: {port: 8080}\napps: {}\n")
 	portInUse = func(bind string, port int) bool { return port == 8080 }
@@ -601,7 +601,7 @@ func TestProxyCommands(t *testing.T) {
 	if r.code != 1 {
 		t.Fatalf("port in use: %s", r)
 	}
-	contains(t, "port in use", r.errOut, "port 8080 on 127.0.0.1 is already in use by Docker container some-nginx", "set proxy.port", "(8000 is free)")
+	contains(t, "port in use", r.errOut, "port 8080 on 127.0.0.1 is already in use by Docker container some-nginx", "`hl set proxy port=8000`", "(8000 is free)")
 
 	portInUse = func(string, int) bool { return false }
 	f.reset()
@@ -726,6 +726,15 @@ func TestErrors(t *testing.T) {
 		}
 		contains(t, strings.Join(c.args, " "), r.errOut, c.want...)
 	}
+
+	// Hints name the command that fixes a setting, not the file to edit.
+	f.lab("hints", "proxy: {bind: 0.0.0.0, dashboard: true}\napps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', prefix: /x}\n  b: {path: '"+a+"', prefix: /x}\n")
+	r = f.hl("status")
+	contains(t, "validation hints", r.errOut, "`hl set proxy dashboard_public=true`", "`hl set proxy bind=127.0.0.1`", "`hl set b prefix=/<path>`")
+	f.lab("hints2", "apps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', compose: [nope.yml]}\n")
+	r = f.hl("up")
+	contains(t, "app hints", r.errOut, "`hl set gone path=<folder>`", "`hl remove gone`", "`hl set a compose=<file>[,<file>...]`", "`hl unset a compose`")
+	lacks(t, "app hints", r.errOut, "in "+filepath.Join(f.home, "hints2", "hl.yml"))
 
 	// Docker's errors are explained.
 	f.on(rule{Match: []string{"up --detach"}, Stderr: "Error response from daemon: driver failed programming external connectivity: Bind for 127.0.0.1:80 failed: port is already allocated\n", Exit: 1})

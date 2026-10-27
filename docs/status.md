@@ -11,7 +11,13 @@ here changes (a release, a pending item done, a question answered). Last reviewe
 - **CLI first** (2026-10-27): the goal is that a user never has to open `hl.yml`. `hl set`/`hl unset`
   cover every app key, every `proxy.*` key (`hl set proxy port=8080`) and the shared env
   (`hl set env.TZ=UTC`); `hl show [app]` reads it back; `hl edit` stays as the fallback. Still only reachable through
-  `hl edit`: `name` (renames every Docker object, so it needs `hl down` first).
+  `hl edit`: `name` (renames every Docker object, so it needs `hl down` first). Error hints name
+  the `hl set`/`hl unset` command instead of the `hl.yml` key. Left on purpose: the "edit
+  hl.yml, not this file" header of generated files (changing it would change the static
+  config's hash and recreate every running proxy once). Not yet pointed at commands because
+  they are in files another branch is changing (init/add/sync): `hl add`'s base-path note
+  (`apps.go`), `hl sync` with no `projects` (`sync.go`), and init's "edit hl.yml instead" note
+  (`init.go`) - switch them to `hl set`/`hl projects` once that work is merged.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install

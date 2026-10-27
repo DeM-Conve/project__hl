@@ -153,8 +153,8 @@ func (inv *inventory) mine(cfg *config.Config, project, what string) error {
 		return nil
 	}
 	return withHint(fmt.Errorf("%s: Docker project %s belongs to another homelab (%s)", what, project, other),
-		"two homelabs on one Docker need different names: add `name: <something>` to %s (projects become %s<name>-...), "+
-			"or stop the other one (`hl --home %q down`)", cfg.File(), defaults.Prefix, other)
+		"two homelabs on one Docker need different names: give this one a name (%s), "+
+			"or stop the other one (`hl --home %q down`)", nameHowTo, other)
 }
 
 // checkPort fails when something else listens on the proxy's address.
@@ -167,9 +167,9 @@ func checkPort(ctx context.Context, cfg *config.Config) error {
 	if who == "" {
 		who = "another program"
 	}
-	hint := "stop it, or set proxy.port in " + cfg.File() + " to a free port"
+	hint := "stop it, or move the proxy to a free port: `hl set proxy port=<port>`"
 	if free := freePort(bind); free != 0 {
-		hint += fmt.Sprintf(" (%d is free)", free)
+		hint = fmt.Sprintf("stop it, or move the proxy to a free port: `hl set proxy port=%d` (%d is free)", free, free)
 	}
 	return withHint(fmt.Errorf("port %d on %s is already in use by %s", port, bind, who), "%s", hint)
 }
@@ -297,7 +297,7 @@ func checkNetwork(ctx context.Context, cfg *config.Config) error {
 		if n.name == cfg.Proxy.Network {
 			if len(n.subnets) > 0 && n.subnets[0].String() != want.String() {
 				return withHint(fmt.Errorf("network %s exists with subnet %s, but proxy.subnet is %s", n.name, n.subnets[0], want),
-					"stop everything with `hl down` (that removes the network), then `hl up`; or set proxy.subnet: %s", n.subnets[0])
+					"stop everything with `hl down` (that removes the network), then `hl up`; or keep the network's: `hl set proxy subnet=%s`", n.subnets[0])
 			}
 			continue
 		}
@@ -324,9 +324,9 @@ func subnetFix(cfg *config.Config, used []*net.IPNet, nets []dockerNetwork) stri
 	}
 	used = append(used, hostSubnets()...)
 	if free := freeSubnet(used); free != "" {
-		return fmt.Sprintf("set proxy.subnet: %s in %s (free), or remove it to let Docker pick", free, cfg.File())
+		return fmt.Sprintf("use a free one: `hl set proxy subnet=%s`, or let Docker pick: `hl unset proxy subnet`", free)
 	}
-	return "set another proxy.subnet in " + cfg.File() + ", or remove it to let Docker pick"
+	return "use another: `hl set proxy subnet=<subnet>`, or let Docker pick: `hl unset proxy subnet`"
 }
 
 // hostSubnets are the networks of this machine's interfaces; tests replace it.

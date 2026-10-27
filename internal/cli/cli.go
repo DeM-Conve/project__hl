@@ -155,6 +155,10 @@ func hintFor(err error) string {
 	return ""
 }
 
+// nameHowTo says how to give a homelab a name. hl set doesn't do it: the new name renames
+// every Docker project, so the old ones must be stopped first.
+const nameHowTo = "`hl down`, then `hl edit` and add `name: <something>`; projects become " + defaults.Prefix + "<name>-<app>"
+
 // dockerHint explains a docker error message, or returns "".
 func dockerHint(msg string) string {
 	m := strings.ToLower(msg)
@@ -165,17 +169,17 @@ func dockerHint(msg string) string {
 		strings.Contains(m, "error during connect"), strings.Contains(m, "docker.sock: connect"):
 		return "the Docker daemon isn't running - start Docker (Linux: `sudo systemctl start docker`; macOS: open Docker Desktop), then try again"
 	case strings.Contains(m, "port is already allocated"), strings.Contains(m, "address already in use"):
-		return "another program already uses that port - stop it, or set proxy.port in hl.yml (`hl doctor` names the program)"
+		return fmt.Sprintf("another program already uses that port - stop it, or move the proxy: `hl set proxy port=%d` (`hl doctor` names the program)", defaults.AltPort)
 	case strings.Contains(m, "!reset"), strings.Contains(m, "unknown tag"):
 		return fmt.Sprintf("hl needs docker compose v%d.%d or newer - update the compose plugin, then run `hl doctor`", defaults.ComposeMinMajor, defaults.ComposeMinMinor)
 	case strings.Contains(m, "pool overlaps"):
 		return "proxy.subnet overlaps another Docker network - pick another subnet (`hl doctor` suggests a free one)"
 	case strings.Contains(m, "non-overlapping ipv4 address pool"), strings.Contains(m, "available, non-overlapping"):
-		return "Docker ran out of network address ranges - remove unused networks (`docker network prune`) or set proxy.subnet in hl.yml"
+		return "Docker ran out of network address ranges - remove unused networks (`docker network prune`) or fix the proxy's: `hl set proxy subnet=<a free /16>` (`hl doctor` suggests one)"
 	case strings.Contains(m, "network") && (strings.Contains(m, "not found") || strings.Contains(m, "could not be found")):
 		return "the proxy's network is missing - `hl proxy up` (or `hl up`) creates it"
 	case strings.Contains(m, "is already in use by container"):
-		return "a container with that name already exists (from another project or homelab) - remove it with `docker rm -f <name>`, or give this homelab a `name:` in hl.yml"
+		return "a container with that name already exists (from another project or homelab) - remove it with `docker rm -f <name>`, or give this homelab a name of its own (" + nameHowTo + ")"
 	case strings.Contains(m, "pull access denied"), strings.Contains(m, "manifest unknown"), strings.Contains(m, "not found: manifest"):
 		return "an image couldn't be pulled - check the image name and tag, and `docker login` if it is private"
 	case strings.Contains(m, "no space left on device"):

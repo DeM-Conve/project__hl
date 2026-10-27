@@ -10,6 +10,12 @@ browser --https--> your TLS proxy (Caddy, nginx, a tunnel, ...) --http--> hl's p
 
 ## 1. Keep hl on loopback, on a spare port
 
+```sh
+hl set proxy bind=127.0.0.1 port=8080 domain=apps.example.com
+```
+
+That leaves this in `hl.yml`:
+
 ```yaml
 proxy:
   bind: 127.0.0.1        # only the front proxy talks to hl

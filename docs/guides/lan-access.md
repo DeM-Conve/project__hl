@@ -10,12 +10,12 @@ public Wi-Fi, and not with a port forwarded from your router.
 
 ## 1. Listen on the network
 
-In `hl.yml`:
-
-```yaml
-proxy:
-  bind: 0.0.0.0          # every interface; or this machine's LAN address only, e.g. 192.168.1.20
+```sh
+hl set proxy bind=0.0.0.0     # every interface; or this machine's LAN address only, e.g. bind=192.168.1.20
 ```
+
+That writes `bind: 0.0.0.0` under `proxy:` in `hl.yml`; `hl unset proxy bind` goes back to
+`127.0.0.1`.
 
 Restart the proxy so it picks up the new address:
 

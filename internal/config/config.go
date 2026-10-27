@@ -621,7 +621,7 @@ func (c *Config) Validate() error {
 	}
 	if p.Dashboard && ip != nil && !ip.IsLoopback() && !p.DashboardPublic {
 		ps.add("proxy.dashboard", "the Traefik dashboard has no password, and proxy.bind %s makes it reachable from your network - "+
-			"set proxy.dashboard_public: true if that is what you want, or bind 127.0.0.1", p.Bind)
+			"if that is what you want, `hl set proxy dashboard_public=true`; otherwise `hl set proxy bind=127.0.0.1`", p.Bind)
 	}
 	for k := range c.Env {
 		if !envKeyRE.MatchString(k) {
@@ -680,13 +680,13 @@ func (c *Config) Validate() error {
 		case RoutingPath:
 			pre := c.Prefix(name, a)
 			if other, ok := prefixes[pre]; ok {
-				ps.add(key, "has the same URL prefix %s as %q - set apps.%s.prefix", pre, other, name)
+				ps.add(key, "has the same URL prefix %s as %q - give it another: `hl set %s prefix=/<path>`", pre, other, name)
 			}
 			prefixes[pre] = name
 		case RoutingHost:
 			h := strings.ToLower(c.Host(name, a))
 			if other, ok := hosts[h]; ok {
-				ps.add(key, "has the same host %s as %s - set apps.%s.host", h, other, name)
+				ps.add(key, "has the same host %s as %s - give it another: `hl set %s host=<name>`", h, other, name)
 			}
 			hosts[h] = strconv.Quote(name)
 		}

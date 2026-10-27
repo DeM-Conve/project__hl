@@ -249,7 +249,7 @@ func completeSetKeys(setting bool) func(*cobra.Command, []string, string) ([]str
 func editCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
-		Short: "Open hl.yml in your editor; it is saved only once it checks out",
+		Short: "Open hl.yml in your editor (the fallback for what hl set/unset don't cover); saved only once it checks out",
 		Long: `Open hl.yml in $VISUAL or $EDITOR (default: ` + defaults.DefaultEditor + `). You edit a copy (` + defaults.EditDraft + `);
 when the editor closes hl checks it and replaces hl.yml only if it has no problems.
 Otherwise it lists them and offers to open the editor again, so hl.yml is never left broken.`,

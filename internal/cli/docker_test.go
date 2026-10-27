@@ -16,7 +16,7 @@ func TestDockerHint(t *testing.T) {
 	for msg, want := range map[string]string{
 		"Got permission denied while trying to connect to the Docker daemon socket": "docker group",
 		"Cannot connect to the Docker daemon at unix:///var/run/docker.sock":        "start Docker",
-		"Bind for 0.0.0.0:80 failed: port is already allocated":                     "proxy.port",
+		"Bind for 0.0.0.0:80 failed: port is already allocated":                     "hl set proxy port=",
 		"yaml: unknown tag !reset":                                               "v2.24",
 		"Pool overlaps with other one on this address space":                     "proxy.subnet",
 		"could not find an available, non-overlapping IPv4 address pool":         "docker network prune",
