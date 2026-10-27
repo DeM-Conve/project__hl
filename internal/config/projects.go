@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/DeM-Conve/project__hl/internal/defaults"
 )
 
 // ProxyDefaults is the proxy section as hl fills it in when hl.yml leaves it empty.
@@ -67,6 +69,8 @@ func (c *Config) validateProjects() error {
 
 // InitSettings are the answers `hl init` writes into a new hl.yml.
 type InitSettings struct {
+	// Name: the homelab's name, when another homelab on this Docker uses the default names.
+	Name     string
 	Bind     string
 	Port     int
 	Routing  string
@@ -78,11 +82,15 @@ type InitSettings struct {
 // Config is the homelab these settings make, defaults filled in, without writing anything:
 // what `hl init` plans with before it asks.
 func (s InitSettings) Config(dir string) *Config {
-	c := &Config{Dir: dir, Projects: s.Projects, StripPrefix: s.StripPrefix,
+	c := &Config{Dir: dir, Name: s.Name, Projects: s.Projects, StripPrefix: s.StripPrefix,
 		Proxy: Proxy{Bind: s.Bind, Port: s.Port, Routing: s.Routing}}
 	c.defaults()
 	return c
 }
+
+// nameComment heads the `name` hl init writes.
+const nameComment = "# Another homelab on this Docker uses the default names, so this one's Docker projects\n" +
+	"# and network are " + defaults.Prefix + "<name>-<app> and " + defaults.Prefix + "<name>-" + defaults.ProxyProjectSuffix + "."
 
 // WriteNew writes a new, short <dir>/hl.yml: Template with the projects folders, strip_prefix
 // and the proxy settings of s that differ from the defaults. It refuses to overwrite an
@@ -101,6 +109,10 @@ func WriteNew(dir string, s InitSettings) error {
 		return err
 	}
 	return editDoc(dir, func(root *yaml.Node) error {
+		if s.Name != "" {
+			beforeApps(root, &yaml.Node{Kind: yaml.ScalarNode, Value: "name", HeadComment: nameComment},
+				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s.Name})
+		}
 		if len(s.Projects) > 0 {
 			setProjects(root, s.Projects)
 		}

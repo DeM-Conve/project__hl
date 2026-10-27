@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -63,7 +64,7 @@ projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
 	f.StringSliceVar(&o.projects, "projects", nil, "folders with your projects; each subfolder with a compose file is an app (default: "+strings.Join(defaults.CandidateProjects, ", ")+" in your home)")
 	f.StringVar(&o.routing, "routing", "", "path or host (default: "+config.ProxyDefaults().Routing+")")
 	f.StringVar(&o.bind, "bind", "", "address the proxy listens on: "+config.ProxyDefaults().Bind+" = this machine only, "+defaults.BindNetwork+" = your network")
-	f.IntVar(&o.port, "port", 0, fmt.Sprintf("host port of the proxy (default: %d, or %d when that one is in use)", config.ProxyDefaults().Port, defaults.AltPort))
+	f.IntVar(&o.port, "port", 0, fmt.Sprintf("host port of the proxy (default: %d, or the first free of %s when that one is in use)", config.ProxyDefaults().Port, joinInts(defaults.AltPorts)))
 	f.StringSliceVar(&o.apps, "apps", nil, "apps to add from the projects folders, by name, or "+pickNone+" (default: every web app found)")
 	f.BoolVarP(&o.yes, "yes", "y", false, "apply the plan without asking")
 	f.BoolVar(&o.noEnv, "no-env", false, "don't fill in the apps' env from their compose variables")
@@ -101,6 +102,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 	var cfg *config.Config
 	var s config.InitSettings
 	var saveProjects, saveStrip bool
+	var why initWhy
 	if existing {
 		if cfg, err = config.Load(dir); err != nil {
 			return err
@@ -143,18 +145,22 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		}
 		if s.Port == 0 {
 			s.Port = pd.Port
-			if portInUse(s.Bind, s.Port) && !portInUse(s.Bind, defaults.AltPort) {
-				note("port %d is in use on %s - the proxy gets port %d (pass --port to choose another)", s.Port, s.Bind, defaults.AltPort)
-				s.Port = defaults.AltPort
+			if portInUse(s.Bind, s.Port) {
+				if free := freePort(s.Bind); free != 0 {
+					why.busyPort, s.Port = s.Port, free
+				}
 			}
 		}
 		if portInUse(s.Bind, s.Port) {
 			say("%swarning:%s port %d is in use on %s - free it before hl up, or pass --port", yellow, reset, s.Port, s.Bind)
 		}
+		if dockerOK {
+			s.Name, why.name = initName(context.Background(), dir, s)
+		}
 		cfg = s.Config(dir)
 	}
 
-	adds, err := initPlan(out, cfg, o, dockerOK)
+	adds, err := initPlan(out, cfg, o, dockerOK, why)
 	if err != nil {
 		return err
 	}
@@ -232,7 +238,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 
 // initPlan finds the new apps in the projects folders, prints the plan, and returns the apps to
 // add (the --apps ones, else every one hl can add).
-func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool) ([]scan.Action, error) {
+func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, why initWhy) ([]scan.Action, error) {
 	w := func(label, format string, a ...any) {
 		fmt.Fprintf(out, "  %-10s %s\n", label, fmt.Sprintf(format, a...))
 	}
@@ -250,9 +256,16 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool) (
 	if len(cfg.StripPrefix) > 0 {
 		w("names", "without %s", strings.Join(cfg.StripPrefix, ", "))
 	}
+	if why.name != "" {
+		w("name", "%s - %s, so this one's Docker names are %s%s-<app> and %s", cfg.Name, why.name,
+			defaults.Prefix, cfg.Name, cfg.ProxyProject())
+	}
 	reach := "this machine only"
 	if ip := net.ParseIP(cfg.Proxy.Bind); ip != nil && !ip.IsLoopback() {
 		reach = "your network too"
+	}
+	if why.busyPort != 0 {
+		reach += fmt.Sprintf("; port %d is in use", why.busyPort)
 	}
 	w("proxy", "%s:%d (%s), %s routing: apps at %s/", cfg.Proxy.Bind, cfg.Proxy.Port, reach, cfg.Proxy.Routing,
 		cfg.URL("<app>", &config.App{}))
@@ -346,6 +359,37 @@ func initDir(args []string) (string, error) {
 		return "", withHint(err, "name the homelab folder: hl init <folder>")
 	}
 	return filepath.Join(home, defaults.HomelabDir), nil
+}
+
+// initWhy is what init changed in a new homelab's plan to avoid a clash, for the plan to say.
+type initWhy struct {
+	busyPort int    // the default proxy port, in use, so another one was picked
+	name     string // why the homelab got a name: who uses the default Docker names
+}
+
+// initName picks a name for a new homelab when another homelab on this Docker already uses the
+// default proxy project or network: the folder's name, else defaults.HomelabDir, with -2, -3,
+// ... until the names are free. It returns the name and why one was needed; ("", "") when the
+// defaults are free.
+func initName(ctx context.Context, dir string, s config.InitSettings) (name, why string) {
+	s.Name = ""
+	if why = proxyNamesTaken(ctx, s.Config(dir)); why == "" {
+		return "", ""
+	}
+	base := strings.Trim(config.ID(config.NameFor(filepath.Base(dir))), "-")
+	if base == "" {
+		base = defaults.HomelabDir
+	}
+	for i := 1; i <= defaults.MaxNameTries; i++ {
+		s.Name = base
+		if i > 1 {
+			s.Name = fmt.Sprintf("%s-%d", base, i)
+		}
+		if proxyNamesTaken(ctx, s.Config(dir)) == "" {
+			return s.Name, why
+		}
+	}
+	return "", "" // hl doctor and hl up explain the clash
 }
 
 // otherHome warns when hl commands won't use the homelab init just made default, because

@@ -234,6 +234,14 @@ const (
 	HomelabDir = "homelab"
 )
 
+// AltPorts are the proxy ports hl tries, in order, when the configured one is in use: `hl init`
+// takes the first free one, and errors about a busy port suggest it.
+var AltPorts = []int{AltPort, 8000, 8081, 8888, 8090}
+
+// MaxNameTries is how many names `hl init` tries (<folder>, <folder>-2, ...) when another
+// homelab on this Docker already uses the default proxy project or network.
+const MaxNameTries = 9
+
 // DefaultIgnore are folder-name patterns (filepath.Match) sync always skips;
 // hl.yml's `ignore:` adds to them.
 var DefaultIgnore = []string{".*", "node_modules", "vendor", "__pycache__", "venv"}

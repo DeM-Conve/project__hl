@@ -16,13 +16,14 @@ release differs from earlier builds of `main`.
 ### Added
 
 - `hl init` creates a homelab folder (a short `hl.yml`, `data/`, `.gitignore`) and makes it the
-  default; without a folder it uses the homelab hl already uses, else `~/homelab`. It works out a plan - projects folders (`~/code`,
-  `~/projects`, `~/src` when they exist), the proxy (port 8080 when 80 is busy), every web app
-  found with its service, port and env, and the folders it skips and why - shows it and asks
-  once; `--projects`, `--routing`, `--bind`, `--port`, `--apps`, `--strip-prefix` and `--no-env`
+  default; without a folder it uses the homelab hl already uses, else `~/homelab`. It works out
+  a plan - projects folders (`~/code`, `~/projects`, `~/src` when they exist), the proxy (a free
+  port when 80 is busy, a `name` when another homelab runs one), every web app found with its
+  service, port and env, and the folders it skips and why - shows it and asks once;
+  `--projects`, `--routing`, `--bind`, `--port`, `--apps`, `--strip-prefix` and `--no-env`
   change the plan and `--yes` applies it without asking (required without a terminal, as for
-  `hl sync`). It checks Docker and compose first, and
-  on an existing homelab never overwrites `hl.yml` but adds the new apps. The `hl.yml` it writes
+  `hl sync`). It checks Docker and compose first, and on an existing homelab never overwrites
+  `hl.yml` but adds the new apps. The `hl.yml` it writes
   holds only the projects folders, the proxy settings that differ from the defaults, and the
   apps; every other setting is documented in the README.
 - `projects:` in `hl.yml`: folders whose subfolders with a compose file are apps; `ignore:`
@@ -152,6 +153,11 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl init` settles clashes with another homelab on the same machine itself, and shows them in
+  its plan: when port 80 is busy it takes the first free of 8080, 8000, 8081, 8888, 8090 (it
+  gave up when 8080 was busy too), and when another homelab runs the proxy project or network
+  `hl-proxy` it gives the new homelab a `name` from its folder, so its projects, network and
+  port don't collide (`hl doctor` used to report the clash only after the fact).
 - `hl init` warns when hl commands would keep using another homelab than the one it just made
   default (`$HL_HOME`, `--home`, or the current folder inside another homelab), and says how to fix it.
 - `hl init` without a folder no longer sets up the current folder: run in your home folder it

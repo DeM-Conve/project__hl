@@ -371,7 +371,12 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   (`initDir`). After recording the default it runs `config.Home` again and warns (`otherHome`)
   when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win. It plans first and writes nothing until it is confirmed: the settings come from flags
   and defaults only (`--projects`, else `defaults.CandidateProjects` that exist in the home folder;
-  the default port, or `defaults.AltPort` when that is busy and free), `InitSettings.Config` makes
+  the default port, or the first free of `defaults.AltPorts` (`freePort`) when that is busy, shown
+  as "port 80 is in use" in the plan; with docker working, `initName` gives a new homelab a `name`
+  when `proxyNamesTaken` (docker.go) finds the default proxy project run from another homelab's
+  folder or the proxy network already there - the folder's name as an ID, else
+  `defaults.HomelabDir`, then `-2` ... up to `defaults.MaxNameTries` - and `WriteNew` writes it
+  with a comment saying why), `InitSettings.Config` makes
   the homelab in memory, `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,
   env, skips; `--apps` narrows the adds) and prints the plan with `printPlan`. Then, only when there is something to write and `--yes`
   isn't given: without a terminal it stops ("pass --yes", like `hl sync`), else one `confirm`

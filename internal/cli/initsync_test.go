@@ -25,7 +25,12 @@ done
 case "$*" in
   info*) exit 0 ;;
   "compose version --short") echo 2.29.1; exit 0 ;;
-  ps*) exit 0 ;;
+  ps*) [ -f "$HL_TEST_DOCKER_PS" ] && cat "$HL_TEST_DOCKER_PS"; exit 0 ;;
+  "network inspect"*)
+    # Networks listed (one name a line) in $HL_TEST_DOCKER_NETS exist; others don't.
+    for a in "$@"; do last="$a"; done
+    if [ -f "$HL_TEST_DOCKER_NETS" ] && grep -qx "$last" "$HL_TEST_DOCKER_NETS"; then echo "$last"; exit 0; fi
+    echo "Error response from daemon: network $last not found" >&2; exit 1 ;;
   *"config --variables --format json"*)
     if [ -f "$dir/fake-vars.json" ]; then cat "$dir/fake-vars.json"; else echo "{}"; fi
     exit 0 ;;
@@ -54,6 +59,8 @@ func initSyncEnv(t *testing.T) string {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("HL_HOME", "")
 	t.Setenv("HL_TEST_DOCKER_LOG", filepath.Join(bin, "log"))
+	t.Setenv("HL_TEST_DOCKER_PS", filepath.Join(bin, "ps"))
+	t.Setenv("HL_TEST_DOCKER_NETS", filepath.Join(bin, "nets"))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	oldTerm, oldPort := stdinTerminal, portInUse
 	t.Cleanup(func() { stdinTerminal, portInUse, homeFlag = oldTerm, oldPort, "" })
@@ -216,10 +223,9 @@ func TestInitInteractive(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
-		"port 80 is in use on 127.0.0.1 - the proxy gets port 8080",
 		"homelab    " + lab + " (new hl.yml, data/)",
 		"projects   ~/code\n",
-		"proxy      127.0.0.1:8080 (this machine only), host routing: apps at http://<app>.localhost:8080/",
+		"proxy      127.0.0.1:8080 (this machine only; port 80 is in use), host routing: apps at http://<app>.localhost:8080/",
 		"apps       2 apps to add",
 		"+ add   blog", "env BLOG_URL=${HL_URL}",
 		"! skip  cache", "not a web app?",
@@ -427,6 +433,75 @@ func TestSyncWithoutProjects(t *testing.T) {
 	}
 	if _, err := runHL(t, "", "sync", "--home", lab); err == nil || !strings.Contains(err.Error(), "projects") {
 		t.Errorf("got %v", err)
+	}
+}
+
+func TestInitClash(t *testing.T) {
+	home := initSyncEnv(t)
+	// Another homelab runs the default proxy on port 80; 8080 is taken too.
+	other := filepath.Join(home, "other lab")
+	ps := strings.Join([]string{"hl-proxy", "traefik", "running", "Up 1 hour",
+		filepath.Join(other, ".hl", "proxy", "compose.yml"), "hl-proxy-traefik-1"}, "\t") + "\n"
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), []byte(ps), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_NETS"), []byte("hl-proxy\nhl-taken-proxy\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	portInUse = func(_ string, port int) bool { return port == 80 || port == 8080 }
+
+	lab := filepath.Join(home, "My Lab")
+	out, err := runHL(t, "", "init", lab, "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, want := range []string{
+		"name       my-lab - the homelab in " + other + " runs hl-proxy, so this one's Docker names are hl-my-lab-<app> and hl-my-lab-proxy",
+		"proxy      127.0.0.1:8000 (this machine only; port 80 is in use)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("plan lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "warning") {
+		t.Errorf("init settled the clashes, nothing to warn about:\n%s", out)
+	}
+	cfg, err := config.Load(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Name != "my-lab" || cfg.Proxy.Port != 8000 || cfg.ProxyProject() != "hl-my-lab-proxy" || cfg.Proxy.Network != "hl-my-lab-proxy" {
+		t.Errorf("name %q, proxy %+v", cfg.Name, cfg.Proxy)
+	}
+	if text := readFile(t, filepath.Join(lab, config.FileName)); !strings.Contains(text, "# Another homelab on this Docker") {
+		t.Errorf("hl.yml should say why it has a name:\n%s", text)
+	}
+
+	// The folder's name is taken too: the next free one.
+	out, err = runHL(t, "", "init", filepath.Join(home, "taken"), "--yes")
+	if err != nil || !strings.Contains(out, "name       taken-2 - the homelab in "+other+" runs hl-proxy") {
+		t.Errorf("%v\n%s", err, out)
+	}
+
+	// Only the network is left (its proxy stopped): taken all the same.
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err = runHL(t, "", "init", filepath.Join(home, "net"), "--yes")
+	if err != nil || !strings.Contains(out, "name       net - Docker network hl-proxy exists already") {
+		t.Errorf("%v\n%s", err, out)
+	}
+
+	// No clash: no name.
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_NETS"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	free := filepath.Join(home, "free")
+	if out, err = runHL(t, "", "init", free, "--yes"); err != nil || strings.Contains(out, "name  ") {
+		t.Errorf("%v\n%s", err, out)
+	}
+	if cfg, _ := config.Load(free); cfg.Name != "" {
+		t.Errorf("name = %q", cfg.Name)
 	}
 }
 
