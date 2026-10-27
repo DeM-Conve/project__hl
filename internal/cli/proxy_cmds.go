@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os/exec"
@@ -162,15 +163,38 @@ func showProxy(cfg *config.Config) error {
 	if older, known := gen.ImageOlder(p.Image, defaults.TestedTraefikVersion); older || !known {
 		warn("%s", imageAdvice(p.Image, known))
 	}
-	if hash != "" && clash == nil && ferr == nil {
-		if want := proxyConfigHash(cfg); want != "" && want != hash {
-			warn("the running proxy predates the current config - apply it with: hl up proxy")
-		}
+	if clash == nil && ferr == nil && proxyBehind(cfg, hash) {
+		warn("%s", proxyBehindNote)
 	}
 	if image == "" && derr == nil {
 		say("start it: hl up proxy")
 	}
 	return nil
+}
+
+// proxyBehindNote says that the running proxy predates hl.yml, and what applies it.
+const proxyBehindNote = "the running proxy predates the current config - apply it with: hl up"
+
+// proxyBehind reports whether a proxy container with compose's config hash running (its
+// config-hash label) was started from other settings than hl.yml's now. False when either hash
+// is unknown.
+func proxyBehind(cfg *config.Config, running string) bool {
+	if running == "" {
+		return false
+	}
+	want := proxyConfigHash(cfg)
+	return want != "" && want != running
+}
+
+// runningProxyHash is the config-hash label of this homelab's running proxy container, "" when
+// none runs or Docker can't tell.
+func runningProxyHash(ctx context.Context, cfg *config.Config) string {
+	out, err := docker(ctx, "ps", "--filter", "label="+composeProjectLabel+"="+cfg.ProxyProject(),
+		"--format", `{{.Label "`+composeConfigHashLabel+`"}}`)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(strings.SplitN(out, "\n", 2)[0])
 }
 
 // proxyConfigHash is compose's hash of the proxy service as hl would run it now.

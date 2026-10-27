@@ -281,7 +281,7 @@ func TestRemove(t *testing.T) {
 		t.Errorf("apps left: %v", cfg.Names())
 	}
 	r = f.hl("remove", "blog")
-	if r.code != 1 || !strings.Contains(r.errOut, "no apps yet") {
+	if r.code != 2 || !strings.Contains(r.errOut, "no apps yet") {
 		t.Errorf("removing twice: %s", r)
 	}
 }
@@ -334,7 +334,7 @@ func TestStatusShowsTheRunningProxyAddress(t *testing.T) {
 	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Ports}}"}, Stdout: "127.0.0.1:8080->80/tcp\n"})
 	r := f.must("status")
 	contains(t, "status", r.out, "proxy running  127.0.0.1:8080",
-		"note: hl.yml says 127.0.0.1:8088 - apply it: hl up proxy, then hl up", "http://localhost:8080/a/")
+		"note: hl.yml says 127.0.0.1:8088 - apply it: hl up\n", "http://localhost:8080/a/")
 	lacks(t, "status", r.out, "localhost:8088")
 
 	// Applied: no note, hl.yml's port.
@@ -399,6 +399,46 @@ func TestUpRestartRebuild(t *testing.T) {
 	f.must("up", "b")
 }
 
+// A bare hl up applies hl.yml to the running proxy too (hl set proxy debug=true, then hl up);
+// hl up <app> leaves a running proxy alone, and a busy new port is refused before compose
+// replaces the proxy.
+func TestBareUpAppliesProxyChanges(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "proxy: {debug: true}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(
+		ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
+		ctr("hl-a", "web", "running", "Up", filepath.Join(lab, ".hl", "a", "override.yml")),
+	)
+	f.must("up")
+	var order []string
+	for _, c := range f.find("compose", "up --detach") {
+		s := c.String()
+		s = s[strings.Index(s, "--project-name ")+len("--project-name "):]
+		order = append(order, strings.Fields(s)[0])
+	}
+	if !slices.Equal(order, []string{"hl-proxy", "hl-a"}) {
+		t.Errorf("bare up: want the proxy's up, then the app's, once each: %q\n%v", order, f.calls())
+	}
+	contains(t, "traefik config", f.read(filepath.Join(lab, ".hl", "proxy", "traefik.yml")), "accessLog")
+
+	f.reset()
+	f.must("up", "a")
+	if u := f.find("--project-name hl-proxy", "up"); len(u) != 0 {
+		t.Errorf("hl up <app> touched the running proxy: %v", u)
+	}
+
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Ports}}"}, Stdout: "127.0.0.1:80->80/tcp\n"})
+	f.lab("lab", "proxy: {port: 8098}\napps:\n  a: {path: '"+a+"'}\n")
+	portInUse = func(_ string, port int) bool { return port == 8098 }
+	f.reset()
+	r := f.hl("up")
+	if r.code != 1 || len(f.find("compose", "up")) != 0 {
+		t.Fatalf("a busy new port: want a refusal and no compose up: %s\n%v", r, f.calls())
+	}
+	contains(t, "busy new port", r.errOut, "port 8098 on 127.0.0.1 is already in use", "the running proxy is left as it is")
+}
+
 // An image keeps the build args it was built with: up rebuilds the services whose resolved
 // build section changed since the app last came up (say a base path from ${HL_PREFIX}).
 func TestUpRebuildsChangedBuildArgs(t *testing.T) {
@@ -453,7 +493,7 @@ func TestUpWait(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
 	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"', routing: none}\n")
-	f.on(rule{Match: []string{"--project-name hl-a", "up --detach --wait --wait-timeout 30"}, Stderr: "container hl-a-db-1 is unhealthy\n", Exit: 1})
+	f.on(rule{Match: []string{"--project-name hl-a", "up --detach --wait --wait-timeout 120"}, Stderr: "container hl-a-db-1 is unhealthy\n", Exit: 1})
 	f.on(rule{Match: []string{"--project-name hl-a", "logs"}, Stdout: "db | FATAL: password authentication failed\n"})
 	f.containers(
 		ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
@@ -461,7 +501,7 @@ func TestUpWait(t *testing.T) {
 		ctr("hl-a", "db", "running", "Up (unhealthy)", filepath.Join(lab, ".hl", "a", "override.yml")),
 	)
 	// An app that isn't behind the proxy: --wait waits for every service in the one up call.
-	r := f.hl("up", "--wait", "--wait-timeout", "30s")
+	r := f.hl("up", "--wait")
 	if r.code != 1 {
 		t.Fatalf("want a failure: %s", r)
 	}
@@ -470,7 +510,7 @@ func TestUpWait(t *testing.T) {
 	if l := f.find("logs --no-color --tail 20 db"); len(l) != 1 {
 		t.Errorf("logs of the unhealthy service: %v", f.calls())
 	}
-	if u := f.find("--project-name hl-a ", "up --detach --wait --wait-timeout 30"); len(u) != 1 || strings.HasSuffix(u[0].String(), " web") {
+	if u := f.find("--project-name hl-a ", "up --detach --wait --wait-timeout 120"); len(u) != 1 || strings.HasSuffix(u[0].String(), " web") {
 		t.Errorf("--wait: want one up that waits for everything: %v", u)
 	}
 }
@@ -493,11 +533,11 @@ func TestUpWaitSkipsSidecars(t *testing.T) {
 	)
 	// compose would fail waiting for the sidecar, but hl doesn't ask it to.
 	f.on(rule{Match: []string{"--project-name hl-a ", "--wait", "backup"}, Stderr: "container hl-a-backup-1 is starting\n", Exit: 1})
-	r := f.must("up", "a", "--wait", "--wait-timeout", "30s")
+	r := f.must("up", "a", "--wait")
 	contains(t, "up --wait", r.out, "waiting for api, db, web")
 	ups := f.find("--project-name hl-a ", "up --detach")
 	if len(ups) != 2 || strings.Contains(ups[0].String(), "--wait") ||
-		!strings.HasSuffix(ups[1].String(), "up --detach --wait --wait-timeout 30 api db web") {
+		!strings.HasSuffix(ups[1].String(), "up --detach --wait --wait-timeout 120 api db web") {
 		t.Fatalf("want up (all services), then up --wait for web and its dependencies: %v", ups)
 	}
 	contains(t, "status after up", r.out, "starting: backup") // status still shows the sidecar
@@ -575,11 +615,16 @@ func TestUpWaitWaitsForTheRoute(t *testing.T) {
 
 	// A route that never shows up fails at the timeout, with what to check.
 	never.Store(true)
-	r = f.hl("up", "a", "--wait", "--wait-timeout", "1s")
+	waitTimeout = time.Second
+	r = f.hl("up", "a", "--wait")
 	if r.code != 1 {
 		t.Fatalf("want a failure: %s", r)
 	}
 	contains(t, "up --wait", r.errOut, "a: the proxy has no route to http://localhost:8095/a/ yet", "hl logs proxy")
+	// --wait-timeout is gone: the fixed default is enough.
+	if r := f.hl("up", "a", "--wait", "--wait-timeout", "1s"); r.code != 2 || !strings.Contains(r.errOut, "unknown flag: --wait-timeout") {
+		t.Errorf("--wait-timeout: want an unknown flag: %s", r)
+	}
 
 	// Not behind the proxy: nothing to ask.
 	f.lab("lab2", "apps:\n  a: {path: '"+a+"', routing: none}\n")
@@ -619,7 +664,7 @@ func TestShow(t *testing.T) {
 	lacks(t, "show b", r.out, "detected", "prefix")
 
 	r = f.hl("show", "c")
-	if r.code != 1 {
+	if r.code != 2 {
 		t.Fatalf("unknown app: %s", r)
 	}
 	contains(t, "show c", r.errOut, `no app "c"`, "hint:")
@@ -711,6 +756,12 @@ func TestRebuildPull(t *testing.T) {
 	if n := strings.Count(r.out, "not a git repository"); n != 1 {
 		t.Errorf("the reason is said %d times:\n%s", n, r.out)
 	}
+	// One "==> app (folder)" header per app, with the pull and the rebuild under it.
+	for _, n := range []string{"clean", "dirty", "plain", "diverged"} {
+		if c := strings.Count(r.out, "==> "+n); c != 1 {
+			t.Errorf("==> %s printed %d times:\n%s", n, c, r.out)
+		}
+	}
 	contains(t, "rebuild --pull", r.errOut, "diverged: git pull --ff-only failed", "hl rebuild diverged --pull", "1 of 4 apps failed: diverged")
 	if p := f.find("-C "+dirty, "pull"); len(p) != 0 {
 		t.Errorf("pulled over uncommitted work: %v", p)
@@ -795,7 +846,7 @@ func TestLogs(t *testing.T) {
 		}
 	}
 	r = f.hl("logs", "nope")
-	if r.code != 1 || !strings.Contains(r.errOut, `no app "nope"`) {
+	if r.code != 2 || !strings.Contains(r.errOut, `no app "nope"`) {
 		t.Errorf("unknown app: %s", r)
 	}
 	// A service the app doesn't have: its services are listed.
@@ -878,7 +929,7 @@ func TestShellOpenCompose(t *testing.T) {
 	if c := f.find("--project-name hl-proxy", " config"); len(c) != 1 {
 		t.Errorf("show proxy --compose: %v", f.calls())
 	}
-	if r := f.hl("show", "aa", "--compose"); r.code != 1 || !strings.Contains(r.errOut, `did you mean "a"`) {
+	if r := f.hl("show", "aa", "--compose"); r.code != 2 || !strings.Contains(r.errOut, `did you mean "a"`) {
 		t.Errorf("close name: %s", r)
 	}
 	for _, gone := range []string{"ps", "path", "config", "update", "proxy"} {
@@ -1009,6 +1060,30 @@ func TestDoctor(t *testing.T) {
 	contains(t, "doctor bad hl.yml", r.out, "hl.yml:1:15: proxy.port", "is not a whole number")
 }
 
+// A running proxy started from older settings (compose's config hash differs from hl.yml's):
+// hl doctor warns, like hl show proxy, and both say hl up applies it.
+func TestDoctorWarnsAboutAProxyBehindHlYml(t *testing.T) {
+	f := newFake(t)
+	lab := f.lab("lab", "proxy: {debug: true}\napps: {}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"--project-name hl-proxy", "config --hash traefik"}, Stdout: "traefik new\n"})
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Label"}, Stdout: "old\n"})
+	f.on(rule{Match: []string{"ps -a --filter label=com.docker.compose.project=hl-proxy --format {{.State}}"}, Stdout: "running|Up|traefik:v3.6.25|old\n"})
+	r := f.must("doctor")
+	contains(t, "doctor", r.out, "! proxy running, but behind hl.yml", "apply it: hl up", "all good (1 warning)")
+	r = f.must("show", "proxy")
+	contains(t, "show proxy", r.out+r.errOut, "the running proxy predates the current config - apply it with: hl up")
+
+	// Up to date: no warning.
+	f = newFake(t)
+	lab = f.lab("lab", "apps: {}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"--project-name hl-proxy", "config --hash traefik"}, Stdout: "traefik same\n"})
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Label"}, Stdout: "same\n"})
+	r = f.must("doctor")
+	contains(t, "doctor", r.out, "✓ proxy running on 127.0.0.1:80", "all good\n")
+}
+
 // hl.yml broken by hand (hl itself never writes a broken one): every command names the lines
 // and says how to fix them, since there is no hl edit.
 func TestHandBrokenHlYml(t *testing.T) {
@@ -1090,7 +1165,7 @@ func TestErrors(t *testing.T) {
 	}{
 		{[]string{"sideways"}, 2, []string{`unknown command "sideways"`, "hl --help"}},
 		{[]string{"up", "--nope"}, 2, []string{"unknown flag: --nope", "hint: see `hl up --help`"}},
-		{[]string{"up", "b"}, 1, []string{`no app "b"`}},
+		{[]string{"up", "b"}, 2, []string{`no app "b"`, "hint: `hl status` lists the apps"}},
 		{[]string{"status", "x"}, 2, []string{"unknown command"}},
 	} {
 		r := f.hl(c.args...)
@@ -1156,6 +1231,31 @@ func TestErrors(t *testing.T) {
 	contains(t, "no homelab", r.errOut, "no homelab found", "hl init")
 	r = f.hl("--home", filepath.Join(f.home, "nothing here"), "status")
 	contains(t, "no hl.yml", r.errOut, "no hl.yml in", "hl init")
+}
+
+// An app name that isn't in hl.yml is a usage error (exit 2) for every command that takes one,
+// with "did you mean" or the list of apps, and the same hint.
+func TestUnknownAppIsAUsageError(t *testing.T) {
+	f := newFake(t)
+	a, b := f.app("blog", webModel2), f.app("wiki", apiModel)
+	f.lab("lab", "apps:\n  blog: {path: '"+a+"'}\n  wiki: {path: '"+b+"'}\n")
+	for _, args := range [][]string{
+		{"up", "blgo"}, {"down", "blgo"}, {"restart", "blgo"}, {"rebuild", "blgo"}, {"rebuild", "blgo", "--pull"},
+		{"logs", "blgo"}, {"logs", "blgo", "web"}, {"shell", "blgo"}, {"open", "blgo"}, {"show", "blgo"}, {"show", "blgo", "--compose"},
+		{"remove", "blgo"}, {"set", "blgo", "port=80"}, {"set", "blgo", "name=x"}, {"set", "blgo"}, {"unset", "blgo", "port"}, {"unset", "blgo"},
+		{"up", "blog", "blgo"},
+	} {
+		r := f.hl(args...)
+		if r.code != 2 {
+			t.Errorf("hl %v: want exit 2: %s", args, r)
+		}
+		contains(t, fmt.Sprintf("hl %v", args), r.errOut, `no app "blgo" - did you mean "blog"?`, "hint: `hl status` lists the apps")
+	}
+	r := f.hl("show", "zzz")
+	contains(t, "no close name", r.errOut, `no app "zzz" (apps: blog, wiki)`)
+	if len(f.find("compose")) != 0 {
+		t.Errorf("an unknown app ran compose: %v", f.find("compose"))
+	}
 }
 
 func TestWindowsIsUnsupported(t *testing.T) {

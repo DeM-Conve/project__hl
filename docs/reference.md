@@ -7,7 +7,7 @@ hl keeps the settings in `hl.yml` in the homelab folder, but you don't need to o
 changes a setting, `hl unset` puts its default back, and `hl show` prints the values in effect and
 where each comes from (`hl.yml`, default, detected, flag or environment).
 
-- [How `hl set` works](#how-hl-set-works)
+- [How `hl set` works](#how-hl-set-works) · [Routing](#routing)
 - [App settings](#app-settings) · [Proxy settings](#proxy-settings) · [Homelab settings](#homelab-settings)
 - [Variables hl provides](#variables-hl-provides) · [Env hl fills in](#env-hl-fills-in)
 - [Several homelabs on one Docker (`name`)](#several-homelabs-on-one-docker-name)
@@ -36,10 +36,56 @@ hl unset env.TZ
 - Switches take `true` or `false` (`hl set proxy debug=true`).
 - Single quotes keep your shell from expanding `${...}`: `hl set my-app 'env.APP_URL=${HL_URL}'`.
 - hl writes `hl.yml` only when the result has no problems, keeps its comments, blank lines and order, prints
-  what it changed, and says which command applies it (`hl up <app>`, `hl up proxy`, `hl sync`,
-  or `hl down` then `hl up`).
+  what it changed, and says which command applies it (`hl up <app>`, `hl up`, `hl up proxy`, `hl sync`,
+  or `hl down` then `hl up` for a new proxy subnet):
+
+  ```console
+  $ hl set my-app routing=host
+  set apps.my-app.routing = host
+  apply it: hl up my-app
+  ```
+
+- `hl set my-app name=blog` renames an app, on its own and while it is stopped
+  ([`name`](#app-settings)).
 - `hl add <folder> key=value...` takes the same app settings, plus `name`.
 - `hl set --help` and shell completion list the keys of each target.
+- `hl show` (the homelab), `hl show my-app` and `hl show proxy` print the values in effect: for an
+  app its folder, service and port, URL and data folder, each marked `hl.yml`, default or
+  detected, then its env: the [variables hl provides](#variables-hl-provides) and the env you set
+  (shared and the app's own), each with where its value comes from. Values from the app's own
+  `.env` aren't listed; compose reads that file itself.
+
+## Routing
+
+| `routing` | URL | Works with |
+| --- | --- | --- |
+| `path` (default) | `http://localhost/<app>/` | apps that can run under a base path |
+| `host` | `http://<app>.localhost` | any app |
+| `none` | not behind the proxy | databases, workers, apps that keep their own ports |
+
+Set it per app (`hl set my-app routing=host`) or for every app (`hl set proxy routing=host`). A
+proxy port other than 80 is added to the URLs (`http://localhost:8080/<app>/`). Path routing on
+plain `localhost` matters for OAuth: Google sign-in, for example, accepts plain-`http` redirect
+URIs only on exactly `localhost`.
+
+**Path routing** sends `/<app>/...` to the app with the prefix stripped (and as
+`X-Forwarded-Prefix`); `/<app>` redirects to `/<app>/`. The app serves from `/`, but the links it
+builds must include the prefix, so it needs its base-path setting. Map it from hl in the app's
+env:
+
+```sh
+hl set my-app 'env.MY_APP_BASE_PATH=${HL_PREFIX}' 'env.MY_APP_URL=${HL_URL}'
+```
+
+`MY_APP_BASE_PATH` is a variable the app's compose file uses (e.g.
+`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`): an app's env reaches a container only through
+its compose file. `hl add`, `hl init` and `hl sync` map the common variables on their own
+([Env hl fills in](#env-hl-fills-in)), say what they mapped, and end with a one-line hint for
+apps where they found no base-path variable. Walkthrough:
+[an app that needs a base path](guides/base-path-app.md).
+
+**Host routing** needs `<app>.localhost` to resolve to your machine. Browsers do this on their own;
+for other tools, or for a `proxy domain` of your own, add the names to `/etc/hosts` or your DNS.
 
 ## App settings
 
@@ -71,9 +117,11 @@ missing, as compose does; an image built before hl kept track needs one `hl rebu
 
 ## Proxy settings
 
-`hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up proxy`; a change of `domain`,
-`routing` or `port` also needs `hl up` (it is in the apps' routes or URLs), one of `network`,
-`subnet` or `project` needs `hl down` then `hl up`, and hl says so. `hl show proxy` says when the running proxy is
+`hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up` (with no app: the proxy,
+then every app) or `hl up proxy` (the proxy alone); hl names `hl up` for `domain`, `routing`
+and `port`, which are in the apps' routes or URLs too, and `hl down` then `hl up` for `subnet`
+(every app joins the proxy's network again). `hl up <app>` starts a proxy that isn't running but
+leaves a running one as it is. `hl show proxy` and `hl doctor` say when the running proxy is
 behind its settings.
 
 | Key | Default | What it does |
@@ -291,7 +339,7 @@ and not settings (some have a command-line flag):
 | healthcheck every 10s, timeout 5s, 3 retries, start period 5s | the proxy container's healthcheck (`traefik healthcheck --ping`) |
 | `unless-stopped` | the proxy container's restart policy |
 | `200` | lines shown by `hl logs` and `hl logs proxy` (change with `--tail`) |
-| `2m` | how long `--wait` waits for each app (change with `--wait-timeout`) |
+| `2m` | how long `--wait` waits for each app (fixed) |
 | `20` | log lines `--wait` shows for each service that didn't become healthy |
 | every `250ms`, `2s` each | how often `--wait` asks the proxy for a healthy app's URL until the app answers (anything but Traefik's own `404 page not found`), and how long one request may take |
 | `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use or another homelab's proxy is set to it (or may be: another homelab uses the default Docker names and hl can't read its port) (and error hints suggest) |
@@ -320,7 +368,7 @@ don't stop the command. All of these go to stderr.
 | --- | --- |
 | `0` | Success. |
 | `1` | A command failed: one of hl's own checks (including problems in `hl.yml`), or a docker or git command. |
-| `2` | Usage: an unknown command, a wrong argument or flag, or a setting or value `hl set`/`hl unset` can't take (the error names the key, e.g. `apps.my-app.routing`, and the hint the fix; `hl.yml` is left as it was). |
+| `2` | Usage: an unknown command, a wrong argument or flag, an app name that isn't in `hl.yml` (for every command that takes one; the error says "did you mean" or lists the apps), or a setting or value `hl set`/`hl unset` can't take (the error names the key, e.g. `apps.my-app.routing`, and the hint the fix; `hl.yml` is left as it was). |
 | `128 + signal` | Interrupted; `130` for Ctrl-C. |
 | the shell's | `hl shell` exits with the status of the shell it ran. |
 

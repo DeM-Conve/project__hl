@@ -132,7 +132,12 @@ func doctor(ctx context.Context) error {
 			case inv.owner(cfg, cfg.ProxyProject()) != "":
 				// Reported by doctorProxy above.
 			case inv.running(cfg.ProxyProject()):
-				c.ok(fmt.Sprintf("proxy running on %s:%d", p.Bind, p.Port))
+				// The same check as hl show proxy: compose's hash of the running container's config.
+				if proxyBehind(cfg, runningProxyHash(ctx, cfg)) {
+					c.warn("proxy running, but behind "+config.FileName, "apply it: hl up")
+				} else {
+					c.ok(fmt.Sprintf("proxy running on %s:%d", p.Bind, p.Port))
+				}
 			default:
 				if c.check(checkPort(ctx, cfg), fmt.Sprintf("proxy port %s:%d is free", p.Bind, p.Port)) {
 					c.check(checkNetwork(ctx, cfg), "proxy network "+p.Network)

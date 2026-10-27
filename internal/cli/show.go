@@ -55,9 +55,9 @@ compose config as hl runs it: its own files plus hl's override.`,
 				}
 				return showProxy(cfg)
 			}
-			a, err := cfg.App(args[0])
+			a, err := appArg(cfg, args[0])
 			if err != nil {
-				return withHint(err, "`hl show` lists the apps")
+				return err
 			}
 			if composeOut {
 				p, err := prepared(cmd.Context(), cfg, args[0])

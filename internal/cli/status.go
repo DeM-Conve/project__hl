@@ -56,10 +56,10 @@ func printStatus(ctx context.Context, cfg *config.Config) error {
 		proxyState = ""
 	case inv.running(cfg.ProxyProject()):
 		proxyState = green + "running" + reset
-		// The proxy keeps the address it was started with until `hl up proxy`: show that one,
+		// The proxy keeps the address it was started with until `hl up` (or `hl up proxy`): show that one,
 		// and the app URLs on the port that actually serves them.
 		if host, port, ok := publishedAddr(ctx, cfg.ProxyProject()); ok && addrDiffers(cfg, host, port) {
-			note = fmt.Sprintf("%s says %s - apply it: hl up proxy, then hl up", config.FileName,
+			note = fmt.Sprintf("%s says %s - apply it: hl up", config.FileName,
 				net.JoinHostPort(cfg.Proxy.Bind, strconv.Itoa(cfg.Proxy.Port)))
 			live := *cfg
 			live.Proxy.Bind, live.Proxy.Port = host, port

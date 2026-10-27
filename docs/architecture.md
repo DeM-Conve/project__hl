@@ -218,9 +218,15 @@ warns. Kept apps are never re-mapped.
   older than `config.TestedTraefikVersion`, and whether the running container predates the config
   (compose's `config-hash` label vs `docker compose config --hash traefik`).
 - `doctor` also checks the proxy config (as above), the project/network ownership, and warns (not a
-  failure) when `proxy.image` is older than the tested Traefik or its version can't be told.
-- `up`/`start`, `rebuild` and `restart` start the proxy first if none of its containers
-  runs (`ensureProxy`), because each override joins the proxy network as `external`. Before
+  failure) when `proxy.image` is older than the tested Traefik or its version can't be told, and
+  when the running proxy predates hl.yml (`proxyBehind`, the same config-hash check as `show
+  proxy`; the running hash from `docker ps --format {{.Label "com.docker.compose.config-hash"}}`).
+- `up` with no app runs the proxy's own `up` first (`upProxy`, as `hl up proxy`: compose
+  recreates it only when its files changed, and a new address is checked before that), then
+  every app, so `hl set proxy ...` then `hl up` applies. `up <app>`, `rebuild` and `restart`
+  start the proxy first only if none of its containers runs (`ensureProxy`), because each
+  override joins the proxy network as `external`; a running proxy is left alone, so one app
+  doesn't drop every app's routes for a moment. Before
   starting it (`startProxy`, also `hl up proxy`): `checkPort` - something else on `bind:port`?
   (`net.Listen`; when hl may not open a low port, a connect instead), named by `docker ps --filter
   publish=<port>`, else `lsof`, else `ss`, with a free port suggested - and `checkNetwork` - with
@@ -229,7 +235,8 @@ warns. Kept apps are never re-mapped.
 - Multi-app commands (`eachApp`) run every app even when one fails, print each failure as it
   happens and end with "n of m apps failed: ..." (exit 1). An interruption stops the loop.
 - `--wait` (`up`, `rebuild`) runs the command as usual (every service starts), then
-  `up --detach --wait --wait-timeout <s> <services>` for the routed service and its
+  `up --detach --wait --wait-timeout <s> <services>` (`defaults.WaitTimeout`, fixed; tests
+  replace `waitTimeout`) for the routed service and its
   `depends_on`, followed through (`compose.Model.WithDeps`, from the model `prepare` already
   read), so a sidecar with a slow healthcheck doesn't fail an app that serves. `--wait` on an
   app with routing `none` (no service matters more) passes `--wait --wait-timeout <s>` to the
@@ -240,7 +247,7 @@ warns. Kept apps are never re-mapped.
   with the URL's `Host` header) every `defaults.RouteWaitInterval` until the answer is anything
   but Traefik's own 404 for an unknown route (`defaults.ProxyNotFound`; the app's own 404
   counts as an answer). Traefik loads a new route a moment after the container is up, so a
-  request right after `--wait` used to get that 404. Past the `--wait-timeout` (counted from
+  request right after `--wait` used to get that 404. Past the timeout (counted from
   the start of the wait) it fails with a hint. Tests replace `routeReady`.
 - `down`/`stop` with no app stops every app that has containers, then the proxy; apps and a proxy
   that aren't there are skipped, so it is safe to repeat. An app hl can no longer prepare (folder
@@ -363,7 +370,8 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   removes a key that is no setting but is in the file at that scope (`config.Present`; at the
   top level not `version`, `proxy` or `apps`), and the CLI notes that it wasn't a known setting
   (`knownSetting`); a key neither known nor present stays an unknown key. An unknown key
-  or app is a `config.UnknownError`, which the CLI turns into a usage error (exit 2); so is a key
+  or app is a `config.UnknownError`, which the CLI turns into a usage error (exit 2; an app name
+  is checked first with `appArg`, which every command that takes an app uses); so is a key
   given without an app that isn't a homelab one (`notHomelabKey` names the scope that has it).
   A value that can't be used (not a number, not in the list for `-=`, or a problem `Check` finds
   in the result while the file before had none) is a `config.ValueError`: the full key
@@ -375,11 +383,12 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   read). The CLI tells
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,
   so it is the shared scope; for `unset`, a homelab key (`env`/`env.NAME`, or any key hl.yml
-  has at the top) is the shared scope unless an app has that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
-  `hl up <app>`, `hl up`, `hl up proxy`, `hl up proxy` then `hl up` when the proxy's `domain`,
-  `routing` or `port` changed (they are in the apps' routes or `HL_URL`; `bind` is not), `hl sync`
-  for the projects settings, or `hl down` then `hl up` when the proxy's network, subnet or
-  project changed).
+  has at the top) is the shared scope unless an app has that name (`config.HasApp`). It then
+  prints what applies the change (`applyCommand`:
+  `hl up <app>`, `hl up proxy` for the proxy's `bind`, `image` and `debug`, `hl up` for the
+  shared env, `name` and the proxy's `domain`, `routing` or `port` (they are in the apps' routes
+  or `HL_URL`; a bare `hl up` applies the proxy first), `hl sync` for the projects settings, or
+  `hl down` then `hl up` when the proxy's subnet changed).
 - There is no editor command: every key is reachable with `hl set`/`hl unset`. A file broken by
   hand fails `config.Load` with a `*config.ProblemsError` (each problem with file:line:column);
   `cli.load` adds the hint to fix those lines in an editor and re-check with `hl doctor`.

@@ -275,10 +275,10 @@ func targets(cfg *config.Config, args []string) ([]string, error) {
 	var names []string
 	for _, a := range args {
 		if a == proxyArg {
-			return nil, withHint(errors.New("the proxy is not an app here"), "the proxy works with hl up, down, restart, rebuild, logs and show, e.g. `hl logs proxy`")
+			return nil, &usageError{err: withHint(errors.New("the proxy is not an app here"), "the proxy works with hl up, down, restart, rebuild, logs and show, e.g. `hl logs proxy`")}
 		}
-		if _, err := cfg.App(a); err != nil {
-			return nil, withHint(err, "`hl status` lists the apps")
+		if _, err := appArg(cfg, a); err != nil {
+			return nil, err
 		}
 		if !seen[a] {
 			seen[a] = true
@@ -287,6 +287,19 @@ func targets(cfg *config.Config, args []string) ([]string, error) {
 	}
 	return names, nil
 }
+
+// appArg is the app a command was given by name. One that isn't in hl.yml is a usage error
+// (exit 2), saying "did you mean" or listing the apps.
+func appArg(cfg *config.Config, name string) (*config.App, error) {
+	a, err := cfg.App(name)
+	if err != nil {
+		return nil, &usageError{err: withHint(err, "%s", appsHint)}
+	}
+	return a, nil
+}
+
+// appsHint is the hint for an unknown app name.
+const appsHint = "`hl status` lists the apps"
 
 // completeApps completes app names from hl.yml, leaving out the ones already typed.
 func completeApps(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {

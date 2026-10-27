@@ -63,7 +63,7 @@ release differs from earlier builds of `main`.
   `version` and shell `completion` (which offers app and service names).
 - `hl status` has a HEALTH column: `healthy`, `starting: <services>`, `unhealthy: <services>`,
   or `-` for apps without healthchecks.
-- `--wait` and `--wait-timeout` (default 2m) on `hl up` and `hl rebuild`: wait until
+- `--wait` on `hl up` and `hl rebuild`: wait (up to 2 minutes per app) until
   each app's service behind the proxy and the services it depends on (`depends_on`) are running
   and healthy, and for an app that isn't, name those services and show their last log lines. A
   sidecar nothing depends on (say, a backup job with a long healthcheck interval) no longer fails
@@ -148,6 +148,24 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- **Breaking:** `--wait-timeout` is gone; `--wait` waits a fixed 2 minutes per app. Drop the
+  flag from scripts (`hl up --wait`); a slow app's health shows in `hl status` once it is up.
+
+- An app name that isn't in `hl.yml` exits 2 (usage) for every command that takes one (`up`,
+  `down`, `restart`, `rebuild`, `logs`, `shell`, `open`, `show`, `remove`, `set`, `unset`), with
+  "did you mean" or the list of apps and the same hint; most of them exited 1, and `hl set` /
+  `hl unset` of a mistyped app gave a different message.
+
+- `hl doctor` warns when the running proxy was started from older settings than hl.yml's (the
+  check `hl show proxy` makes), with `hl up` to apply them; both used to say `hl up proxy`.
+
+- A bare `hl up` applies the proxy's changed settings too: `hl set proxy debug=true` (or
+  `port=`, `image=`, ...) then `hl up` used to leave the running proxy as it was, since `hl up`
+  only started a proxy that wasn't running. It now runs the proxy's own `up` first (compose
+  recreates it only when its files changed; a busy new port is still refused before that), then
+  every app. `hl up <app>` still leaves a running proxy alone. `hl set` names `hl up` where that
+  is enough (`domain`, `routing`, `port` and the shared env); `hl status` says "apply it: hl up".
+
 - **Breaking:** `hl sync --dry-run` is gone: answering n, or running without a terminal, already
   shows the plan and writes nothing.
 - **Breaking:** `hl edit` is gone. Every key can be changed with `hl set`/`hl unset`, so a
@@ -224,6 +242,8 @@ release differs from earlier builds of `main`.
   refuse it as unknown although the error for such a file suggests it. On a file with several
   problems it writes the result when it adds none, so they can be fixed one at a time. A key
   that is neither a setting nor in the file is still refused.
+- `hl rebuild --pull` printed each app's `==> <app>` header twice (once with its folder before
+  the pull, once before the rebuild); it is printed once, with the folder.
 - `hl set`, `hl unset` and every other command that changes `hl.yml` (add, remove, sync, init)
   keep its blank lines and never add any; they used to remove all of them, so one setting
   rewrote the whole file's layout, and then added one below the header comment on every edit.
@@ -252,11 +272,11 @@ release differs from earlier builds of `main`.
 - `hl status` shows the proxy where it really listens: after `hl set proxy port=8088` without
   `hl up proxy`, it used to print hl.yml's address and URLs on a port nothing served. It now
   shows the running address, the app URLs on that port, and a note: "hl.yml says ...:8088 -
-  apply it: hl up proxy, then hl up".
+  apply it: hl up".
 - `hl up --wait` (and `rebuild --wait`) returns only once the app's URL answers through the
   proxy: a request right after it used to get Traefik's "404 page not found" for about a second,
   until the proxy had loaded the new route. Any answer of the app counts, its own 404 too; a
-  route that doesn't show up within `--wait-timeout` fails with a hint. Apps with routing `none`
+  route that doesn't show up within the timeout fails with a hint. Apps with routing `none`
   aren't asked.
 - `hl show` lists the apps in aligned columns (name, URL, folder), and `hl show <app>` no
   longer ends its `project` and `url` rows with an empty source.
@@ -291,7 +311,7 @@ release differs from earlier builds of `main`.
   `hl set proxy debug=true`. `hl logs <app> <service>` with a service the app doesn't have lists
   its services instead of compose's error.
 - `hl set proxy port=...` said to apply it with `hl up proxy` only, but the port is in every
-  app's `HL_URL`; it now says `hl up proxy, then hl up`, like `domain` and `routing`.
+  app's `HL_URL`; it now says `hl up` (the proxy, then the apps), like `domain` and `routing`.
 
 - `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
   line, shown only with path routing when no base-path variable was mapped. `hl init` and

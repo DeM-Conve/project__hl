@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -102,7 +103,7 @@ written if the result is valid; hl says which command applies the change.
 						// hl set env.TZ, scan_depth: a homelab setting without its value.
 						return &usageError{err: withHint(fmt.Errorf("%s needs a value", scope), "hl set %s=<value>", scope), cmd: cmd.CommandPath()}
 					}
-					return notHomelabKey("set", scope, scope+"=<value>")
+					return unknownScope(home, "set", scope, scope+"=<value>")
 				}
 				return &usageError{err: fmt.Errorf("nothing to set for %q - give key=value, e.g. hl set %s port=8080", scope, scope), cmd: cmd.CommandPath()}
 			}
@@ -155,7 +156,7 @@ env.NAME removes one env setting, env removes them all.
 				}
 			} else if len(keys) == 0 {
 				if scope != config.ProxyScope && !config.HasApp(home, scope) {
-					return notHomelabKey("unset", scope, scope)
+					return unknownScope(home, "unset", scope, scope)
 				}
 				return &usageError{err: fmt.Errorf("nothing to unset for %q - name the keys, e.g. hl unset %s port", scope, scope), cmd: cmd.CommandPath()}
 			}
@@ -166,6 +167,19 @@ env.NAME removes one env setting, env removes them all.
 			return editScope(cmd.Context(), scope, changes)
 		},
 	}
+}
+
+// unknownScope is the usage error for `hl set <x>` or `hl unset <x>` with nothing after it, where
+// x is neither an app nor the proxy: a setting of another scope says which (notHomelabKey), any
+// word close to an app's name is a mistyped app name, as for every command that takes an app.
+func unknownScope(home, verb, scope, arg string) error {
+	setting := strings.Contains(scope, ".") || slices.Contains(config.ProxyKeys(), scope) || slices.Contains(setAppKeys(), scope)
+	if cfg, err := config.Load(home); err == nil && !setting {
+		if _, err := cfg.App(scope); err != nil && strings.Contains(err.Error(), " - did you mean ") {
+			return &usageError{err: withHint(err, "%s", appsHint), cmd: "hl " + verb}
+		}
+	}
+	return notHomelabKey(verb, scope, arg)
 }
 
 // notHomelabKey is the usage error for a key given without an app that isn't a homelab
@@ -314,6 +328,12 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 	}
 	isApp := scope != config.HomelabScope && scope != config.ProxyScope
 	if isApp {
+		// An app that isn't there: the same usage error as every command that takes an app.
+		if cfg, err := config.Load(home); err == nil {
+			if _, err := appArg(cfg, scope); err != nil {
+				return err
+			}
+		}
 		for _, c := range changes {
 			if c.Key != "name" || c.Unset {
 				continue
@@ -447,8 +467,8 @@ func renameApp(ctx context.Context, home, old, new string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := cfg.App(old); err != nil {
-		return &usageError{err: err, cmd: "hl set"}
+	if _, err := appArg(cfg, old); err != nil {
+		return err
 	}
 	if new == old {
 		say("%s is already called %s", old, new)
@@ -538,7 +558,8 @@ func applyCommand(scope string, changes []config.Change) string {
 			}
 		}
 		if apps {
-			return "hl up proxy, then hl up (the apps' routes or URLs change too)"
+			// A bare hl up applies the proxy's settings, then the apps'.
+			return "hl up (the proxy, then the apps, whose routes or URLs change too)"
 		}
 		return "hl up proxy"
 	}

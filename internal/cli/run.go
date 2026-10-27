@@ -27,22 +27,24 @@ import (
 
 // Commands that run apps.
 
-// waitFlags are --wait and --wait-timeout, for commands that start apps.
+// waitFlags is --wait, for commands that start apps.
 type waitFlags struct {
-	wait    bool
-	timeout time.Duration
+	wait bool
 }
 
+// waitTimeout is how long --wait waits for each app: a fixed default, not a flag. Tests
+// replace it.
+var waitTimeout = defaults.WaitTimeout
+
 func (w *waitFlags) add(c *cobra.Command) {
-	c.Flags().BoolVar(&w.wait, "wait", false, "wait until each app's service behind the proxy, and the services it depends on, run and are healthy; show the logs of any that aren't")
-	c.Flags().DurationVar(&w.timeout, "wait-timeout", defaults.WaitTimeout, "how long --wait waits for each app")
+	c.Flags().BoolVar(&w.wait, "wait", false, "wait (up to "+defaults.WaitTimeout.String()+" per app) until each app's service behind the proxy, and the services it depends on, run and are healthy and its URL answers; show the logs of any that aren't")
 }
 
 // on reports whether hl waits at all.
 func (w *waitFlags) on() bool { return w != nil && w.wait }
 
 func (w *waitFlags) args(args ...string) []string {
-	return append(args, "--wait", "--wait-timeout", strconv.Itoa(int(w.timeout.Seconds())))
+	return append(args, "--wait", "--wait-timeout", strconv.Itoa(int(waitTimeout.Seconds())))
 }
 
 // services are the services --wait waits for: the routed one and what it depends on, or nil
@@ -94,7 +96,7 @@ func eachApp(ctx context.Context, cfg *config.Config, names []string, needProxy 
 	}
 	f := &failures{total: len(names)}
 	for _, n := range names {
-		if err := runApp(ctx, cfg, inv, n, w, args...); err != nil {
+		if err := runApp(ctx, cfg, inv, n, true, w, args...); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
 			}
@@ -104,7 +106,9 @@ func eachApp(ctx context.Context, cfg *config.Config, names []string, needProxy 
 	return f.err()
 }
 
-func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string, w *waitFlags, args ...string) error {
+// runApp runs a compose command for one app; header prints its "==> app" line (false when the
+// caller printed one already).
+func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string, header bool, w *waitFlags, args ...string) error {
 	if err := inv.mine(cfg, cfg.ProjectName(name), name); err != nil {
 		return err
 	}
@@ -113,7 +117,9 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 		return err
 	}
 	p := pa.Project
-	step(name)
+	if header {
+		step(name)
+	}
 	up := len(args) > 0 && args[0] == "up"
 	if up && !slices.Contains(args, "--build") {
 		// An image keeps the build args it was built with; rebuild the ones whose changed.
@@ -150,7 +156,7 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 		}
 	}
 	if waitFor != nil {
-		deadline := time.Now().Add(w.timeout)
+		deadline := time.Now().Add(waitTimeout)
 		say("%swaiting for %s%s", dim, strings.Join(waitFor, ", "), reset)
 		if err := p.Run(ctx, append(w.args("up", "--detach"), waitFor...)...); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
@@ -184,7 +190,7 @@ func waitRoute(ctx context.Context, cfg *config.Config, name string, deadline ti
 	for !routeReady(ctx, addr, u.Host, u.Path) {
 		if time.Now().After(deadline) {
 			return withHint(fmt.Errorf("%s: the proxy has no route to %s yet", name, u),
-				"see `hl logs proxy` (`hl set proxy debug=true`, then `hl up proxy`, logs each request); a slow app may need a longer --wait-timeout")
+				"see `hl logs proxy` (`hl set proxy debug=true`, then `hl up proxy`, logs each request)")
 		}
 		select {
 		case <-ctx.Done():
@@ -248,7 +254,7 @@ func unhealthy(ctx context.Context, p *compose.Project, name string, cause error
 		_ = p.Run(ctx, "logs", "--no-color", "--tail", strconv.Itoa(defaults.FailLogTail), s)
 	}
 	return withHint(fmt.Errorf("%s: not running and healthy: %s", name, strings.Join(bad, ", ")),
-		"see `hl logs %s %s`; a slow app may need a longer --wait-timeout", name, bad[0])
+		"see `hl logs %s %s`; a slow app may still get there: `hl status` shows its health", name, bad[0])
 }
 
 func uniq(s []string) []string {
@@ -275,8 +281,9 @@ func splitProxy(args []string) (withProxy bool, apps []string) {
 }
 
 // appsCmd is a command over [app...] (all by default) that also takes the proxy: withProxy
-// says it was named, names are the apps (none when only the proxy was named).
-func appsCmd(use, short string, run func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error) *cobra.Command {
+// says it was named, names are the apps (none when only the proxy was named, all of them when
+// nothing was).
+func appsCmd(use, short string, run func(ctx context.Context, cfg *config.Config, withProxy bool, names []string, all bool) error) *cobra.Command {
 	return &cobra.Command{
 		Use:               use + " [app...|proxy]",
 		Short:             short,
@@ -293,7 +300,7 @@ func appsCmd(use, short string, run func(ctx context.Context, cfg *config.Config
 					return err
 				}
 			}
-			return run(cmd.Context(), cfg, withProxy, names)
+			return run(cmd.Context(), cfg, withProxy, names, len(args) == 0)
 		},
 	}
 }
@@ -314,11 +321,17 @@ func proxyThenApps(withProxy bool, names []string, proxyRun, apps func() error) 
 
 func upCmd() *cobra.Command {
 	var w waitFlags
-	c := appsCmd("up", "Start apps (all by default), the proxy first; builds images that don't exist yet",
-		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+	c := appsCmd("up", "Start apps (all by default), the proxy first; with no app, also applies the proxy's changed settings",
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string, all bool) error {
+			// A bare hl up brings everything to what hl.yml says, the proxy included (compose
+			// recreates it only when its files changed); hl up <app> only starts a missing proxy,
+			// so one app doesn't take every other app's routes down for a moment.
+			if all {
+				withProxy = true
+			}
 			err := proxyThenApps(withProxy, names,
 				func() error { return upProxy(ctx, cfg) },
-				func() error { return eachApp(ctx, cfg, names, true, &w, "up", "--detach") })
+				func() error { return eachApp(ctx, cfg, names, !withProxy, &w, "up", "--detach") })
 			return statusAfter(ctx, cfg, err)
 		})
 	w.add(c)
@@ -329,7 +342,7 @@ func rebuildCmd() *cobra.Command {
 	var w waitFlags
 	var pull bool
 	c := appsCmd("rebuild", "Rebuild apps' images from their folders' current code, then restart them; --pull git pulls first",
-		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string, _ bool) error {
 			proxyArgs := []string{"--force-recreate"}
 			if pull {
 				proxyArgs = append(proxyArgs, "--pull", "always")
@@ -351,7 +364,7 @@ func rebuildCmd() *cobra.Command {
 
 func restartCmd() *cobra.Command {
 	return appsCmd("restart", "Restart apps' containers without rebuilding (the proxy first, like up)",
-		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string, _ bool) error {
 			return proxyThenApps(withProxy, names,
 				func() error { return restartProxy(ctx, cfg) },
 				func() error {
@@ -629,7 +642,8 @@ func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *
 			}
 		}
 		// A folder hl may not pull is still rebuilt from the code it has.
-		if err := runApp(ctx, cfg, inv, n, w, "up", "--detach", "--build"); err != nil {
+		// Under the header above, with the pull's output.
+		if err := runApp(ctx, cfg, inv, n, false, w, "up", "--detach", "--build"); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
 			}
