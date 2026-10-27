@@ -282,7 +282,9 @@ warns. Kept apps are never re-mapped.
   are missing), `ignore` with the built-in patterns, `scan_depth`, `strip_prefix`, and the apps.
   `--compose` runs `docker compose config` on the prepared app (or the proxy's project) instead:
   the whole config as hl runs it. Only the key column is aligned (the source follows the value
-  after two spaces, so one long path doesn't push every row), and paths inside the user's home
+  after two spaces, so one long path doesn't push every row; values hl works out itself, an
+  app's `project` and `url`, have no source), except the homelab's app list, which is in
+  columns (name, URL, folder), and paths inside the user's home
   folder print as `~/...` (`tilde`, also in `hl status` and `hl show proxy`).
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.

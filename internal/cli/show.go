@@ -86,7 +86,13 @@ func setIn(set bool) string {
 
 func showApp(ctx context.Context, cfg *config.Config, name string, a *config.App) {
 	w := table()
-	row := func(k, v, src string) { fmt.Fprintf(w, "  %s\t%s  %s\n", k, v, from(src)) }
+	row := func(k, v, src string) {
+		if src == "" {
+			fmt.Fprintf(w, "  %s\t%s\n", k, v) // worked out by hl, nothing to say where from
+			return
+		}
+		fmt.Fprintf(w, "  %s\t%s  %s\n", k, v, from(src))
+	}
 	say("%s%s%s", bold, name, reset)
 	row("folder", tilde(cfg.AppDir(a)), config.FileName)
 	routing := cfg.Routing(a)
@@ -280,7 +286,7 @@ func showHomelab(cfg *config.Config) error {
 		} else {
 			u += "/"
 		}
-		fmt.Fprintf(w, "  %s\t%s  %s\n", n, u, from(tilde(cfg.AppDir(a))))
+		fmt.Fprintf(w, "  %s\t%s\t%s\n", n, u, from(tilde(cfg.AppDir(a))))
 	}
 	_ = w.Flush()
 	say("%shl show <app> for one app's details%s", dim, reset)

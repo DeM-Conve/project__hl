@@ -213,6 +213,8 @@ release differs from earlier builds of `main`.
   until the proxy had loaded the new route. Any answer of the app counts, its own 404 too; a
   route that doesn't show up within `--wait-timeout` fails with a hint. Apps with routing `none`
   aren't asked.
+- `hl show` lists the apps in aligned columns (name, URL, folder), and `hl show <app>` no
+  longer ends its `project` and `url` rows with an empty source.
 - No more silent no-ops: `hl restart <app>` of an app that isn't running says "`<app>` isn't
   running - start it with: `hl up <app>`" (exit 0) instead of printing an empty `==> <app>`
   section; `hl logs` with no app shows only the running apps' logs and says so when none runs;
