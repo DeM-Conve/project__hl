@@ -101,8 +101,8 @@ release differs from earlier builds of `main`.
   the like mean the proxy). `hl add`, `hl.yml`, `hl init`, `hl sync` and the schema refuse it.
 - `hl.yml` is versioned (`version: 1`). Older files without it keep working and get the line,
   with a message, the first time hl edits them; a newer file asks you to update hl.
-- A JSON Schema for `hl.yml` (`schema/hl.schema.json`); `hl init` writes the
-  `yaml-language-server` line so editors autocomplete and flag mistakes.
+- A JSON Schema for `hl.yml` (`schema/hl.schema.json`), for editors of those who edit it by
+  hand (`hl edit`); hl doesn't point new files at it.
 - `hl set <app> key=value` and `hl unset <app> key` change an app's settings, keeping `hl.yml`'s
   comments and writing only a valid result. `hl set proxy port=8080 bind=0.0.0.0` changes the
   proxy and `hl set env.TZ=UTC` (no app) the env every app gets; `hl unset proxy port` and
@@ -151,6 +151,8 @@ release differs from earlier builds of `main`.
   network are `hl-proxy`, or `hl-<name>-proxy` for a homelab with a `name` (`hl set name=<x>`
   gives a second homelab its own). An `hl.yml` that still has one is refused with a message
   naming `hl unset proxy network` / `hl unset proxy project`; `hl show proxy` prints both names.
+- A new `hl.yml` no longer starts with a `# yaml-language-server: $schema=...` line; the
+  schema stays in `schema/hl.schema.json` for anyone who edits the file by hand.
 - **Breaking:** the app key `env_files` is gone. Keep an app's secrets in its own `.env` (hl
   reads it, as compose does) and anything else in its env (`hl set <app> env.NAME=value`). An
   `hl.yml` that still has it is refused with a message naming `hl unset <app> env_files`.

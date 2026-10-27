@@ -96,8 +96,8 @@ in hl may assume the maintainer's setup.
 - [x] **`hl edit`**: opens hl.yml in `$EDITOR`, validates on save, re-opens on error.
 - [x] **Versioned config**: `version: 1` at the top of hl.yml; older files keep working and are
   upgraded with a message, never silently.
-- [x] **JSON Schema** for hl.yml (published in the repo; `# yaml-language-server: $schema=...`
-  line written by init) so editors autocomplete and flag mistakes.
+- [x] **JSON Schema** for hl.yml (published in the repo; since 2026-10-27 init no longer writes a
+  `# yaml-language-server` line - nobody needs to open hl.yml - so it serves `hl edit` users only).
 
 ## 4. The proxy: one Traefik file (P0)
 

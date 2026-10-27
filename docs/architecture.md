@@ -329,8 +329,9 @@ the format before versions (0), which loads as before. `config.Upgrade` adds the
 after any header comment) and the CLI prints a note; it runs before `add`/`remove` and after
 `set`/`unset`. `Validate` refuses a version above `defaults.ConfigVersion`.
 
-**Schema**: `schema/hl.schema.json` (draft-07), referenced from new files by
-`config.SchemaComment`. `internal/config/schema_test.go` keeps it in step with the code: same keys
+**Schema**: `schema/hl.schema.json` (draft-07), published at `defaults.SchemaURL` (its `$id`) for
+people who edit hl.yml by hand; new files no longer reference it (2026-10-27), and `Check` doesn't
+use it (it walks the Go types). `internal/config/schema_test.go` keeps it in step with the code: same keys
 as the Go types, same enums, patterns and defaults, and it accepts the yaml examples in the README and docs/reference.md.
 
 **Settings listing** (`config.Settings`, used by `hl show` and `hl show proxy`): the
@@ -402,7 +403,7 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   doctor's docker checks; without a working docker it still writes hl.yml but leaves app
   detection to `hl sync`. Port check: `net.Listen` on bind:port; only "address in use" counts
   as busy (a normal user may not open port 80, Docker can). A new hl.yml is the short `Template`
-  (schema line, header comment, `version`, `apps: {}`) plus, through the yaml node tree
+  (header comment, `version`, `apps: {}`) plus, through the yaml node tree
   (`config.WriteNew`, `O_EXCL`, so it never overwrites), `projects`, `strip_prefix` and a
   `proxy` block with the port when it isn't the default; projects
   folders are stored relative inside the homelab, with `~` inside the user's home, else

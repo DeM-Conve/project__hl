@@ -22,8 +22,8 @@ func TestTemplateIsCurrent(t *testing.T) {
 	if v := FileVersion([]byte(Template)); v != defaults.ConfigVersion {
 		t.Errorf("Template has version %d, want %d", v, defaults.ConfigVersion)
 	}
-	if !strings.HasPrefix(Template, defaults.SchemaComment+"\n") {
-		t.Errorf("Template should start with the schema comment:\n%s", Template)
+	if strings.Contains(Template, "yaml-language-server") {
+		t.Errorf("Template should not point editors at the schema (nobody opens hl.yml):\n%s", Template)
 	}
 	if ps := Check([]byte(Template)); len(ps) > 0 {
 		t.Errorf("Template has problems: %v", ps)

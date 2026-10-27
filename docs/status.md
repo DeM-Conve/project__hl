@@ -106,3 +106,8 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     on an existing `hl.yml` without `strip_prefix` (or one clashing with another homelab) changes
     nothing and leaves that to `hl set`/`hl doctor`. Should it offer them there too (renaming
     apps or projects that may already run)?
+16. **Keep `schema/hl.schema.json`?** (2026-10-27): `hl init` no longer writes the
+    `yaml-language-server` header, so the schema only serves people who edit hl.yml by hand and
+    add the header themselves. hl's own check doesn't use it; its tests (schema_test.go, the
+    reserved-names test) only keep it in step with the Go types. Kept for now; delete it (and
+    those tests) if `hl edit` users don't need editor completion.

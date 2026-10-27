@@ -224,7 +224,6 @@ You don't need to open it, but this is what `hl set` writes. Everything except a
 optional:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/DeM-Conve/project__hl/main/schema/hl.schema.json
 version: 1
 # name: lab2               # only for a second homelab on the same Docker
 
@@ -257,9 +256,9 @@ apps:
 - **`version: 1`** is the format. A file without it keeps working; the first time hl changes the
   file it adds `version: 1` and says so. A file with a newer version than your hl understands is
   refused with a message to update hl.
-- **Editor support.** `hl init` starts the file with a `# yaml-language-server: $schema=...` line
-  pointing at [schema/hl.schema.json](../schema/hl.schema.json), so editors with the YAML language
-  server autocomplete keys and flag mistakes.
+- **Schema.** [schema/hl.schema.json](../schema/hl.schema.json) describes the file for editors
+  with a YAML language server, if you edit it by hand; hl doesn't point the file at it (add
+  `# yaml-language-server: $schema=<its raw GitHub URL>` yourself). hl's own check doesn't need it.
 - **`hl edit`** is the fallback for editing by hand: it opens a copy (`.hl/edit/hl.yml`) in
   `$VISUAL`, then `$EDITOR`, else `vi`, checks it when the editor closes and saves it only if it
   has no problems, else lists them and offers to reopen the editor. It works on a broken `hl.yml`.

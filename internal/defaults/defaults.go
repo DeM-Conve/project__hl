@@ -249,8 +249,8 @@ const (
 	// are the older, unversioned format (0) and are upgraded the next time hl edits them.
 	ConfigVersion = 1
 
-	// SchemaURL is the JSON Schema for hl.yml that editors use through the
-	// yaml-language-server comment hl writes at the top of a new hl.yml.
+	// SchemaURL is where the JSON Schema for hl.yml is published (its $id). hl writes no
+	// reference to it; it is for editors of people who edit hl.yml by hand (hl edit).
 	SchemaURL = "https://raw.githubusercontent.com/DeM-Conve/project__hl/main/schema/hl.schema.json"
 
 	// DefaultEditor is what `hl edit` runs when neither $VISUAL nor $EDITOR is set.
@@ -260,6 +260,3 @@ const (
 	// hl.yml itself is only replaced once the draft is valid.
 	EditDraft = StateDir + "/edit/" + ConfigFile
 )
-
-// SchemaComment is the first line of a new hl.yml: it points editors at the schema.
-const SchemaComment = "# yaml-language-server: $schema=" + SchemaURL
