@@ -568,10 +568,10 @@ func renameApp(ctx context.Context, home, old, new string) error {
 		return err
 	}
 	if err := config.ValidName(new); err != nil {
-		return withHint(err, "pick another: hl set %s name=<name>", old)
+		return &usageError{err: withHint(err, "pick another: hl set %s name=<name>", old), cmd: "hl set"}
 	}
 	if _, ok := cfg.Apps[new]; ok {
-		return withHint(fmt.Errorf("app %q exists already", new), "pick another name, or `hl remove %s` first", new)
+		return &usageError{err: withHint(fmt.Errorf("app %q exists already", new), "pick another name, or `hl remove %s` first", new), cmd: "hl set"}
 	}
 	inv, err := containers(ctx)
 	if err != nil {
@@ -583,18 +583,18 @@ func renameApp(ctx context.Context, home, old, new string) error {
 			"stop it first: hl down %s, then hl set %s name=%s, then hl up %s", old, old, new, new)
 	}
 	if pn := cfg.ProjectName(new); len(inv.of(pn)) > 0 {
-		return withHint(fmt.Errorf("%s would use Docker project %s, which exists already", new, pn),
-			"pick another name, or remove that project (`docker compose -p %s down`)", pn)
+		return &usageError{err: withHint(fmt.Errorf("%s would use Docker project %s, which exists already", new, pn),
+			"pick another name, or remove that project (`docker compose -p %s down`)", pn), cmd: "hl set"}
 	}
 	oldData, newData := cfg.DataDir(old), cfg.DataDir(new)
 	if exists(newData) {
-		return withHint(fmt.Errorf("%s exists already, and %s's data would move there", newData, old),
-			"move or remove that folder, or pick another name")
+		return &usageError{err: withHint(fmt.Errorf("%s exists already, and %s's data would move there", newData, old),
+			"move or remove that folder, or pick another name"), cmd: "hl set"}
 	}
 	// hl.yml first: it is checked (a clash with another app's host or project) and
 	// nothing has moved if it is refused.
 	if err := config.RenameApp(home, old, new); err != nil {
-		return withHint(err, "pick another name: hl set %s name=<name>", old)
+		return &usageError{err: withHint(err, "pick another name: hl set %s name=<name>", old), cmd: "hl set"}
 	}
 	say("renamed apps.%s to apps.%s", old, new)
 	if exists(oldData) {

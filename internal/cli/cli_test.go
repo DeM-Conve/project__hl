@@ -132,13 +132,13 @@ func TestAddSettings(t *testing.T) {
 		code int
 		want string
 	}{
-		{[]string{"add", dir, "name=tool"}, 1, `app "tool" is already added`},
-		{[]string{"add", dir, "name=x2"}, 1, "is already added as app"},
-		{[]string{"add", dir, "name=Bad Name"}, 1, "use lowercase letters"},
-		{[]string{"add", dir, "name=proxy"}, 1, "reserved"},
+		{[]string{"add", dir, "name=tool"}, 2, `app "tool" is already added`},
+		{[]string{"add", dir, "name=x2"}, 2, "is already added as app"},
+		{[]string{"add", dir, "name=Bad Name"}, 2, "use lowercase letters"},
+		{[]string{"add", dir, "name=proxy"}, 2, "reserved"},
 		{[]string{"add", dir, "name=x3", "compose=c.yml", "service=nope"}, 1, "compose file"},
 		{[]string{"add", dir, "name=x4", "compose=compose.yml", "service=nope"}, 1, `no service "nope"`},
-		{[]string{"add", dir, "name=x5", "compose=compose.yml", "routing=sideways"}, 1, "is not path, host or none"},
+		{[]string{"add", dir, "name=x5", "compose=compose.yml", "routing=sideways"}, 2, "is not path, host or none"},
 		{[]string{"add", filepath.Join(f.home, "missing")}, 1, "not found"},
 		{[]string{"add", filepath.Join(dir, "compose.yml")}, 2, "is a file; hl add takes the app's folder\nhint: hl add " + dir + " (and compose=compose.yml"},
 		{[]string{"add", f.home}, 1, "hint: add a compose file to the folder, or name yours: hl add " + f.home + " compose=<file>"},
@@ -212,7 +212,7 @@ func TestAddMapsEnv(t *testing.T) {
 	}{
 		{[]string{"add", extra, "env.NOPE"}, 2, `"env.NOPE": use key=value`},
 		{[]string{"add", extra, "=x"}, 2, "use key=value"},
-		{[]string{"add", extra, "env.BAD NAME=x"}, 1, "not a valid variable name"},
+		{[]string{"add", extra, "env.BAD NAME=x"}, 2, "not a valid variable name"},
 	} {
 		if r := f.hl(c.args...); r.code != c.code || !strings.Contains(r.errOut, c.want) {
 			t.Errorf("hl %v: want exit %d and %q, got %s", c.args, c.code, c.want, r)

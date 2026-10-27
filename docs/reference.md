@@ -367,7 +367,7 @@ don't stop the command. All of these go to stderr.
 | --- | --- |
 | `0` | Success. |
 | `1` | A command failed: one of hl's own checks (including problems in `hl.yml`), or a docker or git command. |
-| `2` | Usage: an unknown command, a wrong argument or flag, an app name that isn't in `hl.yml` (for every command that takes one; the error says "did you mean" or lists the apps), or a setting or value `hl set`/`hl unset` can't take (the error names the key, e.g. `apps.my-app.routing`, and the hint the fix; `hl.yml` is left as it was). |
+| `2` | Usage: an unknown command, a wrong argument or flag, an app name that isn't in `hl.yml` (for every command that takes one; the error says "did you mean" or lists the apps), a setting or value `hl add`, `hl set` or `hl unset` can't take, including a name another app, Docker project or data folder already has (the error names the key, e.g. `apps.my-app.routing`, and the hint the fix; `hl.yml` is left as it was). |
 | `128 + signal` | Interrupted; `130` for Ctrl-C. |
 | the shell's | `hl shell` exits with the status of the shell it ran. |
 

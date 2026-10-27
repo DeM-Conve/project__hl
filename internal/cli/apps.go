@@ -78,21 +78,22 @@ the mapped ones; env.NAME= with no value leaves that variable out.`,
 				name = config.NameFor(config.Stripped(filepath.Base(dir), cfg.StripPrefix))
 			}
 			if err := config.ValidName(name); err != nil {
-				return withHint(err, "give it another: hl add %s name=<name>", args[0])
+				return &usageError{err: withHint(err, "give it another: hl add %s name=<name>", args[0]), cmd: "hl add"}
 			}
 			if _, ok := cfg.Apps[name]; ok {
-				return withHint(fmt.Errorf("app %q is already added", name), "pick another name with name=<other>, or `hl remove %s` first", name)
+				return &usageError{err: withHint(fmt.Errorf("app %q is already added", name), "pick another name with name=<other>, or `hl remove %s` first", name), cmd: "hl add"}
 			}
 			for _, n := range cfg.Names() {
 				if o := cfg.Apps[n]; cfg.AppDir(o) == dir && sameCompose(o.Compose, a.Compose) && (a.Service == "" || a.Service == o.Service) {
-					return withHint(fmt.Errorf("%s is already added as app %q", dir, n), "to add it again, give it name=<other> with service=<another service> or compose=<other files>")
+					return &usageError{err: withHint(fmt.Errorf("%s is already added as app %q", dir, n), "to add it again, give it name=<other> with service=<another service> or compose=<other files>"), cmd: "hl add"}
 				}
 			}
 			a.Path = relTo(cfg.Dir, dir)
 			// Check it resolves, and pin the service and port hl picked.
 			cfg.Apps[name] = &a
 			if err := cfg.Validate(); err != nil {
-				return withHint(err, "fix the settings (see `hl add --help`)")
+				// A name or setting that clashes with another app's (its Docker project, its host).
+				return &usageError{err: withHint(err, "fix the settings (see `hl add --help`)"), cmd: "hl add"}
 			}
 			if len(a.Compose) == 0 {
 				// The app isn't in hl.yml yet: the fix is on this command line, not hl set.

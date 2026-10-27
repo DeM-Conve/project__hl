@@ -232,11 +232,11 @@ func TestRenameApp(t *testing.T) {
 		code int
 		want string
 	}{
-		{[]string{"set", "a", "name=proxy"}, 1, "reserved"},
-		{[]string{"set", "a", "name=B"}, 1, "use lowercase letters"},
-		{[]string{"set", "a", "name=b"}, 1, `app "b" exists already`},
+		{[]string{"set", "a", "name=proxy"}, 2, "reserved"},
+		{[]string{"set", "a", "name=B"}, 2, "use lowercase letters"},
+		{[]string{"set", "a", "name=b"}, 2, `app "b" exists already`},
 		{[]string{"set", "a", "name=c", "port=81"}, 2, "give it on its own"},
-		{[]string{"set", "a", "name=c"}, 1, "c.localhost"}, // b's host: hl.yml's check refuses the clash
+		{[]string{"set", "a", "name=c"}, 2, "c.localhost"}, // b's host: hl.yml's check refuses the clash
 	} {
 		if r := f.hl(bad.args...); r.code != bad.code || !strings.Contains(r.errOut, bad.want) {
 			t.Errorf("%v: want exit %d and %q: %s", bad.args, bad.code, bad.want, r)
@@ -245,7 +245,7 @@ func TestRenameApp(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(lab, "data", "d"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if r := f.hl("set", "a", "name=d"); r.code != 1 || !strings.Contains(r.errOut, "exists already") {
+	if r := f.hl("set", "a", "name=d"); r.code != 2 || !strings.Contains(r.errOut, "exists already") {
 		t.Errorf("data folder taken: %s", r)
 	}
 	if !strings.Contains(f.read(filepath.Join(lab, config.FileName)), "  a: {") || !exists(filepath.Join(lab, "data", "a", "pgdata")) {

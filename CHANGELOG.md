@@ -241,6 +241,9 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- A name clash on `hl add` or `hl set <app> name=` (another app's name, Docker project, host or
+  data folder; a reserved or invalid name) and a bad setting on `hl add` exit 2, like other bad
+  values; they exited 1.
 - The free port a "port ... is already in use" hint suggests is never the proxy port another
   homelab on this machine is set to (the ports `hl init` avoids); it used to name one when that
   homelab's proxy was stopped.
