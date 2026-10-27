@@ -124,7 +124,7 @@ func TestInitNonInteractive(t *testing.T) {
 		t.Error("init without --yes wrote something")
 	}
 
-	out, err = runHL(t, "", "init", "--yes", lab, "--projects", code, "--routing", "host", "--bind", "0.0.0.0", "--port", "8081")
+	out, err = runHL(t, "", "init", "--yes", lab, "--projects", code)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -132,8 +132,8 @@ func TestInitNonInteractive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Proxy.Routing != "host" || cfg.Proxy.Bind != "0.0.0.0" || cfg.Proxy.Port != 8081 {
-		t.Errorf("proxy = %+v", cfg.Proxy)
+	if cfg.Proxy.Routing != "path" || cfg.Proxy.Bind != "127.0.0.1" || cfg.Proxy.Port != 80 {
+		t.Errorf("proxy = %+v, want the defaults", cfg.Proxy)
 	}
 	if strings.Join(cfg.Projects, ",") != "~/my code" {
 		t.Errorf("projects = %q, want them written with ~", cfg.Projects)
@@ -157,18 +157,17 @@ func TestInitNonInteractive(t *testing.T) {
 
 	// Re-running: hl.yml is kept, only new apps are offered.
 	before := readFile(t, filepath.Join(lab, config.FileName))
-	if out, err = runHL(t, "", "init", lab, "--routing", "path"); err != nil {
+	if out, err = runHL(t, "", "init", lab); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if readFile(t, filepath.Join(lab, config.FileName)) != before {
 		t.Error("re-running init changed hl.yml with nothing new")
 	}
-	if !strings.Contains(out, "hl.yml kept") || !strings.Contains(out, "--routing is ignored") {
+	if !strings.Contains(out, "hl.yml kept") {
 		t.Errorf("output:\n%s", out)
 	}
 	fakeApp(t, filepath.Join(code, "notes"), webModel)
-	fakeApp(t, filepath.Join(code, "later"), webModel)
-	if out, err = runHL(t, "", "init", "--yes", lab, "--apps", "notes"); err != nil {
+	if out, err = runHL(t, "", "init", "--yes", lab); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	cfg, _ = config.Load(lab)
@@ -184,8 +183,11 @@ func TestInitErrors(t *testing.T) {
 	home := initSyncEnv(t)
 	for _, args := range [][]string{
 		{"init", filepath.Join(home, "a"), "--projects", filepath.Join(home, "nope")},
-		{"init", filepath.Join(home, "b"), "--routing", "sideways"},
-		{"init", filepath.Join(home, "c"), "--bind", "everywhere"},
+		// The proxy is set with hl set proxy after init; init has no flags for it.
+		{"init", filepath.Join(home, "b"), "--routing", "host"},
+		{"init", filepath.Join(home, "c"), "--bind", "0.0.0.0"},
+		{"init", filepath.Join(home, "d"), "--port", "8081"},
+		{"init", filepath.Join(home, "e"), "--apps", "blog"},
 	} {
 		if out, err := runHL(t, "", args...); err == nil {
 			t.Errorf("%v: expected an error\n%s", args, out)
@@ -200,7 +202,6 @@ func TestInitInteractive(t *testing.T) {
 	code := filepath.Join(home, "code")
 	fakeApp(t, filepath.Join(code, "blog"), webModel)
 	fakeApp(t, filepath.Join(code, "wiki"), webModel)
-	fakeApp(t, filepath.Join(code, "tracker"), webModel)
 	fakeApp(t, filepath.Join(code, "cache"), `{"services":{"cache":{"ports":[{"target":6380}]}}}`)
 	if err := os.WriteFile(filepath.Join(code, "blog", "fake-vars.json"), []byte(varsJSON("BLOG_BASE_PATH", "BLOG_URL")), 0o644); err != nil {
 		t.Fatal(err)
@@ -208,7 +209,7 @@ func TestInitInteractive(t *testing.T) {
 	lab := filepath.Join(home, "my homelab")
 
 	// "n": the plan is shown, nothing is written.
-	out, err := runHL(t, "n\n", "init", lab, "--routing", "host")
+	out, err := runHL(t, "n\n", "init", lab)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -218,18 +219,17 @@ func TestInitInteractive(t *testing.T) {
 
 	// One question, after the plan: projects found in the home folder, the busy port moved,
 	// every app with its service, port and env, the folder skipped and why.
-	out, err = runHL(t, "maybe\ny\n", "init", lab, "--routing", "host", "--apps", "blog,wiki")
+	out, err = runHL(t, "maybe\ny\n", "init", lab)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
 		"homelab    " + lab + " (new hl.yml, data/)",
 		"projects   ~/code\n",
-		"proxy      127.0.0.1:8080 (this machine only; port 80 is in use), host routing: apps at http://<app>.localhost:8080/",
+		"proxy      127.0.0.1:8080 (this machine only; port 80 is in use), path routing: apps at http://localhost:8080/<app>/",
 		"apps       2 apps to add",
 		"+ add   blog", "env BLOG_URL=${HL_URL}",
 		"! skip  cache", "not a web app?",
-		"left out   tracker (--apps)",
 		"answer y or n", "Set it up like this? [Y/n]",
 		"added blog", "added wiki",
 	} {
@@ -250,7 +250,7 @@ func TestInitInteractive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if cfg.Proxy.Routing != "host" || cfg.Proxy.Bind != "127.0.0.1" || cfg.Proxy.Port != 8080 {
+	if cfg.Proxy.Routing != "path" || cfg.Proxy.Bind != "127.0.0.1" || cfg.Proxy.Port != 8080 {
 		t.Errorf("proxy = %+v", cfg.Proxy)
 	}
 	if strings.Join(cfg.Names(), ",") != "blog,wiki" || cfg.Apps["blog"].Env["BLOG_URL"] != "${HL_URL}" {
@@ -264,6 +264,7 @@ func TestInitInteractive(t *testing.T) {
 		}
 	}
 
+	fakeApp(t, filepath.Join(code, "tracker"), webModel)
 	// Again: only the new app is offered, nothing else asked about.
 	out, err = runHL(t, "y\n", "init", lab)
 	if err != nil || !strings.Contains(out, "hl.yml kept") || !strings.Contains(out, "+ add   tracker") || !strings.Contains(out, "added tracker") {

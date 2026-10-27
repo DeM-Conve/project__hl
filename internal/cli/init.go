@@ -22,10 +22,6 @@ import (
 // initOptions are hl init's flags; each changes one line of its plan.
 type initOptions struct {
 	projects []string
-	routing  string
-	bind     string
-	port     int
-	apps     []string
 	strip    []string
 	yes      bool
 	noEnv    bool
@@ -50,11 +46,18 @@ skips - shows it, and asks once before writing anything. --yes applies it
 without asking; without a terminal (a script, a pipe) --yes is required, as
 for hl sync. To change the plan, run it again with other flags.
 
+init picks the proxy itself: ` + config.ProxyDefaults().Routing + ` routing on ` + config.ProxyDefaults().Bind + ` (this machine only), port
+` + fmt.Sprint(config.ProxyDefaults().Port) + `, or the first free of ` + joinInts(defaults.AltPorts) + ` when that one is in use.
+Change it afterwards with hl set proxy (bind=0.0.0.0, port=8080, routing=host).
+To leave out an app init adds, hl remove <app> afterwards (hl sync won't add it
+back).
+
 On an existing homelab hl.yml is kept; init adds the apps that are new in the
 projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
 		Example: `  hl init                                   # plan for ~/homelab, then ask
   hl init ~/homelab --projects ~/code --yes # no question
-  hl init --projects ~/code --strip-prefix project__ --apps blog,wiki --routing host --port 8080`,
+  hl init --projects ~/code --strip-prefix project__
+  hl set proxy port=8080 routing=host       # then change the proxy`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(cmd.InOrStdin(), cmd.OutOrStdout(), args, o)
@@ -62,10 +65,6 @@ projects folders (and saves --projects or --strip-prefix if hl.yml has none).`,
 	}
 	f := c.Flags()
 	f.StringSliceVar(&o.projects, "projects", nil, "folders with your projects; each subfolder with a compose file is an app (default: "+strings.Join(defaults.CandidateProjects, ", ")+" in your home)")
-	f.StringVar(&o.routing, "routing", "", "path or host (default: "+config.ProxyDefaults().Routing+")")
-	f.StringVar(&o.bind, "bind", "", "address the proxy listens on: "+config.ProxyDefaults().Bind+" = this machine only, "+defaults.BindNetwork+" = your network")
-	f.IntVar(&o.port, "port", 0, fmt.Sprintf("host port of the proxy (default: %d, or the first free of %s when that one is in use)", config.ProxyDefaults().Port, joinInts(defaults.AltPorts)))
-	f.StringSliceVar(&o.apps, "apps", nil, "apps to add from the projects folders, by name, or "+pickNone+" (default: every web app found)")
 	f.BoolVarP(&o.yes, "yes", "y", false, "apply the plan without asking")
 	f.BoolVar(&o.noEnv, "no-env", false, "don't fill in the apps' env from their compose variables")
 	f.StringSliceVar(&o.strip, "strip-prefix", nil, "folder-name prefixes left out of app names, project__blog -> blog (default: a prefix most folders found share; "+pickNone+" for whole names)")
@@ -86,15 +85,6 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		return err
 	}
 	existing := exists(filepath.Join(dir, config.FileName))
-	if o.routing != "" && o.routing != config.RoutingPath && o.routing != config.RoutingHost {
-		return &usageError{err: fmt.Errorf("--routing: %q is not %s or %s", o.routing, config.RoutingPath, config.RoutingHost), cmd: "hl init"}
-	}
-	if o.bind != "" && net.ParseIP(o.bind) == nil {
-		return &usageError{err: fmt.Errorf("--bind: %q is not an IP address", o.bind), cmd: "hl init"}
-	}
-	if o.port < 0 || o.port > 65535 {
-		return &usageError{err: fmt.Errorf("--port: %d is not a port", o.port), cmd: "hl init"}
-	}
 
 	dockerOK := preflight(out)
 
@@ -110,14 +100,6 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 	if existing {
 		if cfg, err = config.Load(dir); err != nil {
 			return err
-		}
-		for _, fl := range []struct {
-			set  bool
-			name string
-		}{{o.routing != "", "--routing"}, {o.bind != "", "--bind"}, {o.port != 0, "--port"}} {
-			if fl.set {
-				note("%s is ignored for an existing homelab - change it with hl set proxy <key>=<value>", fl.name)
-			}
 		}
 		if len(cfg.Projects) > 0 && o.projects != nil {
 			note("--projects is ignored: %s already lists projects folders - change them with hl set projects+=<folder>", config.FileName)
@@ -137,7 +119,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		}
 	} else {
 		pd := config.ProxyDefaults()
-		s = config.InitSettings{Routing: o.routing, Bind: o.bind, Port: o.port, StripPrefix: o.strip}
+		s = config.InitSettings{Routing: pd.Routing, Bind: pd.Bind, Port: pd.Port, StripPrefix: o.strip}
 		if s.Projects, err = initProjects(dir, o.projects); err != nil {
 			return err
 		}
@@ -152,22 +134,12 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 				why.strip = len(s.StripPrefix) > 0
 			}
 		}
-		if s.Routing == "" {
-			s.Routing = pd.Routing
-		}
-		if s.Bind == "" {
-			s.Bind = pd.Bind
-		}
-		if s.Port == 0 {
-			s.Port = pd.Port
-			if portInUse(s.Bind, s.Port) {
-				if free := freePort(s.Bind); free != 0 {
-					why.busyPort, s.Port = s.Port, free
-				}
-			}
-		}
 		if portInUse(s.Bind, s.Port) {
-			say("%swarning:%s port %d is in use on %s - free it before hl up, or pass --port", yellow, reset, s.Port, s.Bind)
+			if free := freePort(s.Bind); free != 0 {
+				why.busyPort, s.Port = s.Port, free
+			} else {
+				say("%swarning:%s port %d is in use on %s - free it before hl up, or hl set proxy port=<free port>", yellow, reset, s.Port, s.Bind)
+			}
 		}
 		if dockerOK {
 			s.Name, why.name = initName(context.Background(), dir, s)
@@ -252,7 +224,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 }
 
 // initPlan finds the new apps in the projects folders, prints the plan, and returns the apps to
-// add (the --apps ones, else every one hl can add).
+// add.
 func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, why initWhy) ([]scan.Action, error) {
 	w := func(label, format string, a ...any) {
 		fmt.Fprintf(out, "  %-10s %s\n", label, fmt.Sprintf(format, a...))
@@ -309,39 +281,7 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 		}
 	}
 
-	var chosen []scan.Action
-	var left []string
-	switch {
-	case o.apps == nil:
-		chosen = plan
-	case len(o.apps) == 1 && o.apps[0] == pickNone:
-		for _, a := range plan {
-			if a.Kind == scan.Add {
-				left = append(left, a.Name)
-			}
-		}
-	default:
-		byName := map[string]scan.Action{}
-		for _, a := range plan {
-			if a.Kind == scan.Add {
-				byName[a.Name] = a
-			}
-		}
-		want := map[string]bool{}
-		for _, n := range o.apps {
-			if _, ok := byName[n]; !ok {
-				return nil, withHint(fmt.Errorf("--apps: %s is not a new app in the projects folders", n), "run hl init without --apps to see the plan")
-			}
-			want[n] = true
-		}
-		for _, a := range plan {
-			if a.Kind == scan.Add && !want[a.Name] {
-				left = append(left, a.Name)
-			} else {
-				chosen = append(chosen, a)
-			}
-		}
-	}
+	chosen := plan
 	// Adds first, then what is skipped and why.
 	sort.SliceStable(chosen, func(i, j int) bool { return chosen[i].Kind == scan.Add && chosen[j].Kind != scan.Add })
 	adds := 0
@@ -353,10 +293,6 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 	if len(plan) > 0 {
 		w("apps", "%s to add", plural(adds, "app", "apps"))
 		printPlan(out, cfg, chosen)
-	}
-	if len(left) > 0 {
-		w("left out", "%s (--apps) - add later with hl sync, or skip for good with hl set ignore+=<folder name> or a %s file",
-			strings.Join(left, ", "), defaults.IgnoreFile)
 	}
 	fmt.Fprintln(out)
 	return chosen, nil

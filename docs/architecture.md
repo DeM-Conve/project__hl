@@ -383,8 +383,9 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
 - **`hl init`** sets up the folder given, else the one `config.Home` finds (so a second run adds
   new apps to it), else `~/homelab` (`defaults.HomelabDir`) - never the current folder by itself
   (`initDir`). After recording the default it runs `config.Home` again and warns (`otherHome`)
-  when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win. It plans first and writes nothing until it is confirmed: the settings come from flags
-  and defaults only (`--projects`, else `defaults.CandidateProjects` that exist in the home folder;
+  when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win. It plans first and writes nothing until it is confirmed: the settings come from `--projects`,
+  `--strip-prefix` and defaults only (the proxy has no flags: path routing on `127.0.0.1`;
+  `--projects`, else `defaults.CandidateProjects` that exist in the home folder;
   the default port, or the first free of `defaults.AltPorts` (`freePort`) when that is busy, shown
   as "port 80 is in use" in the plan; with docker working, `initName` gives a new homelab a `name`
   when `proxyNamesTaken` (docker.go) finds the default proxy project run from another homelab's
@@ -393,7 +394,7 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   with a comment saying why), `InitSettings.Config` makes
   the homelab in memory (with no `--strip-prefix`, `strip_prefix` is `scan.SharedPrefixes` of the
   new folders' names; `none` turns that off), `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,
-  env, skips; `--apps` narrows the adds) and prints the plan with `printPlan`. Then, only when there is something to write and `--yes`
+  env, skips) and prints the plan with `printPlan`. Then, only when there is something to write and `--yes`
   isn't given: without a terminal it stops ("pass --yes", like `hl sync`), else one `confirm`
   (`prompt.go`, plain bufio, Enter = yes); "no" writes nothing. Pre-flight runs the
   doctor's docker checks; without a working docker it still writes hl.yml but leaves app
@@ -401,7 +402,7 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   as busy (a normal user may not open port 80, Docker can). A new hl.yml is the short `Template`
   (schema line, header comment, `version`, `apps: {}`) plus, through the yaml node tree
   (`config.WriteNew`, `O_EXCL`, so it never overwrites), `projects`, `strip_prefix` and a
-  `proxy` block with only the bind, port and routing that differ from the defaults; projects
+  `proxy` block with the port when it isn't the default; projects
   folders are stored relative inside the homelab, with `~` inside the user's home, else
   absolute. On an existing hl.yml init only saves `projects`/`strip_prefix` if there are none
   and adds the new apps.

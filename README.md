@@ -101,7 +101,7 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 
 | Command | What it does |
 | --- | --- |
-| `hl init [folder]` | Set up a homelab folder (default `~/homelab`), find your apps, make it the default. Shows a plan and asks once; `--yes` doesn't ask. Flags: `--projects`, `--apps`, `--routing`, `--bind`, `--port`, `--strip-prefix`, `--no-env`. |
+| `hl init [folder]` | Set up a homelab folder (default `~/homelab`), find your apps, make it the default. Shows a plan and asks once; `--yes` doesn't ask. Flags: `--projects`, `--strip-prefix`, `--no-env`; it picks the proxy itself (a free port), change it later with `hl set proxy`. |
 | `hl add <folder> [key=value...]` | Add an app: any folder with a compose file. Takes the [settings](#changing-settings) `hl set <app>` takes, plus `name=`. |
 | `hl up [app...]` | Start apps, the proxy first; builds missing images. `--wait` waits until they're healthy and shows the logs of any that aren't. Ends with `hl status`. |
 | `hl down [app...]` | Stop and remove containers; with no app, also the proxy. Data stays. |

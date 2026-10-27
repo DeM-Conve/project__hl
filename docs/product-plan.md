@@ -60,8 +60,9 @@ in hl may assume the maintainer's setup.
   folder goes, where your projects live (e.g. `~/code`), `path` or `host` routing, listen on this
   machine only or the network. Then it scans the projects folder (step 2) and lets you pick which
   apps to add from a checklist. Writes a commented `hl.yml` and prints the next command.
-- [x] **Non-interactive init** for scripts: every question has a flag (`--projects ~/code
-  --routing path --bind 127.0.0.1 --yes`); no prompt when stdin isn't a terminal.
+- [x] **Non-interactive init** for scripts: `--projects ~/code --yes`; no prompt when stdin
+  isn't a terminal. (Since 2026-10-27 the proxy and the app list have no init flags: init picks a
+  free port, `hl set proxy ...` changes the rest, `hl remove <app>` drops an app it added.)
 - [x] **Re-running init is safe**: on an existing homelab it never overwrites `hl.yml`; it offers
   to add newly found apps instead.
 - [x] **Pre-flight**: init runs the `hl doctor` checks first (Docker running, compose v2.24+,

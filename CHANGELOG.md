@@ -26,7 +26,7 @@ release differs from earlier builds of `main`.
   a plan - projects folders (`~/code`, `~/projects`, `~/src` when they exist), the proxy (a free
   port when 80 is busy, a `name` when another homelab runs one), every web app found with its
   service, port and env, and the folders it skips and why - shows it and asks once;
-  `--projects`, `--routing`, `--bind`, `--port`, `--apps`, `--strip-prefix` and `--no-env`
+  `--projects`, `--strip-prefix` and `--no-env`
   change the plan and `--yes` applies it without asking (required without a terminal, as for
   `hl sync`). It checks Docker and compose first, and on an existing homelab never overwrites
   `hl.yml` but adds the new apps. The `hl.yml` it writes
@@ -143,6 +143,10 @@ release differs from earlier builds of `main`.
 
 - **Breaking:** the command aliases `start` (`hl up`), `stop` (`hl down`) and `ls` (`hl status`),
   the `-v`/`--version` flag and `hl version --short` are gone; `hl version` prints the version.
+- **Breaking:** `hl init` no longer takes `--bind`, `--port`, `--routing` or `--apps`. It sets up
+  the proxy itself (path routing on `127.0.0.1`, port 80 or a free one); change it afterwards with
+  `hl set proxy bind=0.0.0.0 port=8080 routing=host`. To leave out an app init added,
+  `hl remove <app>` (its folder is then ignored by `hl sync`).
 - **Breaking:** the proxy keys `config`, `dynamic`, `dashboard`, `dashboard_public`, `access_log`
   and `log_level` are gone; `proxy.debug: true` (`hl set proxy debug=true`) turns on Traefik's
   INFO log and access log. An `hl.yml` that still has one is refused with a message naming the

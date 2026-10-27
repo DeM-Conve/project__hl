@@ -86,5 +86,5 @@ func (p *prompter) confirm(q string, def bool) bool {
 	}
 }
 
-// pickNone is the --apps value that adds no app.
+// pickNone is the --strip-prefix value that strips nothing.
 const pickNone = "none"

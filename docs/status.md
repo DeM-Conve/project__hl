@@ -25,7 +25,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   `scan_depth` and `name`; `hl add` takes `key=value` settings like `hl set` instead of flags;
   `hl remove` ignores an app's folder so `hl sync` doesn't re-add it; the proxy keys are down to
   `bind port routing domain subnet image network project debug`; `hl logs` of a stopped app says so; no command aliases
-  (`start`, `stop`, `ls`) or `--version`/`version --short`.
+  (`start`, `stop`, `ls`) or `--version`/`version --short`; `hl init` takes only `--projects`,
+  `--strip-prefix` and `--yes` (the proxy is `hl set proxy ...` afterwards).
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install
@@ -92,8 +93,10 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     `hl sync` doesn't offer the mapping for apps added earlier. Should it (as an `~ update`)?
 12. ~~`scan_depth` from the command line~~ - done 2026-10-27: `hl set scan_depth=2`; the lists
     are `hl set projects+=...` and the like.
-13. **Picking apps on a terminal**: `hl init` used to offer the apps found as a checklist; now it
-    shows the plan and asks once, and `--apps a,b` picks. Is that enough?
+13. **Picking apps in `hl init`**: `hl init` used to offer the apps found as a checklist, then
+    took `--apps a,b`; since 2026-10-27 it adds every web app it finds and `hl remove <app>`
+    (which also ignores the folder for `hl sync`) drops one afterwards. Is that enough, or is a
+    way to pick before writing wanted back?
 14. **`hl rebuild --pull` and a folder with uncommitted changes** (2026-10-27): like `hl update`
     before it, such an app is skipped altogether (neither pulled nor rebuilt). Should it still be
     rebuilt from its local code, with only the pull skipped?
