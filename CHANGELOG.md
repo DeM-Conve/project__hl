@@ -75,7 +75,7 @@ release differs from earlier builds of `main`.
 - `hl logs` with no app shows every app's logs at once, each line prefixed by its app; `-n`/`--tail`
   sets how many lines (default 200).
 - `hl rebuild --pull` runs `git pull --ff-only` in each app's folder before rebuilding it; a folder
-  that isn't a git repo or has uncommitted changes is rebuilt from its own code without a pull, and the summary says which and why;
+  that isn't a git repo, has uncommitted changes or no upstream branch is rebuilt from its own code without a pull, and the summary says which and why;
   `hl rebuild proxy --pull` pulls the proxy's image.
 - `hl shell` opens the service behind the proxy by default, also when hl detected it rather than
   `hl.yml` pinning it, and exits with the shell's own status.
@@ -244,6 +244,9 @@ release differs from earlier builds of `main`.
 - `hl up` (or `hl up proxy`) after `hl set proxy subnet=` while the proxy runs refuses with
   the fix (`hl down`, then `hl up`) and leaves the running proxy up. Compose used to remove the
   proxy, then fail to change the network ("has active endpoints"), so every app lost its route.
+- `hl rebuild --pull` on a git folder whose branch has no upstream rebuilds it from its own
+  code ("pull skipped ... (no upstream branch)"); it used to fail with git's "no tracking
+  information" and rebuild nothing.
 - `hl init` on an existing homelab with nothing to change says `nothing to change in hl.yml`
   and exits 0 without a terminal; when it isn't the default homelab, it used to fail with "not
   a terminal, so nothing was written" - now the default stays as it is and hl says how to

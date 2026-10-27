@@ -741,7 +741,10 @@ func TestDown(t *testing.T) {
 func TestRebuildPull(t *testing.T) {
 	f := newFake(t)
 	clean, dirty, plain, diverged := f.app("clean", apiModel), f.app("dirty", apiModel), f.app("plain", apiModel), f.app("diverged", apiModel)
-	f.lab("lab", "apps:\n  clean: {path: '"+clean+"'}\n  dirty: {path: '"+dirty+"'}\n  plain: {path: '"+plain+"'}\n  diverged: {path: '"+diverged+"'}\n")
+	local := f.app("local", apiModel)
+	f.lab("lab", "apps:\n  clean: {path: '"+clean+"'}\n  dirty: {path: '"+dirty+"'}\n  plain: {path: '"+plain+"'}\n  diverged: {path: '"+diverged+"'}\n  local: {path: '"+local+"'}\n")
+	f.on(rule{Name: "git", Match: []string{local, "rev-parse --verify --quiet @{upstream}"}, Exit: 1})
+	f.on(rule{Name: "git", Match: []string{local, "pull"}, Stderr: "There is no tracking information for the current branch.\n", Exit: 1})
 	f.on(rule{Name: "git", Match: []string{dirty, "status --porcelain"}, Stdout: " M main.go\n?? notes.txt\n"})
 	f.on(rule{Name: "git", Match: []string{plain, "status"}, Stderr: "fatal: not a git repository (or any of the parent directories): .git\n", Exit: 128})
 	f.on(rule{Name: "git", Match: []string{diverged, "pull"}, Stderr: "fatal: Not possible to fast-forward, aborting.\n", Exit: 128})
@@ -752,21 +755,21 @@ func TestRebuildPull(t *testing.T) {
 	}
 	// A folder hl may not pull is rebuilt from its own code; the reason is said once.
 	contains(t, "rebuild --pull", r.out, "pulled and rebuilt: clean",
-		"pull skipped, rebuilt from the code in the folder: dirty (uncommitted changes in 2 files); plain (not a git repository)")
+		"pull skipped, rebuilt from the code in the folder: dirty (uncommitted changes in 2 files); local (no upstream branch); plain (not a git repository)")
 	if n := strings.Count(r.out, "not a git repository"); n != 1 {
 		t.Errorf("the reason is said %d times:\n%s", n, r.out)
 	}
 	// One "==> app (folder)" header per app, with the pull and the rebuild under it.
-	for _, n := range []string{"clean", "dirty", "plain", "diverged"} {
+	for _, n := range []string{"clean", "dirty", "plain", "diverged", "local"} {
 		if c := strings.Count(r.out, "==> "+n); c != 1 {
 			t.Errorf("==> %s printed %d times:\n%s", n, c, r.out)
 		}
 	}
-	contains(t, "rebuild --pull", r.errOut, "diverged: git pull --ff-only failed", "hl rebuild diverged --pull", "1 of 4 apps failed: diverged")
-	if p := f.find("-C "+dirty, "pull"); len(p) != 0 {
+	contains(t, "rebuild --pull", r.errOut, "diverged: git pull --ff-only failed", "hl rebuild diverged --pull", "1 of 5 apps failed: diverged")
+	if p := append(f.find("-C "+dirty, "pull"), f.find("-C "+local, "pull")...); len(p) != 0 {
 		t.Errorf("pulled over uncommitted work: %v", p)
 	}
-	for _, n := range []string{"dirty", "plain"} {
+	for _, n := range []string{"dirty", "plain", "local"} {
 		if u := f.find("--project-name hl-"+n, "up --detach --build"); len(u) != 1 {
 			t.Errorf("%s not rebuilt: %v", n, u)
 		}

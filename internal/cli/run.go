@@ -358,7 +358,7 @@ func rebuildCmd() *cobra.Command {
 			return statusAfter(ctx, cfg, err)
 		})
 	w.add(c)
-	c.Flags().BoolVar(&pull, "pull", false, "first git pull each app's folder (fast-forward only; a folder that isn't a git repo or has uncommitted changes is rebuilt without a pull); for the proxy, pull its image")
+	c.Flags().BoolVar(&pull, "pull", false, "first git pull each app's folder (fast-forward only; a folder that isn't a git repo, has uncommitted changes or no upstream branch is rebuilt without a pull); for the proxy, pull its image")
 	return c
 }
 
@@ -614,8 +614,8 @@ func downProxy(ctx context.Context, cfg *config.Config, inv *inventory) error {
 }
 
 // pullAndRebuild is rebuild --pull for apps: git pull --ff-only in each app's folder, then
-// rebuild it. A folder that isn't a git repo or has uncommitted changes isn't pulled but is
-// still rebuilt from the code it has; the summary says which and why.
+// rebuild it. A folder that isn't a git repo, has uncommitted changes or no upstream branch
+// isn't pulled but is still rebuilt from the code it has; the summary says which and why.
 func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *waitFlags) error {
 	if _, err := exec.LookPath("git"); err != nil {
 		return withHint(errors.New("git not found on PATH"), "install git: --pull pulls each app's folder with it, or rebuild without --pull")
@@ -641,7 +641,7 @@ func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *
 					return err
 				}
 				f.add(n, withHint(fmt.Errorf("%s: git pull --ff-only failed; the folder is left as it was", n),
-					"the branch may have diverged or have no upstream - sort it out in %s, then `hl rebuild %s --pull`", dir, n))
+					"the branch may have diverged from its upstream - sort it out in %s, then `hl rebuild %s --pull`", dir, n))
 				continue
 			}
 		}
@@ -681,6 +681,10 @@ func dirty(ctx context.Context, dir string) string {
 	}
 	if n := len(strings.Split(strings.TrimSpace(out), "\n")); strings.TrimSpace(out) != "" {
 		return "uncommitted changes in " + plural(n, "file", "files")
+	}
+	// No branch to pull from (none set, or a detached HEAD): git pull would only fail.
+	if _, err := run2(ctx, "git", "-C", dir, "rev-parse", "--verify", "--quiet", "@{upstream}"); err != nil {
+		return "no upstream branch"
 	}
 	return ""
 }
