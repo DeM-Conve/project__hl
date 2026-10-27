@@ -182,6 +182,12 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
+  into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
+  path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl
+  said `hl up` applies it. hl now records each service's build settings after `hl up`
+  (`.hl/<app>/builds.json`) and rebuilds the services whose settings changed since.
+
 - `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
   line, shown only with path routing when no base-path variable was mapped.
 

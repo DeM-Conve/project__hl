@@ -103,6 +103,16 @@ this file". `hl init` writes a `.gitignore` with `data/` and `.hl/`.
   `driver` and no `driver_opts` becomes a local bind volume with `device: <homelab>/data/<app>/<volume>`.
   hl creates those folders (mode 0755) before compose runs; containers may later chown them.
 
+**`.hl/<app>/builds.json`** (`cli.recordBuilds`, `internal/cli/build.go`): not a compose file
+but state - for each service with a `build:` section, a hash of that section as compose resolved
+it (`compose.Model.BuildHashes`: context, dockerfile, args with every variable filled in, keys
+sorted). `runApp` writes it after every successful `up` (with or without `--build`) and, on an
+`up` without `--build`, first runs `docker compose build <services>` for the services whose hash
+differs from the recorded one (`staleBuilds`), because compose's `up` reuses an existing image
+whatever its build args. No file (the first `up`, or an app added before this existed) means
+nothing is rebuilt: compose builds the missing images, as before. A new service with a build
+section is not stale either.
+
 **`.hl/proxy/traefik.yml`** (`gen.Traefik`): Traefik's static config, readable and commented, with
 no inline literals (every name, path and value is a constant in `internal/defaults` or an `hl.yml`
 setting): entrypoint `web` on `:80` (every app router uses it), entrypoint `traefik`

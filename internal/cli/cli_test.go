@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -343,6 +344,56 @@ func TestUpRestartRebuild(t *testing.T) {
 	// Up twice is fine: compose does nothing the second time.
 	f.must("up", "b")
 	f.must("up", "b")
+}
+
+// An image keeps the build args it was built with: up rebuilds the services whose resolved
+// build section changed since the app last came up (say a base path from ${HL_PREFIX}).
+func TestUpRebuildsChangedBuildArgs(t *testing.T) {
+	f := newFake(t)
+	model := func(base string) string {
+		return `{"services":{"web":{"ports":[{"target":80}],"build":{"context":"/src","args":{"BASE_PATH":"` + base + `"}}},` +
+			`"worker":{"build":{"context":"/src/worker"}},"db":{}}}`
+	}
+	a := f.app("a", model("/a"))
+	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n")
+	state := filepath.Join(lab, ".hl", "a", "builds.json")
+
+	// The first up builds what is missing, as compose does, and records the build settings.
+	f.must("up", "a")
+	if len(f.find("compose", " build")) != 0 {
+		t.Errorf("first up: no separate build: %v", f.calls())
+	}
+	contains(t, "builds.json", f.read(state), `"web"`, `"worker"`)
+	lacks(t, "builds.json", f.read(state), `"db"`)
+
+	// Nothing changed: nothing is rebuilt.
+	f.reset()
+	f.must("up", "a")
+	if b := f.find("compose", " build"); len(b) != 0 {
+		t.Errorf("unchanged: %v", b)
+	}
+
+	// The prefix changed: only web is rebuilt, before up.
+	if err := os.WriteFile(filepath.Join(a, "model.json"), []byte(model("/g")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.reset()
+	r := f.must("up", "a")
+	contains(t, "up", r.out, "build settings changed - rebuilding web")
+	var order []string
+	for _, c := range f.find("--project-name hl-a") {
+		if s := c.String(); strings.HasSuffix(s, " build web") || strings.HasSuffix(s, "up --detach") || strings.Contains(s, " build ") {
+			order = append(order, s[strings.LastIndex(s, ".yml ")+5:])
+		}
+	}
+	if !slices.Equal(order, []string{"build web", "up --detach"}) {
+		t.Errorf("want web rebuilt (not worker), then up: %q", order)
+	}
+	f.reset()
+	f.must("up", "a")
+	if b := f.find("compose", " build"); len(b) != 0 {
+		t.Errorf("rebuilt again: %v", b)
+	}
 }
 
 func TestUpWait(t *testing.T) {

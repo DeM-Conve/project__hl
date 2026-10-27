@@ -111,6 +111,19 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 	}
 	p := pa.Project
 	step(name)
+	up := len(args) > 0 && args[0] == "up"
+	if up && !slices.Contains(args, "--build") {
+		// An image keeps the build args it was built with; rebuild the ones whose changed.
+		if stale := staleBuilds(cfg, name, pa.Model); len(stale) > 0 {
+			say("%sbuild settings changed - rebuilding %s%s", dim, strings.Join(stale, ", "), reset)
+			if err := p.Run(ctx, append([]string{"build"}, stale...)...); err != nil {
+				if errors.Is(err, interrupt.ErrInterrupted) {
+					return err
+				}
+				return fmt.Errorf("%s: %w", name, err)
+			}
+		}
+	}
 	// --wait: compose starts every service, then waits only for the ones that matter, so a
 	// sidecar with a slow healthcheck doesn't fail an app that already serves.
 	var waitFor []string
@@ -127,6 +140,11 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 			return unhealthy(ctx, p, name, err, nil)
 		}
 		return fmt.Errorf("%s: %w", name, err)
+	}
+	if up {
+		if err := recordBuilds(cfg, name, pa.Model); err != nil {
+			warn("%s: %v", name, err)
+		}
 	}
 	if waitFor != nil {
 		say("%swaiting for %s%s", dim, strings.Join(waitFor, ", "), reset)

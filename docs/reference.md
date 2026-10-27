@@ -64,7 +64,11 @@ those names.
 | `env_files` | none | Extra env files, relative to the homelab folder, read after the app's own `.env`. Handy for secrets you keep outside the app's folder (a list). |
 | `env.NAME` | none | Variables for the app's compose file (`env.MY_APP_BASE_PATH='${HL_PREFIX}'`). Values can use the [variables hl provides](#variables-hl-provides) and your shell's variables. They are compose interpolation variables: they reach a container only through the app's compose file (`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`). |
 
-Applied by `hl up <app>`.
+Applied by `hl up <app>`. An app that bakes a setting into its image as a build arg
+(`build: args: BASE_PATH: ${MY_APP_BASE_PATH}`) gets that image rebuilt: after each `hl up` hl
+records the app's resolved build settings in `.hl/<app>/builds.json`, and the next `hl up`
+rebuilds the services whose build settings changed since. The first `hl up` only builds what is
+missing, as compose does; an image built before hl kept track needs one `hl rebuild <app>`.
 
 ## Proxy settings
 
@@ -259,7 +263,7 @@ and not settings (some have a command-line flag):
 | Value | Used for |
 | --- | --- |
 | `hl-` | compose project name prefix: `hl-<app>`, `hl-proxy`; with `name`, `hl-<name>-<app>`, `hl-<name>-proxy` |
-| `.hl/` | generated files in the homelab: `.hl/<app>/override.yml`, `.hl/proxy/compose.yml`, `.hl/proxy/traefik.yml` |
+| `.hl/` | generated files in the homelab: `.hl/<app>/override.yml` (and `builds.json`, the build settings its images were built with), `.hl/proxy/compose.yml`, `.hl/proxy/traefik.yml` |
 | `data/` | app data in the homelab: `data/<app>/<volume>` |
 | `web` | the Traefik entrypoint name (container port 80) |
 | `traefik` on `:8080` | Traefik's entrypoint for `/ping` (the proxy's healthcheck); not published |
