@@ -235,7 +235,8 @@ warns. Kept apps are never re-mapped.
 - Multi-app commands (`eachApp`) run every app even when one fails, print each failure as it
   happens and end with "n of m apps failed: ..." (exit 1). An interruption stops the loop.
 - `--wait` (`up`, `rebuild`) runs the command as usual (every service starts), then
-  `up --detach --wait --wait-timeout <s> <services>` for the routed service and its
+  `up --detach --wait --wait-timeout <s> <services>` (`defaults.WaitTimeout`, fixed; tests
+  replace `waitTimeout`) for the routed service and its
   `depends_on`, followed through (`compose.Model.WithDeps`, from the model `prepare` already
   read), so a sidecar with a slow healthcheck doesn't fail an app that serves. `--wait` on an
   app with routing `none` (no service matters more) passes `--wait --wait-timeout <s>` to the
@@ -246,7 +247,7 @@ warns. Kept apps are never re-mapped.
   with the URL's `Host` header) every `defaults.RouteWaitInterval` until the answer is anything
   but Traefik's own 404 for an unknown route (`defaults.ProxyNotFound`; the app's own 404
   counts as an answer). Traefik loads a new route a moment after the container is up, so a
-  request right after `--wait` used to get that 404. Past the `--wait-timeout` (counted from
+  request right after `--wait` used to get that 404. Past the timeout (counted from
   the start of the wait) it fails with a hint. Tests replace `routeReady`.
 - `down`/`stop` with no app stops every app that has containers, then the proxy; apps and a proxy
   that aren't there are skipped, so it is safe to repeat. An app hl can no longer prepare (folder

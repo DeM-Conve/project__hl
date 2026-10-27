@@ -61,7 +61,7 @@ release differs from earlier builds of `main`.
   `version` and shell `completion` (which offers app and service names).
 - `hl status` has a HEALTH column: `healthy`, `starting: <services>`, `unhealthy: <services>`,
   or `-` for apps without healthchecks.
-- `--wait` and `--wait-timeout` (default 2m) on `hl up` and `hl rebuild`: wait until
+- `--wait` on `hl up` and `hl rebuild`: wait (up to 2 minutes per app) until
   each app's service behind the proxy and the services it depends on (`depends_on`) are running
   and healthy, and for an app that isn't, name those services and show their last log lines. A
   sidecar nothing depends on (say, a backup job with a long healthcheck interval) no longer fails
@@ -145,6 +145,9 @@ release differs from earlier builds of `main`.
   runs. Every setting is reachable from the command line.
 
 ### Changed
+
+- **Breaking:** `--wait-timeout` is gone; `--wait` waits a fixed 2 minutes per app. Drop the
+  flag from scripts (`hl up --wait`); a slow app's health shows in `hl status` once it is up.
 
 - An app name that isn't in `hl.yml` exits 2 (usage) for every command that takes one (`up`,
   `down`, `restart`, `rebuild`, `logs`, `shell`, `open`, `show`, `remove`, `set`, `unset`), with
@@ -262,7 +265,7 @@ release differs from earlier builds of `main`.
 - `hl up --wait` (and `rebuild --wait`) returns only once the app's URL answers through the
   proxy: a request right after it used to get Traefik's "404 page not found" for about a second,
   until the proxy had loaded the new route. Any answer of the app counts, its own 404 too; a
-  route that doesn't show up within `--wait-timeout` fails with a hint. Apps with routing `none`
+  route that doesn't show up within the timeout fails with a hint. Apps with routing `none`
   aren't asked.
 - `hl show` lists the apps in aligned columns (name, URL, folder), and `hl show <app>` no
   longer ends its `project` and `url` rows with an empty source.

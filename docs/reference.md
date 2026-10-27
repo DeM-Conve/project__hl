@@ -291,7 +291,7 @@ and not settings (some have a command-line flag):
 | healthcheck every 10s, timeout 5s, 3 retries, start period 5s | the proxy container's healthcheck (`traefik healthcheck --ping`) |
 | `unless-stopped` | the proxy container's restart policy |
 | `200` | lines shown by `hl logs` and `hl logs proxy` (change with `--tail`) |
-| `2m` | how long `--wait` waits for each app (change with `--wait-timeout`) |
+| `2m` | how long `--wait` waits for each app (fixed) |
 | `20` | log lines `--wait` shows for each service that didn't become healthy |
 | every `250ms`, `2s` each | how often `--wait` asks the proxy for a healthy app's URL until the app answers (anything but Traefik's own `404 page not found`), and how long one request may take |
 | `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use or another homelab's proxy is set to it (and error hints suggest) |

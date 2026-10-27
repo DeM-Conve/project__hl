@@ -27,22 +27,24 @@ import (
 
 // Commands that run apps.
 
-// waitFlags are --wait and --wait-timeout, for commands that start apps.
+// waitFlags is --wait, for commands that start apps.
 type waitFlags struct {
-	wait    bool
-	timeout time.Duration
+	wait bool
 }
 
+// waitTimeout is how long --wait waits for each app: a fixed default, not a flag. Tests
+// replace it.
+var waitTimeout = defaults.WaitTimeout
+
 func (w *waitFlags) add(c *cobra.Command) {
-	c.Flags().BoolVar(&w.wait, "wait", false, "wait until each app's service behind the proxy, and the services it depends on, run and are healthy; show the logs of any that aren't")
-	c.Flags().DurationVar(&w.timeout, "wait-timeout", defaults.WaitTimeout, "how long --wait waits for each app")
+	c.Flags().BoolVar(&w.wait, "wait", false, "wait (up to "+defaults.WaitTimeout.String()+" per app) until each app's service behind the proxy, and the services it depends on, run and are healthy and its URL answers; show the logs of any that aren't")
 }
 
 // on reports whether hl waits at all.
 func (w *waitFlags) on() bool { return w != nil && w.wait }
 
 func (w *waitFlags) args(args ...string) []string {
-	return append(args, "--wait", "--wait-timeout", strconv.Itoa(int(w.timeout.Seconds())))
+	return append(args, "--wait", "--wait-timeout", strconv.Itoa(int(waitTimeout.Seconds())))
 }
 
 // services are the services --wait waits for: the routed one and what it depends on, or nil
@@ -154,7 +156,7 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 		}
 	}
 	if waitFor != nil {
-		deadline := time.Now().Add(w.timeout)
+		deadline := time.Now().Add(waitTimeout)
 		say("%swaiting for %s%s", dim, strings.Join(waitFor, ", "), reset)
 		if err := p.Run(ctx, append(w.args("up", "--detach"), waitFor...)...); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
@@ -188,7 +190,7 @@ func waitRoute(ctx context.Context, cfg *config.Config, name string, deadline ti
 	for !routeReady(ctx, addr, u.Host, u.Path) {
 		if time.Now().After(deadline) {
 			return withHint(fmt.Errorf("%s: the proxy has no route to %s yet", name, u),
-				"see `hl logs proxy` (`hl set proxy debug=true`, then `hl up proxy`, logs each request); a slow app may need a longer --wait-timeout")
+				"see `hl logs proxy` (`hl set proxy debug=true`, then `hl up proxy`, logs each request)")
 		}
 		select {
 		case <-ctx.Done():
@@ -252,7 +254,7 @@ func unhealthy(ctx context.Context, p *compose.Project, name string, cause error
 		_ = p.Run(ctx, "logs", "--no-color", "--tail", strconv.Itoa(defaults.FailLogTail), s)
 	}
 	return withHint(fmt.Errorf("%s: not running and healthy: %s", name, strings.Join(bad, ", ")),
-		"see `hl logs %s %s`; a slow app may need a longer --wait-timeout", name, bad[0])
+		"see `hl logs %s %s`; a slow app may still get there: `hl status` shows its health", name, bad[0])
 }
 
 func uniq(s []string) []string {

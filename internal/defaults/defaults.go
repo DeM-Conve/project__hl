@@ -198,10 +198,10 @@ const (
 	LogTail = 200
 	// FailLogTail is how many log lines `hl up --wait` shows for an app that didn't become healthy.
 	FailLogTail = 20
-	// WaitTimeout is how long `--wait` waits for an app (--wait-timeout).
+	// WaitTimeout is how long `--wait` waits for an app (fixed; there is no flag for it).
 	WaitTimeout = 2 * time.Minute
 	// RouteWaitInterval is how often `--wait`, once an app's containers are healthy, asks the
-	// proxy for the app's URL until the route answers (within --wait-timeout).
+	// proxy for the app's URL until the route answers (within WaitTimeout).
 	RouteWaitInterval = 250 * time.Millisecond
 	// RouteProbeTimeout is how long one of those requests may take.
 	RouteProbeTimeout = 2 * time.Second

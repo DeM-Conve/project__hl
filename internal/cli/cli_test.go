@@ -493,7 +493,7 @@ func TestUpWait(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
 	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"', routing: none}\n")
-	f.on(rule{Match: []string{"--project-name hl-a", "up --detach --wait --wait-timeout 30"}, Stderr: "container hl-a-db-1 is unhealthy\n", Exit: 1})
+	f.on(rule{Match: []string{"--project-name hl-a", "up --detach --wait --wait-timeout 120"}, Stderr: "container hl-a-db-1 is unhealthy\n", Exit: 1})
 	f.on(rule{Match: []string{"--project-name hl-a", "logs"}, Stdout: "db | FATAL: password authentication failed\n"})
 	f.containers(
 		ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
@@ -501,7 +501,7 @@ func TestUpWait(t *testing.T) {
 		ctr("hl-a", "db", "running", "Up (unhealthy)", filepath.Join(lab, ".hl", "a", "override.yml")),
 	)
 	// An app that isn't behind the proxy: --wait waits for every service in the one up call.
-	r := f.hl("up", "--wait", "--wait-timeout", "30s")
+	r := f.hl("up", "--wait")
 	if r.code != 1 {
 		t.Fatalf("want a failure: %s", r)
 	}
@@ -510,7 +510,7 @@ func TestUpWait(t *testing.T) {
 	if l := f.find("logs --no-color --tail 20 db"); len(l) != 1 {
 		t.Errorf("logs of the unhealthy service: %v", f.calls())
 	}
-	if u := f.find("--project-name hl-a ", "up --detach --wait --wait-timeout 30"); len(u) != 1 || strings.HasSuffix(u[0].String(), " web") {
+	if u := f.find("--project-name hl-a ", "up --detach --wait --wait-timeout 120"); len(u) != 1 || strings.HasSuffix(u[0].String(), " web") {
 		t.Errorf("--wait: want one up that waits for everything: %v", u)
 	}
 }
@@ -533,11 +533,11 @@ func TestUpWaitSkipsSidecars(t *testing.T) {
 	)
 	// compose would fail waiting for the sidecar, but hl doesn't ask it to.
 	f.on(rule{Match: []string{"--project-name hl-a ", "--wait", "backup"}, Stderr: "container hl-a-backup-1 is starting\n", Exit: 1})
-	r := f.must("up", "a", "--wait", "--wait-timeout", "30s")
+	r := f.must("up", "a", "--wait")
 	contains(t, "up --wait", r.out, "waiting for api, db, web")
 	ups := f.find("--project-name hl-a ", "up --detach")
 	if len(ups) != 2 || strings.Contains(ups[0].String(), "--wait") ||
-		!strings.HasSuffix(ups[1].String(), "up --detach --wait --wait-timeout 30 api db web") {
+		!strings.HasSuffix(ups[1].String(), "up --detach --wait --wait-timeout 120 api db web") {
 		t.Fatalf("want up (all services), then up --wait for web and its dependencies: %v", ups)
 	}
 	contains(t, "status after up", r.out, "starting: backup") // status still shows the sidecar
@@ -615,11 +615,16 @@ func TestUpWaitWaitsForTheRoute(t *testing.T) {
 
 	// A route that never shows up fails at the timeout, with what to check.
 	never.Store(true)
-	r = f.hl("up", "a", "--wait", "--wait-timeout", "1s")
+	waitTimeout = time.Second
+	r = f.hl("up", "a", "--wait")
 	if r.code != 1 {
 		t.Fatalf("want a failure: %s", r)
 	}
 	contains(t, "up --wait", r.errOut, "a: the proxy has no route to http://localhost:8095/a/ yet", "hl logs proxy")
+	// --wait-timeout is gone: the fixed default is enough.
+	if r := f.hl("up", "a", "--wait", "--wait-timeout", "1s"); r.code != 2 || !strings.Contains(r.errOut, "unknown flag: --wait-timeout") {
+		t.Errorf("--wait-timeout: want an unknown flag: %s", r)
+	}
 
 	// Not behind the proxy: nothing to ask.
 	f.lab("lab2", "apps:\n  a: {path: '"+a+"', routing: none}\n")

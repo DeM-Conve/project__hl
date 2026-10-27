@@ -190,9 +190,9 @@ func newFake(t *testing.T) *fake {
 	t.Setenv(fakeDirEnv, f.dir)
 	// A race-detector build sleeps a second at exit; the fake runs dozens of times.
 	t.Setenv("GORACE", "atexit_sleep_ms=0")
-	oldGoos, oldPort, oldNets, oldTerm, oldTZ, oldRoute := goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone, routeReady
+	oldGoos, oldPort, oldNets, oldTerm, oldTZ, oldRoute, oldWait := goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone, routeReady, waitTimeout
 	t.Cleanup(func() {
-		goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone, routeReady = oldGoos, oldPort, oldNets, oldTerm, oldTZ, oldRoute
+		goos, portInUse, hostSubnets, stdinTerminal, config.HostTimeZone, routeReady, waitTimeout = oldGoos, oldPort, oldNets, oldTerm, oldTZ, oldRoute, oldWait
 		homeFlag = ""
 		stdin, stdout, stderr = os.Stdin, os.Stdout, os.Stderr
 	})

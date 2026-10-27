@@ -49,7 +49,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
 - **Fixes from review round 4** (2026-10-27): a bare `hl up` applies the proxy's changed
   settings (then starts every app), so apply hints say `hl up` wherever that is enough; `hl doctor`
   warns when the running proxy is behind hl.yml; an unknown app name exits 2 for every command;
-  `hl rebuild --pull` prints one `==> <app>` header per app.
+  `hl rebuild --pull` prints one `==> <app>` header per app; `--wait-timeout` is gone (`--wait`
+  waits a fixed 2 minutes per app).
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install
@@ -136,6 +137,6 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     ([requirements.md](requirements.md)).
 17. **`--wait` and an app whose root is a plain 404** (2026-10-27): `--wait` tells "route not
     loaded yet" from Traefik's own body `404 page not found`. An app that answers its root URL
-    with exactly that body (Go's default `http.NotFound`) waits until `--wait-timeout` and
-    fails. Rare for a web app's root; if it bites, the alternative is a response header the
+    with exactly that body (Go's default `http.NotFound`) waits until the timeout (2 minutes)
+    and fails. Rare for a web app's root; if it bites, the alternative is a response header the
     override adds to each app's route (which recreates every app's containers once).
