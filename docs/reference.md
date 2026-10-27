@@ -169,8 +169,8 @@ An app's `env` values (and its compose file, through them) can use these:
 | `TZ` | this machine's time zone (from `$TZ`, else what `/etc/localtime` points to, else `/etc/timezone`), so apps log in your local time - only when neither the shared env, the app's env nor the app's `.env` set `TZ`, and only when hl can tell the zone. `hl show` shows it and where it came from; `hl set env.TZ=UTC` picks another for every app. |
 
 **Order:** a variable's value comes from, later winning: the app's `.env`,
-your shell, the shared env, the app's env. `hl show <app>` lists every variable the
-app's compose files can use with where its value comes from.
+your shell, the shared env, the app's env. `hl show <app>` lists the variables hl
+provides and the env you set, each with where its value comes from (not the app's `.env`).
 
 ## Env hl fills in
 

@@ -38,7 +38,10 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   against the snapshot (checksum ok and mismatch, `--version`, `--dir`, `~` expansion) and is
   shellcheck clean. Steps: [RELEASING.md](../RELEASING.md).
 - Docs: README is the user guide (CLI-first) and docs/reference.md the settings reference; guides in `docs/guides/`; example apps in
-  `examples/`; CODE_OF_CONDUCT, SECURITY, issue and PR templates in place.
+  `examples/`; CODE_OF_CONDUCT, SECURITY, issue and PR templates in place. Since 2026-10-27 the
+  guides, examples, CONTRIBUTING and SECURITY give `hl set`/`hl unset` commands, never hl.yml
+  snippets to paste (the only YAML left is an app's own compose file and the reference's "The
+  hl.yml file" overview).
 - No CI, on purpose (see [requirements.md](requirements.md)); `scripts/check.sh` runs gofmt,
   go vet, staticcheck, golangci-lint, `go test -race`, shellcheck (when installed) and the cross
   builds, all locally.

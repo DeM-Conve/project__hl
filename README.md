@@ -153,8 +153,10 @@ apply it: hl up my-app
 ```
 
 - `hl show` (the homelab), `hl show my-app`, `hl show proxy` print the values in effect: for an
-  app its folder, service and port, URL, data folder and every variable its compose files can use,
-  each marked `hl.yml`, default or detected.
+  app its folder, service and port, URL and data folder, each marked `hl.yml`, default or
+  detected, then its env: the variables hl provides (`HL_URL`, `HL_PREFIX`, ..., `TZ`) and the
+  env you set (shared and the app's own), each with where its value comes from. Values from the
+  app's own `.env` aren't listed; compose reads that file itself.
 
 ## Routing
 

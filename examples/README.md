@@ -15,23 +15,14 @@ Try both from a clone of this repository:
 hl init ~/homelab-demo
 hl add examples/static-site
 hl add examples/base-path-app
-```
-
-Give `base-path-app` its prefix: in `~/homelab-demo/hl.yml`, add an `env` to the app hl just
-added (keep the `path`, `service` and `port` lines it wrote):
-
-```yaml
-apps:
-  base-path-app:
-    # path, service, port: as hl add wrote them
-    env:
-      BASE_PATH_APP_BASE_PATH: ${HL_PREFIX}
-```
-
-```sh
 hl up
 hl status
 ```
 
-Then open `http://localhost/static-site/` and `http://localhost/base-path-app/`. Clean up with
-`hl down` and by deleting `~/homelab-demo`.
+`hl add examples/base-path-app` gives the app its prefix on its own: its compose file uses
+`BASE_PATH_APP_BASE_PATH`, so hl maps it to `${HL_PREFIX}` and says so
+(`env BASE_PATH_APP_BASE_PATH=${HL_PREFIX}`); `hl show base-path-app` lists it.
+
+Then open `http://localhost/static-site/` and `http://localhost/base-path-app/`. To see what
+breaks without the base path, `hl unset base-path-app env.BASE_PATH_APP_BASE_PATH` and
+`hl up base-path-app`. Clean up with `hl down` and by deleting `~/homelab-demo`.

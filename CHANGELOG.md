@@ -151,6 +151,8 @@ release differs from earlier builds of `main`.
   network are `hl-proxy`, or `hl-<name>-proxy` for a homelab with a `name` (`hl set name=<x>`
   gives a second homelab its own). An `hl.yml` that still has one is refused with a message
   naming `hl unset proxy network` / `hl unset proxy project`; `hl show proxy` prints both names.
+- The guides and examples give `hl set`/`hl unset` commands instead of `hl.yml` snippets, and
+  say where `hl add` already maps a base path by itself.
 - A new `hl.yml` no longer starts with a `# yaml-language-server: $schema=...` line; the
   schema stays in `schema/hl.schema.json` for anyone who edits the file by hand.
 - **Breaking:** the app key `env_files` is gone. Keep an app's secrets in its own `.env` (hl

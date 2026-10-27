@@ -25,7 +25,7 @@ as it's ready. You'll be credited in the advisory unless you'd rather not be.
 
 - hl runs `docker compose` with your user's rights. Anyone who can run hl, or edit `hl.yml` and
   the apps' compose files, can do what Docker can on your machine.
-- The proxy listens on `127.0.0.1` by default. `proxy.bind: 0.0.0.0` (or any non-loopback
+- The proxy listens on `127.0.0.1` by default. `hl set proxy bind=0.0.0.0` (or any non-loopback
   address) exposes every app to your network over plain HTTP, with no authentication added by hl.
   That is a deliberate setting, not a vulnerability in hl.
 - hl doesn't run the Traefik dashboard: it has no login.

@@ -3,17 +3,13 @@
 # kind of setting real apps have (often called BASE_PATH, BASE_URL or ROOT_PATH).
 #
 # On its own:  docker compose up        -> http://localhost:8081/
-# With hl:     hl add examples/base-path-app, then in hl.yml:
-#
-#   apps:
-#     base-path-app:
-#       env:
-#         BASE_PATH_APP_BASE_PATH: ${HL_PREFIX}     # becomes /base-path-app
-#
+# With hl:     hl add examples/base-path-app
 #              hl up base-path-app      -> http://localhost/base-path-app/
 #
-# Without that setting the page loads but its links and stylesheet point at /
-# and break - which is what the base-path guide (docs/guides) shows how to fix.
+# hl add sees BASE_PATH_APP_BASE_PATH below and maps it to ${HL_PREFIX}
+# (/base-path-app) by itself. Without it (hl unset base-path-app
+# env.BASE_PATH_APP_BASE_PATH) the page loads but its links and stylesheet
+# point at / and break - see the base-path guide in docs/guides.
 services:
   web:
     image: nginx:1.27-alpine

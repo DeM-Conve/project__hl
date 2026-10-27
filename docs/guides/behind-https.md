@@ -14,16 +14,8 @@ browser --https--> your TLS proxy (Caddy, nginx, a tunnel, ...) --http--> hl's p
 hl set proxy bind=127.0.0.1 port=8080 domain=apps.example.com
 ```
 
-That leaves this in `hl.yml`:
-
-```yaml
-proxy:
-  bind: 127.0.0.1        # only the front proxy talks to hl
-  port: 8080             # the front proxy takes 80 and 443
-  domain: apps.example.com
-```
-
-`domain` is the public name; with host routing apps are at `<app>.apps.example.com`, with path
+`bind=127.0.0.1` means only the front proxy (on this machine) talks to hl, and `port=8080` leaves
+80 and 443 to the front proxy; `hl show proxy` prints the settings. `domain` is the public name; with host routing apps are at `<app>.apps.example.com`, with path
 routing at `apps.example.com/<app>/`. Restart: `hl down proxy && hl up`.
 
 ## 2. Front proxy
@@ -69,13 +61,12 @@ them at `http://127.0.0.1:8080` and keep the host name.
 Two things are still `http` from hl's point of view:
 
 - `${HL_URL}` is built as `http://<domain>:<port>/...`, so it says `http://apps.example.com:8080`.
-  For apps that need their public URL, set it explicitly instead of using `${HL_URL}`:
+  For apps that need their public URL, set it explicitly instead of using `${HL_URL}` (single
+  quotes, so your shell leaves `${HL_PREFIX}` for hl):
 
-  ```yaml
-  apps:
-    my-app:
-      env:
-        MY_APP_URL: https://apps.example.com${HL_PREFIX}
+  ```sh
+  hl set my-app 'env.MY_APP_URL=https://apps.example.com${HL_PREFIX}'
+  hl up my-app
   ```
 
 - hl's Traefik doesn't trust forwarded headers from the front proxy, so apps see
@@ -87,6 +78,7 @@ Two things are still `http` from hl's point of view:
 - Every app reachable through the front proxy is public. hl adds no login; rely on the apps'
   own, or add authentication in the front proxy (basic auth, forward auth, an access policy of
   your tunnel).
-- Keep `proxy.bind: 127.0.0.1` so nothing reaches hl around the front proxy.
+- Keep hl on loopback (`hl set proxy bind=127.0.0.1`, the default) so nothing reaches hl around
+  the front proxy.
 
 Built-in HTTPS (local CA or ACME) is on the [product plan](../product-plan.md) for after v0.1.

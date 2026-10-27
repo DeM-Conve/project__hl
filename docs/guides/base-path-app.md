@@ -32,28 +32,22 @@ services:
 
 The `:-` default keeps `docker compose up` on its own working exactly as before.
 
-## 2. Feed it from hl.yml
+## 2. Add the app
 
-```sh
-hl add ~/code/base-path-app          # or the examples/base-path-app folder of this repository
+```console
+$ hl add ~/code/base-path-app          # or the examples/base-path-app folder of this repository
+added base-path-app (service web, port 8080)
+url: http://localhost/base-path-app/
+env BASE_PATH_APP_BASE_PATH=${HL_PREFIX}
 ```
 
-Then give the app the variable (single quotes, so your shell leaves `${HL_PREFIX}` for hl):
+A variable named `<X>_BASE_PATH` in the compose file is mapped to `${HL_PREFIX}` by `hl add`
+itself ([Env hl fills in](../reference.md#env-hl-fills-in)), so there is nothing more to do here;
+`hl show base-path-app` lists it. If your app's variable has another name, `hl add` ends with a
+hint instead; set it yourself (single quotes, so your shell leaves `${HL_PREFIX}` for hl):
 
 ```sh
-hl set base-path-app 'env.BASE_PATH_APP_BASE_PATH=${HL_PREFIX}'
-```
-
-`hl.yml` now has it next to what `hl add` wrote:
-
-```yaml
-apps:
-  base-path-app:
-    path: ~/code/base-path-app
-    service: web
-    port: 8080
-    env:
-      BASE_PATH_APP_BASE_PATH: ${HL_PREFIX}     # -> /base-path-app
+hl set my-app 'env.MY_APP_ROOT=${HL_PREFIX}'
 ```
 
 `env` values are compose interpolation variables: they fill in `${...}` in the app's compose
@@ -78,6 +72,6 @@ no option, for example). Use host routing for those:
 hl add ~/code/my-app routing=host       # http://my-app.localhost
 ```
 
-or set `routing: host` on an app you already added. Host routing needs nothing from the app, but
+or `hl set my-app routing=host` for an app you already added. Host routing needs nothing from the app, but
 `<app>.localhost` isn't `localhost`: OAuth providers that allow plain-`http` redirect URIs only
 for `localhost` won't accept it.

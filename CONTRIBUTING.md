@@ -57,8 +57,9 @@ export HL_HOME=/tmp/hl-try
 
 Two things to know: `hl init` also records the folder as your default homelab (run `hl init` on
 your real one again afterwards), and two homelabs on one Docker share the project and network
-names unless one has a `name:` - if you already run a homelab, put `name: try` and a free
-`proxy.port` (e.g. `8080`) in the throwaway one's `hl.yml`, or stop yours first (`hl down`).
+names unless one has a `name` - `hl init` gives the throwaway one a name and a free port when
+it finds your homelab's proxy (or later: `./hl set name=try` and `./hl set proxy port=8080`
+there), or stop yours first (`hl down`).
 
 ## Changes
 

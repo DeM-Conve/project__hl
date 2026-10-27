@@ -14,8 +14,7 @@ public Wi-Fi, and not with a port forwarded from your router.
 hl set proxy bind=0.0.0.0     # every interface; or this machine's LAN address only, e.g. bind=192.168.1.20
 ```
 
-That writes `bind: 0.0.0.0` under `proxy:` in `hl.yml`; `hl unset proxy bind` goes back to
-`127.0.0.1`.
+`hl show proxy` shows it; `hl unset proxy bind` goes back to `127.0.0.1`.
 
 Restart the proxy so it picks up the new address:
 
@@ -41,13 +40,13 @@ http://192.168.1.20/my-app/
 
 Use your machine's address. If the app builds absolute URLs from its own URL setting
 (`${HL_URL}`, which is `http://localhost/...`), links may still point at `localhost`, which on
-the phone means the phone. Set `proxy.domain` to the machine's address or a name your network
-resolves (for example a name in your router's DNS), so `HL_URL` uses it:
+the phone means the phone. Set the proxy's `domain` to the machine's address or a name your
+network resolves (for example a name in your router's DNS), so `HL_URL` uses it:
 
-```yaml
-proxy:
-  bind: 0.0.0.0
-  domain: 192.168.1.20
+```sh
+hl set proxy domain=192.168.1.20
+hl up proxy
+hl up                 # the apps' URLs change too
 ```
 
 Note: changing `domain` away from `localhost` affects OAuth sign-in that depends on the
@@ -60,9 +59,10 @@ doesn't work from other devices.
 ## 4. Check the firewall
 
 If the page doesn't load from the phone but does on the machine, a firewall is blocking port 80
-(or your `proxy.port`). For example with ufw: `sudo ufw allow from 192.168.1.0/24 to any port 80
+(or the proxy's `port`, `hl show proxy`). For example with ufw: `sudo ufw allow from 192.168.1.0/24 to any port 80
 proto tcp`. On macOS, allow incoming connections for Docker when asked.
 
 ## Going back
 
-Set `bind: 127.0.0.1` (or remove the line), then `hl down proxy && hl up`.
+`hl unset proxy bind domain` (back to `127.0.0.1` and `localhost`), then `hl down proxy` and
+`hl up`.
