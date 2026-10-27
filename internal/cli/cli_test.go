@@ -1049,6 +1049,30 @@ func TestDoctor(t *testing.T) {
 	contains(t, "doctor bad hl.yml", r.out, "hl.yml:1:15: proxy.port", "is not a whole number")
 }
 
+// A running proxy started from older settings (compose's config hash differs from hl.yml's):
+// hl doctor warns, like hl show proxy, and both say hl up applies it.
+func TestDoctorWarnsAboutAProxyBehindHlYml(t *testing.T) {
+	f := newFake(t)
+	lab := f.lab("lab", "proxy: {debug: true}\napps: {}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"--project-name hl-proxy", "config --hash traefik"}, Stdout: "traefik new\n"})
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Label"}, Stdout: "old\n"})
+	f.on(rule{Match: []string{"ps -a --filter label=com.docker.compose.project=hl-proxy --format {{.State}}"}, Stdout: "running|Up|traefik:v3.6.25|old\n"})
+	r := f.must("doctor")
+	contains(t, "doctor", r.out, "! proxy running, but behind hl.yml", "apply it: hl up", "all good (1 warning)")
+	r = f.must("show", "proxy")
+	contains(t, "show proxy", r.out+r.errOut, "the running proxy predates the current config - apply it with: hl up")
+
+	// Up to date: no warning.
+	f = newFake(t)
+	lab = f.lab("lab", "apps: {}\n")
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	f.on(rule{Match: []string{"--project-name hl-proxy", "config --hash traefik"}, Stdout: "traefik same\n"})
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Label"}, Stdout: "same\n"})
+	r = f.must("doctor")
+	contains(t, "doctor", r.out, "✓ proxy running on 127.0.0.1:80", "all good\n")
+}
+
 // hl.yml broken by hand (hl itself never writes a broken one): every command names the lines
 // and says how to fix them, since there is no hl edit.
 func TestHandBrokenHlYml(t *testing.T) {

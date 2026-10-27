@@ -218,7 +218,9 @@ warns. Kept apps are never re-mapped.
   older than `config.TestedTraefikVersion`, and whether the running container predates the config
   (compose's `config-hash` label vs `docker compose config --hash traefik`).
 - `doctor` also checks the proxy config (as above), the project/network ownership, and warns (not a
-  failure) when `proxy.image` is older than the tested Traefik or its version can't be told.
+  failure) when `proxy.image` is older than the tested Traefik or its version can't be told, and
+  when the running proxy predates hl.yml (`proxyBehind`, the same config-hash check as `show
+  proxy`; the running hash from `docker ps --format {{.Label "com.docker.compose.config-hash"}}`).
 - `up` with no app runs the proxy's own `up` first (`upProxy`, as `hl up proxy`: compose
   recreates it only when its files changed, and a new address is checked before that), then
   every app, so `hl set proxy ...` then `hl up` applies. `up <app>`, `rebuild` and `restart`

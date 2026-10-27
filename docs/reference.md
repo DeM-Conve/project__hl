@@ -75,7 +75,7 @@ missing, as compose does; an image built before hl kept track needs one `hl rebu
 then every app) or `hl up proxy` (the proxy alone); hl names `hl up` for `domain`, `routing`
 and `port`, which are in the apps' routes or URLs too, and `hl down` then `hl up` for `subnet`
 (every app joins the proxy's network again). `hl up <app>` starts a proxy that isn't running but
-leaves a running one as it is. `hl show proxy` says when the running proxy is
+leaves a running one as it is. `hl show proxy` and `hl doctor` say when the running proxy is
 behind its settings.
 
 | Key | Default | What it does |

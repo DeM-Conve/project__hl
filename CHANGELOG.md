@@ -146,6 +146,9 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- `hl doctor` warns when the running proxy was started from older settings than hl.yml's (the
+  check `hl show proxy` makes), with `hl up` to apply them; both used to say `hl up proxy`.
+
 - A bare `hl up` applies the proxy's changed settings too: `hl set proxy debug=true` (or
   `port=`, `image=`, ...) then `hl up` used to leave the running proxy as it was, since `hl up`
   only started a proxy that wasn't running. It now runs the proxy's own `up` first (compose

@@ -117,7 +117,7 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl set` / `hl unset` | Change settings: see [Changing settings](#changing-settings). |
 | `hl sync` | Make the homelab follow your projects folders: add new apps, remove ones whose folder is gone, follow a moved or renamed folder (the app keeps its name and data). Shows a plan and asks (n, or no terminal, only shows it); `--yes` applies it. |
 | `hl remove <app>` | Stop the app and forget it. Its data stays; `hl sync` won't add its folder back. |
-| `hl doctor` | Check Docker, compose, the settings, the proxy and every app; warns about an old Traefik or hl. |
+| `hl doctor` | Check Docker, compose, the settings, the proxy and every app; warns about an old Traefik or hl, and a running proxy started before hl.yml's last change. |
 | `hl version` | Version, commit and platform, for bug reports. |
 | `hl completion <shell>` | Shell completion script. |
 
