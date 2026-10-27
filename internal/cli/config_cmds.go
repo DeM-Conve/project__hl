@@ -127,7 +127,7 @@ func unsetCmd() *cobra.Command {
 		Use:   "unset [<app>|proxy] key...",
 		Short: "Remove settings of an app, the proxy or the homelab, back to their defaults",
 		Long: `Remove settings from hl.yml, so their defaults apply again (e.g. an app's
-routing falls back to proxy.routing). ` + scopesHelp() + `
+routing goes back to path). ` + scopesHelp() + `
 env.NAME removes one env setting, env removes them all.
 
   hl unset my-app routing env.TZ
@@ -182,7 +182,7 @@ func unknownScope(home, verb, scope, arg string) error {
 }
 
 // notHomelabKey is the usage error for a key given without an app that isn't a homelab
-// setting: it names the scope that has it (hl set routing=host -> hl set proxy routing=host).
+// setting: it names the scope that has it (hl set port=8080 -> hl set proxy port=8080).
 // verb is "set" or "unset"; arg is the argument as given.
 func notHomelabKey(verb, key, arg string) error {
 	field, _, _ := strings.Cut(key, ".")

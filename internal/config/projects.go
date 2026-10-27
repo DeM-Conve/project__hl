@@ -69,7 +69,6 @@ type InitSettings struct {
 	Name     string
 	Bind     string
 	Port     int
-	Routing  string
 	Projects []string
 	// StripPrefix: folder-name prefixes left out of app names.
 	StripPrefix []string
@@ -79,7 +78,7 @@ type InitSettings struct {
 // what `hl init` plans with before it asks.
 func (s InitSettings) Config(dir string) *Config {
 	c := &Config{Dir: dir, Name: s.Name, Projects: s.Projects, StripPrefix: s.StripPrefix,
-		Proxy: Proxy{Bind: s.Bind, Port: s.Port, Routing: s.Routing}}
+		Proxy: Proxy{Bind: s.Bind, Port: s.Port}}
 	c.defaults()
 	return c
 }
@@ -121,9 +120,6 @@ func WriteNew(dir string, s InitSettings) error {
 		}
 		if s.Port != 0 && s.Port != pd.Port {
 			setScalar(proxy, "port", strconv.Itoa(s.Port), "!!int")
-		}
-		if s.Routing != "" && s.Routing != pd.Routing {
-			setScalar(proxy, "routing", s.Routing, "!!str")
 		}
 		if len(proxy.Content) > 0 {
 			insertKey(root, "proxy", proxy)

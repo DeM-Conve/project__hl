@@ -65,7 +65,7 @@ hl unset env.TZ
 | `host` | `http://<app>.localhost` | any app |
 | `none` | not behind the proxy | databases, workers, apps that keep their own ports |
 
-Set it per app (`hl set my-app routing=host`) or for every app (`hl set proxy routing=host`). A
+Every app gets path routing unless you set its own (`hl set my-app routing=host`). A
 proxy port other than 80 is added to the URLs (`http://localhost:8080/<app>/`). Path routing on
 plain `localhost` matters for OAuth: Google sign-in, for example, accepts plain-`http` redirect
 URIs only on exactly `localhost`.
@@ -105,7 +105,7 @@ folder with that name.
 | `path` | required | The app's folder. `hl set <app> path=<folder>` takes it relative to the current folder (like `hl add`) and writes it relative to the homelab folder when inside it, else as `~/...` or absolute. |
 | `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and asks for `service=<name>` only when none has one of those names. `hl add` writes it. |
 | `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `port=<port>`). `hl add` writes it. |
-| `routing` | `proxy.routing` | `path`, `host` or `none` (not behind the proxy). |
+| `routing` | `path` | `path`, `host` or `none` (not behind the proxy): see [Routing](#routing). |
 | `host` | `<name>.<domain>` | Host routing: the host name. Use it to give one app its own host name (say `photos.example.com`) instead of `<name>.<domain>`. |
 | `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). `compose+=compose.dev.yml` on an app that names none starts from the file compose picks, so it adds an override instead of replacing it. |
 | `env.NAME` | none | Variables for the app's compose file (`env.MY_APP_BASE_PATH='${HL_PREFIX}'`). Values can use the [variables hl provides](#variables-hl-provides) and your shell's variables. They are compose interpolation variables: they reach a container only through the app's compose file (`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`). |
@@ -119,8 +119,8 @@ missing, as compose does; an image built before hl kept track needs one `hl rebu
 ## Proxy settings
 
 `hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up` (with no app: the proxy,
-then every app) or `hl up proxy` (the proxy alone); hl names `hl up` for `domain`, `routing`
-and `port`, which are in the apps' routes or URLs too, and `hl down` then `hl up` for `subnet`
+then every app) or `hl up proxy` (the proxy alone); hl names `hl up` for `domain` and
+`port`, which are in the apps' routes or URLs too, and `hl down` then `hl up` for `subnet`
 (every app joins the proxy's network again). `hl up <app>` starts a proxy that isn't running but
 leaves a running one as it is. `hl show proxy` and `hl doctor` say when the running proxy is
 behind its settings.
@@ -129,7 +129,6 @@ behind its settings.
 | --- | --- | --- |
 | `bind` | `127.0.0.1` | Address the proxy listens on. `127.0.0.1` is this machine only; `0.0.0.0` (or a LAN IP) exposes every app to your network. |
 | `port` | `80` | Host port of the proxy. Added to app URLs when not 80. |
-| `routing` | `path` | Default routing for apps that don't set one: `path` or `host`. |
 | `domain` | `localhost` | Host name in app URLs: `<domain>/<app>/` for path routing, `<app>.<domain>` for host routing. |
 | `subnet` | none (Docker picks) | Fixed subnet for the proxy network, e.g. `172.31.0.0/16`. See below. |
 | `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. Use it as the escape hatch when a Docker update needs a newer Traefik than this hl pins yet. |
@@ -286,7 +285,6 @@ strip_prefix: [project__]
 proxy:
   bind: 127.0.0.1          # 0.0.0.0 to reach the apps from your network
   port: 80
-  routing: path            # default for apps: path or host
   domain: localhost
   # debug: true
 

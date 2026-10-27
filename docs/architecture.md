@@ -34,7 +34,7 @@ and `golang.org/x/term` (is stdin a terminal).
    in `<os.UserConfigDir()>/hl/home`.
 2. **Load `hl.yml`** (`config.Load`): check it strictly (`config.check`, below: every problem with
    file:line:column), unmarshal, fill defaults (`bind 127.0.0.1`, `port 80`, `domain localhost`,
-   `routing path`, `image` the tested Traefik; the proxy's `Network`/`Project`, not settings, are `hl-proxy` or `hl-<name>-proxy` -
+   `image` the tested Traefik; an app without `routing` gets `path` (`defaults.Routing`); the proxy's `Network`/`Project`, not settings, are `hl-proxy` or `hl-<name>-proxy` -
    all named in `internal/defaults`). A missing hl.yml is a `config.NotFoundError` naming `hl init`.
    hl.yml is re-read on every command; there is no daemon and no cached state besides the
    generated files.
@@ -402,7 +402,7 @@ back byte for byte (tests in `edit_test.go`):
   has at the top) is the shared scope unless an app has that name (`config.HasApp`). It then
   prints what applies the change (`applyCommand`:
   `hl up <app>`, `hl up proxy` for the proxy's `bind`, `image` and `debug`, `hl up` for the
-  shared env, `name` and the proxy's `domain`, `routing` or `port` (they are in the apps' routes
+  shared env, `name` and the proxy's `domain` or `port` (they are in the apps' routes
   or `HL_URL`; a bare `hl up` applies the proxy first), `hl sync` for the projects settings, or
   `hl down` then `hl up` when the proxy's subnet changed).
 - There is no editor command: every key is reachable with `hl set`/`hl unset`. A file broken by

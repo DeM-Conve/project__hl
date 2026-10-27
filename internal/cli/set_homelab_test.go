@@ -93,6 +93,28 @@ func TestScanDepthIsRemoved(t *testing.T) {
 	}
 }
 
+// proxy.routing is a removed key: apps use path routing unless they set their own.
+func TestProxyRoutingIsRemoved(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "version: 1\nproxy:\n  port: 8080\n  routing: host\napps:\n  a: {path: '"+a+"'}\n")
+	r := f.hl("status")
+	if r.code != 1 {
+		t.Errorf("want exit 1: %s", r)
+	}
+	contains(t, "status", r.errOut, "proxy.routing: removed from hl", "`hl set <app> routing=host`", "`hl unset proxy routing`")
+	r = f.must("unset", "proxy", "routing")
+	contains(t, "unset", r.out, "unset proxy.routing")
+	if got := f.read(filepath.Join(lab, config.FileName)); got != "version: 1\nproxy:\n  port: 8080\napps:\n  a: {path: '"+a+"'}\n" {
+		t.Errorf("hl.yml:\n%s", got)
+	}
+	r = f.must("show", "a")
+	contains(t, "show a", r.out, "http://localhost:8080/a/")
+	f.must("set", "a", "routing=host")
+	r = f.must("show", "a")
+	contains(t, "show a", r.out, "http://a.localhost:8080/")
+}
+
 // hl set <app> path= takes a folder relative to the current one, like hl add, and writes it
 // like hl init writes folders (relative inside the homelab, ~/ inside the home).
 func TestSetPathRelativeToCurrentFolder(t *testing.T) {
@@ -166,7 +188,9 @@ func TestSetUnsetMistakes(t *testing.T) {
 	}{
 		{[]string{"unset", "nosuchkey"}, 2, []string{`no app or homelab setting called "nosuchkey"`}},
 		{[]string{"set", "nosuch"}, 2, []string{`no app or homelab setting called "nosuch"`}},
-		{[]string{"set", "routing=host"}, 2, []string{"routing is a proxy setting", "hint: hl set proxy routing=host"}},
+		{[]string{"set", "routing=host"}, 2, []string{"routing is an app setting", "hint: hl set <app> routing=host"}},
+		{[]string{"set", "port=8080"}, 2, []string{"port is a proxy setting", "hint: hl set proxy port=8080"}},
+		{[]string{"set", "proxy", "routing=host"}, 2, []string{"proxy.routing: removed from hl", "hl set <app> routing=host"}},
 		{[]string{"set", "host=x"}, 2, []string{"host is an app setting", "hint: hl set <app> host=x"}},
 		{[]string{"unset", "env", "port"}, 2, []string{"port is a proxy setting", "hint: hl unset proxy port"}},
 		{[]string{"set", "a", "prot=80"}, 2, []string{`unknown setting "prot" - did you mean "port"?`}},
@@ -210,7 +234,7 @@ func TestSetUnsetMistakes(t *testing.T) {
 func TestRenameApp(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
-	lab := f.lab("lab", "version: 1\nproxy: {routing: host}\napps:\n  # the blog\n  a: {path: '"+a+"', port: 80} # mine\n  b: {path: '"+a+"', host: c.localhost}\n")
+	lab := f.lab("lab", "version: 1\napps:\n  # the blog\n  a: {path: '"+a+"', port: 80, routing: host} # mine\n  b: {path: '"+a+"', routing: host, host: c.localhost}\n")
 	for _, d := range []string{filepath.Join(lab, "data", "a", "pgdata"), filepath.Join(lab, ".hl", "a")} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
@@ -255,7 +279,7 @@ func TestRenameApp(t *testing.T) {
 	r = f.must("set", "a", "name=e")
 	contains(t, "rename", r.out, "renamed apps.a to apps.e", "moved its data to "+filepath.Join(lab, "data", "e"), "apply it: hl up e")
 	y := f.read(filepath.Join(lab, config.FileName))
-	contains(t, "hl.yml", y, "# the blog", "e: {path: '"+a+"', port: 80} # mine")
+	contains(t, "hl.yml", y, "# the blog", "e: {path: '"+a+"', port: 80, routing: host} # mine")
 	lacks(t, "hl.yml", y, "  a: {")
 	if !exists(filepath.Join(lab, "data", "e", "pgdata")) || exists(filepath.Join(lab, "data", "a")) || !exists(filepath.Join(lab, ".hl", "e")) {
 		t.Error("data and .hl/ didn't move")

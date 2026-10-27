@@ -9,7 +9,7 @@ import (
 
 func TestWriteNewFillsAnswersAndKeepsComments(t *testing.T) {
 	dir := t.TempDir()
-	s := InitSettings{Bind: "0.0.0.0", Port: 8080, Routing: RoutingHost, Projects: []string{"~/code", "../more projects"}}
+	s := InitSettings{Bind: "0.0.0.0", Port: 8080, Projects: []string{"~/code", "../more projects"}}
 	if err := WriteNew(dir, s); err != nil {
 		t.Fatal(err)
 	}
@@ -18,7 +18,7 @@ func TestWriteNewFillsAnswersAndKeepsComments(t *testing.T) {
 	}
 	b, _ := os.ReadFile(filepath.Join(dir, FileName))
 	text := string(b)
-	for _, want := range []string{"# hl homelab.", "# Folders with your projects", "apps: {}", "bind: 0.0.0.0", "port: 8080", "routing: host"} {
+	for _, want := range []string{"# hl homelab.", "# Folders with your projects", "apps: {}", "bind: 0.0.0.0", "port: 8080"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("hl.yml lost %q:\n%s", want, text)
 		}
@@ -30,7 +30,7 @@ func TestWriteNewFillsAnswersAndKeepsComments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Proxy.Bind != "0.0.0.0" || c.Proxy.Port != 8080 || c.Proxy.Routing != RoutingHost {
+	if c.Proxy.Bind != "0.0.0.0" || c.Proxy.Port != 8080 {
 		t.Errorf("proxy = %+v", c.Proxy)
 	}
 	if strings.Join(c.Projects, "|") != "~/code|../more projects" {
@@ -46,7 +46,7 @@ func TestWriteNewIsMinimal(t *testing.T) {
 	dir := t.TempDir()
 	pd := ProxyDefaults()
 	// Defaults spelled out are left out; only what differs is written.
-	s := InitSettings{Bind: pd.Bind, Port: pd.Port, Routing: pd.Routing, Projects: []string{"~/code"}, StripPrefix: []string{"project__"}}
+	s := InitSettings{Bind: pd.Bind, Port: pd.Port, Projects: []string{"~/code"}, StripPrefix: []string{"project__"}}
 	if err := WriteNew(dir, s); err != nil {
 		t.Fatal(err)
 	}

@@ -61,8 +61,6 @@ type Proxy struct {
 	Port int    `yaml:"port,omitempty"`
 	// Path routing serves apps at <domain>/<app>/, host routing at <app>.<domain>.
 	Domain string `yaml:"domain,omitempty"`
-	// Default routing for apps that don't set their own: path or host.
-	Routing string `yaml:"routing,omitempty"`
 	// Optional fixed subnet for the proxy network, so apps can trust the proxy by address.
 	Subnet string `yaml:"subnet,omitempty"`
 	Image  string `yaml:"image,omitempty"`
@@ -83,7 +81,7 @@ type App struct {
 	// The service the proxy forwards to, and its port inside the container.
 	Service string `yaml:"service,omitempty"`
 	Port    int    `yaml:"port,omitempty"`
-	// path, host or none. Default: proxy.routing.
+	// path, host or none. Default: path.
 	Routing string `yaml:"routing,omitempty"`
 	// Host routing: the host name. Default: <app>.<domain>.
 	Host string `yaml:"host,omitempty"`
@@ -191,9 +189,6 @@ func (c *Config) defaults() {
 	if p.Domain == "" {
 		p.Domain = defaults.Domain
 	}
-	if p.Routing == "" {
-		p.Routing = defaults.Routing
-	}
 	p.Network, p.Project = defaults.DefaultProxyNetwork, defaults.DefaultProxyProject
 	if c.Name != "" {
 		p.Network = defaults.Prefix + c.Name + "-" + defaults.NetworkSuffix
@@ -240,12 +235,12 @@ func (c *Config) AppDir(a *App) string {
 	return filepath.Join(c.Dir, p)
 }
 
-// Routing is how the app is reached: its own setting, else the proxy's default.
+// Routing is how the app is reached: its own setting, else path routing.
 func (c *Config) Routing(a *App) string {
 	if a.Routing != "" {
 		return a.Routing
 	}
-	return c.Proxy.Routing
+	return defaults.Routing
 }
 
 // Prefix is the app's URL prefix under path routing, /<app>; "" otherwise. Only the app's
@@ -585,9 +580,6 @@ func (c *Config) Validate() error {
 	}
 	if !hostRE.MatchString(p.Domain) {
 		ps.add("proxy.domain", "%q is not a host name like localhost or home.example.com", p.Domain)
-	}
-	if r := p.Routing; r != RoutingPath && r != RoutingHost {
-		ps.add("proxy.routing", "%q is not path or host", r)
 	}
 	if p.Subnet != "" {
 		if _, _, err := net.ParseCIDR(p.Subnet); err != nil {

@@ -9,7 +9,7 @@ import (
 )
 
 func proxySettings() config.Proxy {
-	return config.Proxy{Bind: "127.0.0.1", Port: 80, Domain: "localhost", Routing: "path",
+	return config.Proxy{Bind: "127.0.0.1", Port: 80, Domain: "localhost",
 		Network: defaults.DefaultProxyNetwork, Image: defaults.DefaultProxyImage, Project: defaults.DefaultProxyProject}
 }
 

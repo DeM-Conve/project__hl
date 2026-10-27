@@ -149,6 +149,11 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- **Breaking:** the proxy key `routing` is gone: every app gets path routing unless it sets its
+  own. An `hl.yml` with `proxy.routing` is refused with "removed from hl"; run
+  `hl unset proxy routing`, and `hl set <app> routing=host` for each app that should keep host
+  routing.
+
 - **Breaking:** `--wait-timeout` is gone; `--wait` waits a fixed 2 minutes per app. Drop the
   flag from scripts (`hl up --wait`); a slow app's health shows in `hl status` once it is up.
 
@@ -177,7 +182,7 @@ release differs from earlier builds of `main`.
   the `-v`/`--version` flag and `hl version --short` are gone; `hl version` prints the version.
 - **Breaking:** `hl init` no longer takes `--bind`, `--port`, `--routing` or `--apps`. It sets up
   the proxy itself (path routing on `127.0.0.1`, port 80 or a free one); change it afterwards with
-  `hl set proxy bind=0.0.0.0 port=8080 routing=host`. To leave out an app init added,
+  `hl set proxy bind=0.0.0.0 port=8080`. To leave out an app init added,
   `hl remove <app>` (its folder is then ignored by `hl sync`).
 - **Breaking:** the proxy keys `network` and `project` are gone: the proxy's compose project and
   network are `hl-proxy`, or `hl-<name>-proxy` for a homelab with a `name` (`hl set name=<x>`
@@ -311,7 +316,7 @@ release differs from earlier builds of `main`.
   compose file replaced the file compose picks with the new one; the list now starts from it.
 - `hl set` and `hl unset` mistakes: an unknown key or app, or a malformed `key=value`, exits 2
   (usage) instead of 1; a key given without an app that belongs to the proxy or an app names that
-  command (`hl set routing=host` -> `hl set proxy routing=host`), and `hl unset nosuchkey` says
+  command (`hl set port=8080` -> `hl set proxy port=8080`), and `hl unset nosuchkey` says
   there is no app or homelab setting by that name. `hl set <app> path=` to a folder without the
   compose files, `compose=` to a missing file, and `service=` to a service the compose files
   don't have (when they can be read) are refused, listing the services. Unsetting the last proxy

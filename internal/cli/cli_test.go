@@ -651,7 +651,7 @@ func TestShow(t *testing.T) {
 
 	r = f.must("show", "a")
 	contains(t, "show a", r.out, "folder   ~/my code/a  hl.yml\n", "  project  hl-a\n", "  url      http://localhost:8082/a/\n", "compose.yml", "found in the folder",
-		"service", "web", "detected", "port", "80", "routing", "default (proxy.routing)", "http://localhost:8082/a/",
+		"service", "web", "detected", "port", "80", "routing", "path", "default", "http://localhost:8082/a/",
 		filepath.Join(lab, "data", "a"),
 		"HL_URL=http://localhost:8082/a", "A_BASE=/a", "apps.a.env: ${HL_PREFIX}",
 		"TZ=Europe/Berlin", "apps.a.env, over the shared env", "LANG=C", "shared env")
@@ -1150,12 +1150,12 @@ func TestDoctorChecksTheLatestRelease(t *testing.T) {
 func TestErrors(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
-	f.lab("lab", "proxy:\n  port: 8080\n  rooting: host\napps:\n  a: {path: '"+a+"', port: http}\n")
+	f.lab("lab", "proxy:\n  port: 8080\n  domian: example.com\napps:\n  a: {path: '"+a+"', port: http}\n")
 	r := f.hl("up")
 	if r.code != 1 {
 		t.Fatalf("%s", r)
 	}
-	contains(t, "bad hl.yml", r.errOut, "has 2 problems", `hl.yml:3:3: proxy.rooting: unknown key - did you mean "routing"?`, "hl.yml:5:", `apps.a.port: "http" is not a whole number`)
+	contains(t, "bad hl.yml", r.errOut, "has 2 problems", `hl.yml:3:3: proxy.domian: unknown key - did you mean "domain"?`, "hl.yml:5:", `apps.a.port: "http" is not a whole number`)
 
 	f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n")
 	for _, c := range []struct {

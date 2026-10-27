@@ -134,7 +134,7 @@ func TestInitNonInteractive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Proxy.Routing != "path" || cfg.Proxy.Bind != "127.0.0.1" || cfg.Proxy.Port != 80 {
+	if cfg.Proxy.Bind != "127.0.0.1" || cfg.Proxy.Port != 80 {
 		t.Errorf("proxy = %+v, want the defaults", cfg.Proxy)
 	}
 	if strings.Join(cfg.Projects, ",") != "~/my code" {
@@ -255,7 +255,7 @@ func TestInitInteractive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if cfg.Proxy.Routing != "path" || cfg.Proxy.Bind != "127.0.0.1" || cfg.Proxy.Port != 8080 {
+	if cfg.Proxy.Bind != "127.0.0.1" || cfg.Proxy.Port != 8080 {
 		t.Errorf("proxy = %+v", cfg.Proxy)
 	}
 	if strings.Join(cfg.Names(), ",") != "blog,wiki" || cfg.Apps["blog"].Env["BLOG_URL"] != "${HL_URL}" {

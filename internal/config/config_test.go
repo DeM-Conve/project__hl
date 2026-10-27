@@ -118,7 +118,7 @@ apps:
 
 func TestValidate(t *testing.T) {
 	for _, body := range []string{
-		"proxy: {routing: subdomain}",
+		"proxy: {routing: host}", // a removed key
 		"apps: {Bad: {path: x}}",
 		"apps: {a: {}}",
 		"apps: {a: {path: x, routing: sideways}}",

@@ -45,10 +45,11 @@ skips - shows it, and asks once before writing anything. --yes applies it
 without asking; without a terminal (a script, a pipe) --yes is required, as
 for hl sync. To change the plan, run it again with other flags.
 
-init picks the proxy itself: ` + config.ProxyDefaults().Routing + ` routing on ` + config.ProxyDefaults().Bind + ` (this machine only), port
+init picks the proxy itself: ` + config.ProxyDefaults().Bind + ` (this machine only), port
 ` + fmt.Sprint(config.ProxyDefaults().Port) + `, or the first free of ` + joinInts(defaults.AltPorts) + ` when that one is in use or is
 another homelab's proxy port (the default homelab's, or one Docker has containers of).
-Change it afterwards with hl set proxy (bind=0.0.0.0, port=8080, routing=host).
+Change it afterwards with hl set proxy (bind=0.0.0.0, port=8080). Apps get path
+routing (<domain>/<app>/); hl set <app> routing=host changes one.
 To leave out an app init adds, hl remove <app> afterwards (hl sync won't add it
 back).
 
@@ -59,7 +60,7 @@ the plan (hl init --projects ~/code saves one).`,
 		Example: `  hl init                                   # plan for ~/homelab, then ask
   hl init ~/homelab --projects ~/code --yes # no question
   hl init --projects ~/code --strip-prefix project__
-  hl set proxy port=8080 routing=host       # then change the proxy`,
+  hl set proxy port=8080                    # then change the proxy`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(cmd.InOrStdin(), cmd.OutOrStdout(), args, o)
@@ -123,7 +124,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		why.saveProjects, why.saveStrip = saveProjects, saveStrip
 	} else {
 		pd := config.ProxyDefaults()
-		s = config.InitSettings{Routing: pd.Routing, Bind: pd.Bind, Port: pd.Port, StripPrefix: o.strip}
+		s = config.InitSettings{Bind: pd.Bind, Port: pd.Port, StripPrefix: o.strip}
 		if s.Projects, err = initProjects(dir, o.projects); err != nil {
 			return err
 		}
@@ -321,7 +322,7 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 	case why.busyPort != 0:
 		reach += fmt.Sprintf("; port %d is in use", why.busyPort)
 	}
-	w("proxy", "%s:%d (%s), %s routing: apps at %s/", cfg.Proxy.Bind, cfg.Proxy.Port, reach, cfg.Proxy.Routing,
+	w("proxy", "%s:%d (%s), %s routing: apps at %s/", cfg.Proxy.Bind, cfg.Proxy.Port, reach, defaults.Routing,
 		cfg.URL("<app>", &config.App{}))
 
 	var plan []scan.Action

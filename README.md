@@ -148,7 +148,7 @@ often `hl up`). Every key with its default, lists (`+=`, `-=`) and renaming:
 | `host` | `http://<app>.localhost` | any app |
 | `none` | not behind the proxy | databases, workers, apps that keep their own ports |
 
-Set it per app (`hl set my-app routing=host`) or for every app (`hl set proxy routing=host`).
+Every app gets path routing unless you set its own (`hl set my-app routing=host`).
 With path routing the app serves from `/`, but the links it builds must include `/<app>`, so it
 needs its base-path setting, mapped from hl in its env (single quotes keep your shell from
 expanding `${...}`):

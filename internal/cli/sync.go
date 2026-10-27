@@ -217,7 +217,7 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 		}
 	}
 	if len(added) > 0 {
-		if len(noBase) > 0 && cfg.Proxy.Routing == config.RoutingPath {
+		if len(noBase) > 0 {
 			// One line, as hl add says it.
 			fmt.Fprintf(out, "%shint:%s if links break under /<app>/ (%s): hl set <app> env.<BASE_PATH_VAR>='${HL_PREFIX}' (or routing=host)\n",
 				yellow, reset, strings.Join(noBase, ", "))

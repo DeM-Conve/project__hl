@@ -10,7 +10,7 @@ func TestCheckFindsProblemsWithLines(t *testing.T) {
 proxy:
   bnd: 0.0.0.0
   port: eighty
-  routing: hots
+  routing: host
 apps:
   my-app:
     path: ~/code/my-app
@@ -35,7 +35,7 @@ apps:
 	}{
 		{3, "proxy.bnd", `did you mean "bind"?`},
 		{4, "proxy.port", `"eighty" is not a whole number`},
-		{5, "proxy.routing", `did you mean "host"?`},
+		{5, "proxy.routing", "removed from hl"},
 		{9, "apps.my-app.servce", `did you mean "service"?`},
 		{10, "apps.my-app.port", "from 1 to 65535"},
 		{11, "apps.my-app.prefix", "removed from hl"},
@@ -96,7 +96,7 @@ func TestCheckAcceptsValidFiles(t *testing.T) {
 		Template,
 		`
 version: 1
-proxy: {bind: 0.0.0.0, port: 8080, routing: host, domain: example.com}
+proxy: {bind: 0.0.0.0, port: 8080, domain: example.com}
 env: {TZ: UTC, WORKERS: 4, DEBUG: false}
 apps:
   my-app.io:

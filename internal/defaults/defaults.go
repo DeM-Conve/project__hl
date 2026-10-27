@@ -17,7 +17,7 @@ const (
 	Port = 80
 	// Domain is proxy.domain: path routing serves <domain>/<app>/, host routing <app>.<domain>.
 	Domain = "localhost"
-	// Routing is proxy.routing, the routing of apps that don't set their own.
+	// Routing is the routing of apps that don't set their own (apps.<app>.routing).
 	Routing = "path"
 )
 

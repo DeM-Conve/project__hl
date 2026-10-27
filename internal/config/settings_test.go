@@ -15,11 +15,10 @@ func TestSettings(t *testing.T) {
 	var def Config
 	def.defaults()
 	want := map[string]Setting{
-		"proxy.bind":    {"proxy.bind", def.Proxy.Bind, "0.0.0.0", FileName},
-		"proxy.port":    {"proxy.port", "80", "8080", FileName},
-		"proxy.routing": {"proxy.routing", RoutingPath, RoutingPath, "default"},
-		"proxy.subnet":  {"proxy.subnet", "-", "-", "default"},
-		"proxy.image":   {"proxy.image", def.Proxy.Image, def.Proxy.Image, "default"},
+		"proxy.bind":   {"proxy.bind", def.Proxy.Bind, "0.0.0.0", FileName},
+		"proxy.port":   {"proxy.port", "80", "8080", FileName},
+		"proxy.subnet": {"proxy.subnet", "-", "-", "default"},
+		"proxy.image":  {"proxy.image", def.Proxy.Image, def.Proxy.Image, "default"},
 	}
 	for k, w := range want {
 		if got[k] != w {

@@ -147,7 +147,7 @@ func showApp(ctx context.Context, cfg *config.Config, name string, a *config.App
 		row("port", port, portFrom)
 		routingFrom := setIn(a.Routing != "")
 		if a.Routing == "" {
-			routingFrom = "default (proxy.routing)"
+			routingFrom = "default"
 		}
 		row("routing", routing, routingFrom)
 		row("url", cfg.URL(name, a)+"/", "")
