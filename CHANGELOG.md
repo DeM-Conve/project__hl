@@ -152,6 +152,8 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl init` warns when hl commands would keep using another homelab than the one it just made
+  default (`$HL_HOME`, `--home`, or the current folder inside another homelab), and says how to fix it.
 - `hl init` without a folder no longer sets up the current folder: run in your home folder it
   wrote `hl.yml`, `data/` and `.gitignore` there. It now uses the homelab hl already uses, else
   `~/homelab`; `hl init .` still sets up the current folder.

@@ -210,6 +210,7 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 		return err
 	}
 	say("default homelab: %s", dir)
+	otherHome(out, dir)
 
 	if cfg, err = config.Load(dir); err != nil {
 		return err
@@ -345,6 +346,38 @@ func initDir(args []string) (string, error) {
 		return "", withHint(err, "name the homelab folder: hl init <folder>")
 	}
 	return filepath.Join(home, defaults.HomelabDir), nil
+}
+
+// otherHome warns when hl commands won't use the homelab init just made default, because
+// --home, $HL_HOME or an hl.yml at or above the current folder comes first, and says how to fix it.
+func otherHome(out io.Writer, dir string) {
+	h, err := config.Home(homeFlag)
+	if err != nil || sameDir(h, dir) {
+		return
+	}
+	warn := func(format string, a ...any) {
+		fmt.Fprintf(out, "%swarning:%s %s\n", yellow, reset, fmt.Sprintf(format, a...))
+	}
+	switch {
+	case homeFlag != "":
+		warn("--home %s is not the homelab init set up (%s); commands without --home use %[2]s", h, dir)
+	case os.Getenv(defaults.HomeEnv) != "":
+		warn("$%s is %s, so hl commands use that homelab, not %s - unset %[1]s, or set it to %[3]s", defaults.HomeEnv, h, dir)
+	default:
+		warn("the current folder is inside the homelab %s, so hl commands run here use that one - "+
+			"run them outside it, or pass --home %s", h, dir)
+	}
+}
+
+// sameDir reports whether a and b are the same folder, symlinks resolved.
+func sameDir(a, b string) bool {
+	if ra, err := filepath.EvalSymlinks(a); err == nil {
+		a = ra
+	}
+	if rb, err := filepath.EvalSymlinks(b); err == nil {
+		b = rb
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
 }
 
 // initProjects returns the projects folders as they go into hl.yml: the flag's (each must

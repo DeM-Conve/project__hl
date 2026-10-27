@@ -368,7 +368,8 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   when there are new folders or gone apps.
 - **`hl init`** sets up the folder given, else the one `config.Home` finds (so a second run adds
   new apps to it), else `~/homelab` (`defaults.HomelabDir`) - never the current folder by itself
-  (`initDir`). It plans first and writes nothing until it is confirmed: the settings come from flags
+  (`initDir`). After recording the default it runs `config.Home` again and warns (`otherHome`)
+  when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win. It plans first and writes nothing until it is confirmed: the settings come from flags
   and defaults only (`--projects`, else `defaults.CandidateProjects` that exist in the home folder;
   the default port, or `defaults.AltPort` when that is busy and free), `InitSettings.Config` makes
   the homelab in memory, `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,

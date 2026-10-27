@@ -430,6 +430,35 @@ func TestSyncWithoutProjects(t *testing.T) {
 	}
 }
 
+func TestInitOtherHome(t *testing.T) {
+	home := initSyncEnv(t)
+	a, b, c := filepath.Join(home, "a"), filepath.Join(home, "b"), filepath.Join(home, "c")
+	if out, err := runHL(t, "", "init", a, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+
+	// $HL_HOME points at a: hl would keep using it.
+	t.Setenv("HL_HOME", a)
+	out, err := runHL(t, "", "init", b, "--yes")
+	if err != nil || !strings.Contains(out, "$HL_HOME is "+a+", so hl commands use that homelab, not "+b+" - unset HL_HOME, or set it to "+b) {
+		t.Errorf("%v\n%s", err, out)
+	}
+	t.Setenv("HL_HOME", "")
+
+	// Inside homelab a, setting up c elsewhere.
+	chdir(t, a)
+	out, err = runHL(t, "", "init", c, "--yes")
+	if err != nil || !strings.Contains(out, "the current folder is inside the homelab "+a) {
+		t.Errorf("%v\n%s", err, out)
+	}
+
+	// Nothing to say when hl will use the new homelab.
+	chdir(t, home)
+	if out, err = runHL(t, "", "init", filepath.Join(home, "d"), "--yes"); err != nil || strings.Contains(out, "warning") {
+		t.Errorf("%v\n%s", err, out)
+	}
+}
+
 // chdir changes the working folder for the rest of the test.
 func chdir(t *testing.T, dir string) {
 	t.Helper()
