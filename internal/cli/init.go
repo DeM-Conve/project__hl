@@ -139,9 +139,21 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 			}
 		}
 		claimed := otherHomelabPorts(dir, dockerOK)
-		busy := func(p int) bool { return portInUse(s.Bind, p) || claimed[p] != "" }
+		// Another homelab uses the default Docker names but hl can't read its port (its hl.yml
+		// is gone, or only its network is left): the default port may be its, like a busy one.
+		unknown := ""
+		if dockerOK {
+			unknown = unreadableProxy(context.Background(), s.Config(dir), claimed)
+		}
+		defaultPort := s.Port
+		busy := func(p int) bool {
+			return portInUse(s.Bind, p) || claimed[p] != "" || (p == defaultPort && unknown != "")
+		}
 		if busy(s.Port) {
 			why.portOwner = claimed[s.Port]
+			if !portInUse(s.Bind, s.Port) && why.portOwner == "" {
+				why.portUnknown = unknown
+			}
 			free := 0
 			for _, p := range defaults.AltPorts {
 				if !busy(p) {
@@ -304,6 +316,8 @@ func initPlan(out io.Writer, cfg *config.Config, o initOptions, dockerOK bool, w
 	switch {
 	case why.busyPort != 0 && why.portOwner != "":
 		reach += fmt.Sprintf("; port %d is the proxy port of the homelab in %s", why.busyPort, why.portOwner)
+	case why.busyPort != 0 && why.portUnknown != "":
+		reach += fmt.Sprintf("; port %d may be another homelab's: %s and hl can't read its proxy port", why.busyPort, why.portUnknown)
 	case why.busyPort != 0:
 		reach += fmt.Sprintf("; port %d is in use", why.busyPort)
 	}
@@ -369,8 +383,11 @@ func initDir(args []string) (string, error) {
 type initWhy struct {
 	busyPort  int    // the default proxy port, in use, so another one was picked
 	portOwner string // the other homelab whose proxy has that port, "" when something else uses it
-	name      string // why the homelab got a name: who uses the default Docker names
-	strip     bool   // strip_prefix was worked out from the folder names, not given
+	// portUnknown: the default port is free, but another homelab whose port hl can't read uses
+	// the default Docker names (unreadableProxy says how hl knows).
+	portUnknown string
+	name        string // why the homelab got a name: who uses the default Docker names
+	strip       bool   // strip_prefix was worked out from the folder names, not given
 
 	// An existing hl.yml: what the flags add to it.
 	saveProjects, saveStrip bool
@@ -430,6 +447,42 @@ func otherHomelabPorts(dir string, dockerOK bool) map[int]string {
 		}
 	}
 	return out
+}
+
+// unreadableProxy says why another homelab uses cfg's proxy project or network although hl
+// can't read that homelab's proxy port (claimed, from otherHomelabPorts, has the ones it can):
+// its proxy containers come from a folder whose hl.yml doesn't load, or the network exists
+// with no proxy containers and no known homelab using the default names. "" otherwise.
+func unreadableProxy(ctx context.Context, cfg *config.Config, claimed map[int]string) string {
+	inv, err := containers(ctx)
+	if err != nil {
+		return ""
+	}
+	known := func(match func(c *config.Config) bool) bool {
+		for _, h := range claimed {
+			if c, err := config.Load(h); err == nil && match(c) {
+				return true
+			}
+		}
+		return false
+	}
+	project := cfg.ProxyProject()
+	if other := inv.owner(cfg, project); other != "" {
+		if known(func(c *config.Config) bool { return sameDir(c.Dir, other) }) {
+			return ""
+		}
+		return fmt.Sprintf("the homelab in %s runs %s", other, project)
+	}
+	if len(inv.of(project)) > 0 {
+		return "" // this folder's own
+	}
+	if _, err := docker(ctx, "network", "inspect", "--format", "{{.Name}}", cfg.Proxy.Network); err != nil {
+		return ""
+	}
+	if known(func(c *config.Config) bool { return c.Proxy.Network == cfg.Proxy.Network }) {
+		return "" // a known homelab's network, its port in claimed
+	}
+	return fmt.Sprintf("Docker network %s exists", cfg.Proxy.Network)
 }
 
 // otherHome warns when hl commands won't use the homelab init just made default, because

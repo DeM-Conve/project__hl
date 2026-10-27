@@ -924,3 +924,60 @@ func TestInitNothingToChange(t *testing.T) {
 		t.Errorf("want a refusal: %v\n%s", err, out)
 	}
 }
+
+// A homelab hl can't read the proxy port of (its hl.yml is gone, or only the hl-proxy network
+// is left) may have port 80: a new homelab takes the first free alternative, as for a busy port.
+func TestInitUnreadableHomelabPort(t *testing.T) {
+	home := initSyncEnv(t)
+	alt := defaults.AltPorts[0]
+	gone := filepath.Join(home, "gone lab") // no hl.yml
+	ps := strings.Join([]string{"hl-proxy", "traefik", "running", "Up 1 hour",
+		filepath.Join(gone, ".hl", "proxy", "compose.yml"), "hl-proxy-traefik-1"}, "\t") + "\n"
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), []byte(ps), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_NETS"), []byte("hl-proxy\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := filepath.Join(home, "a")
+	out, err := runHL(t, "", "init", a, "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	contains(t, "plan", out, fmt.Sprintf("127.0.0.1:%d (this machine only; port 80 may be another homelab's: the homelab in %s runs hl-proxy and hl can't read its proxy port)", alt, gone))
+	if cfg, err := config.Load(a); err != nil || cfg.Proxy.Port != alt || cfg.Name != "a" {
+		t.Errorf("a: %v %+v", err, cfg)
+	}
+
+	// Only the network: the same.
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	b := filepath.Join(home, "b")
+	if out, err = runHL(t, "", "init", b, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	contains(t, "plan", out, "port 80 may be another homelab's: Docker network hl-proxy exists and hl can't read its proxy port")
+	if cfg, err := config.Load(b); err != nil || cfg.Proxy.Port == 80 {
+		t.Errorf("b: %v %+v", err, cfg)
+	}
+
+	// A known homelab with the default names and another port: 80 is free to take.
+	if err := os.MkdirAll(gone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gone, config.FileName), []byte("version: 1\nproxy: {port: 8888}\napps: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), []byte(ps), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := filepath.Join(home, "c")
+	if out, err = runHL(t, "", "init", c, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	lacks(t, "plan", out, "may be another homelab's")
+	if cfg, err := config.Load(c); err != nil || cfg.Proxy.Port != 80 {
+		t.Errorf("c: %v %+v\n%s", err, cfg, out)
+	}
+}

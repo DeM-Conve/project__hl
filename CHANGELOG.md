@@ -308,7 +308,9 @@ release differs from earlier builds of `main`.
   its plan: when port 80 is busy it takes the first free of 8080, 8000, 8081, 8888, 8090 (it
   gave up when 8080 was busy too), and when another homelab runs the proxy project or network
   `hl-proxy` it gives the new homelab a `name` from its folder, so its projects, network and
-  port don't collide (`hl doctor` used to report the clash only after the fact).
+  port don't collide (`hl doctor` used to report the clash only after the fact). When hl can't
+  read that other homelab's proxy port (its `hl.yml` is gone, or only the `hl-proxy` network is
+  left), port 80 counts as taken too and the plan says why.
 - `hl init` warns when hl commands would keep using another homelab than the one it just made
   default (`$HL_HOME`, `--home`, or the current folder inside another homelab), and says how to fix it.
 - Quieter `hl init` and `hl sync`: an app's env is shown once, in the plan (not again after

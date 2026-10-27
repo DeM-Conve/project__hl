@@ -294,7 +294,7 @@ and not settings (some have a command-line flag):
 | `2m` | how long `--wait` waits for each app (change with `--wait-timeout`) |
 | `20` | log lines `--wait` shows for each service that didn't become healthy |
 | every `250ms`, `2s` each | how often `--wait` asks the proxy for a healthy app's URL until the app answers (anything but Traefik's own `404 page not found`), and how long one request may take |
-| `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use or another homelab's proxy is set to it (and error hints suggest) |
+| `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use or another homelab's proxy is set to it (or may be: another homelab uses the default Docker names and hl can't read its port) (and error hints suggest) |
 | `code`, `projects`, `src` | projects folders `hl init` suggests, under your home folder, when they exist |
 | `homelab` | the folder `hl init` uses under your home folder when you name none |
 | `.hlignore` | a folder holding a file with this name is never picked up as an app |

@@ -471,7 +471,10 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   `--projects`, else `defaults.CandidateProjects` that exist in the home folder;
   the default port, or the first of `defaults.AltPorts` that is free and unclaimed when that is
   busy or claimed, shown as "port 80 is in use" (or "is the proxy port of the homelab in <dir>")
-  in the plan. Claimed ports (`otherHomelabPorts`) are the `proxy.port` of every other homelab hl
+  in the plan. The default port also counts as claimed when `unreadableProxy` finds another
+  homelab using the default proxy project or network whose port hl can't read (its proxy
+  containers come from a folder whose hl.yml doesn't load, or the network exists and no known
+  homelab has that network name); the plan says "port 80 may be another homelab's: <why>". Claimed ports (`otherHomelabPorts`) are the `proxy.port` of every other homelab hl
   can find: the recorded default and, with docker working, the folder in the `config_files`
   label of any container (running or stopped) started from a homelab's `.hl/`; with docker working, `initName` gives a new homelab a `name`
   when `proxyNamesTaken` (docker.go) finds the default proxy project run from another homelab's
