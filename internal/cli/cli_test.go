@@ -526,7 +526,7 @@ func TestDown(t *testing.T) {
 	}
 }
 
-func TestUpdate(t *testing.T) {
+func TestRebuildPull(t *testing.T) {
 	f := newFake(t)
 	clean, dirty, plain, diverged := f.app("clean", apiModel), f.app("dirty", apiModel), f.app("plain", apiModel), f.app("diverged", apiModel)
 	f.lab("lab", "apps:\n  clean: {path: '"+clean+"'}\n  dirty: {path: '"+dirty+"'}\n  plain: {path: '"+plain+"'}\n  diverged: {path: '"+diverged+"'}\n")
@@ -534,13 +534,13 @@ func TestUpdate(t *testing.T) {
 	f.on(rule{Name: "git", Match: []string{plain, "status"}, Stderr: "fatal: not a git repository (or any of the parent directories): .git\n", Exit: 128})
 	f.on(rule{Name: "git", Match: []string{diverged, "pull"}, Stderr: "fatal: Not possible to fast-forward, aborting.\n", Exit: 128})
 
-	r := f.hl("update")
+	r := f.hl("rebuild", "--pull")
 	if r.code != 1 {
 		t.Fatalf("a failed pull fails the command: %s", r)
 	}
-	contains(t, "update", r.out, "skipped: uncommitted changes in 2 file(s)", "skipped: not a git repository",
-		"updated: clean", "skipped: dirty (uncommitted changes in 2 file(s) - commit or stash them first); plain (not a git repository)")
-	contains(t, "update", r.errOut, "diverged: git pull --ff-only failed", "1 of 4 apps failed: diverged")
+	contains(t, "rebuild --pull", r.out, "skipped: uncommitted changes in 2 file(s)", "skipped: not a git repository",
+		"pulled and rebuilt: clean", "skipped: dirty (uncommitted changes in 2 file(s) - commit or stash them first); plain (not a git repository)")
+	contains(t, "rebuild --pull", r.errOut, "diverged: git pull --ff-only failed", "hl rebuild diverged --pull", "1 of 4 apps failed: diverged")
 	if p := f.find("-C "+dirty, "pull"); len(p) != 0 {
 		t.Errorf("pulled over uncommitted work: %v", p)
 	}
@@ -558,9 +558,16 @@ func TestUpdate(t *testing.T) {
 	if err := os.Remove(filepath.Join(f.bin, "git")); err != nil {
 		t.Fatal(err)
 	}
-	r = f.hl("update", "clean")
+	r = f.hl("rebuild", "clean", "--pull")
 	if r.code != 1 || !strings.Contains(r.errOut, "git not found") {
 		t.Errorf("no git: %s", r)
+	}
+	// Without --pull, no git at all; the proxy's --pull pulls its image.
+	f.reset()
+	f.must("rebuild", "clean")
+	f.must("rebuild", "proxy", "--pull")
+	if u := f.find("--project-name hl-proxy", "up --detach --force-recreate --pull always"); len(u) != 1 {
+		t.Errorf("rebuild proxy --pull: %v", f.calls())
 	}
 }
 
@@ -652,7 +659,7 @@ func TestShellOpenCompose(t *testing.T) {
 	if r := f.hl("show", "aa", "--compose"); r.code != 1 || !strings.Contains(r.errOut, `did you mean "a"`) {
 		t.Errorf("close name: %s", r)
 	}
-	for _, gone := range []string{"ps", "path", "config", "proxy"} {
+	for _, gone := range []string{"ps", "path", "config", "update", "proxy"} {
 		if r := f.hl(gone); r.code != 2 {
 			t.Errorf("hl %s: want an unknown command: %s", gone, r)
 		}

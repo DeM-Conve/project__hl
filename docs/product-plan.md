@@ -126,7 +126,7 @@ in hl may assume the maintainer's setup.
 - [x] `hl restart` starts the proxy first like `up`.
 - [x] `hl logs` with no app: every app's logs, prefixed by app name.
 - [x] Ctrl-C during long docker commands stops cleanly.
-- [x] `hl update` never pulls over uncommitted work; says which apps it skipped and why.
+- [x] `hl rebuild --pull` (was `hl update`) never pulls over uncommitted work; says which apps it skipped and why.
 
 ## 6. Data (P1)
 

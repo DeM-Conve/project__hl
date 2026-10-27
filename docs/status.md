@@ -19,7 +19,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
 - **Minimal surface** (2026-10-27): every command, flag and `hl.yml` key has to earn its
   place. Done so far: the proxy is a pseudo-app (`hl up|down|restart|rebuild|logs|show proxy`)
   instead of the `hl proxy` group; `hl config`, `hl ps`, `hl path` and `--wait-all` are gone
-  (`hl show <app> --compose`, `hl show`, `hl status`).
+  (`hl show <app> --compose`, `hl show`, `hl status`); `hl update` is `hl rebuild --pull`.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install
@@ -70,7 +70,7 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    off by default, `proxy.dashboard: true` turns it on, refused on a non-loopback bind unless
    `proxy.dashboard_public: true` ([requirements.md](requirements.md)).
 5. ~~`hl restart` and the proxy~~ - decided 2026-10-23 (same): `restart` starts the proxy first,
-   like `up`, `rebuild` and `update`.
+   like `up` and `rebuild`.
 6. ~~Windows~~ - decided 2026-10-23 (same): not supported; hl says so and suggests WSL 2.
 7. ~~CLI tests~~ - done 2026-10-23: `internal/cli` is tested with a fake `docker` on PATH.
 8. **Opting out of the host's `TZ`** (2026-10-27): apps now get the host's time zone unless
@@ -89,3 +89,6 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     lists; `scan_depth` still needs `hl edit` unless the top-level `hl set` covers it.
 13. **Picking apps on a terminal**: `hl init` used to offer the apps found as a checklist; now it
     shows the plan and asks once, and `--apps a,b` picks. Is that enough?
+14. **`hl rebuild --pull` and a folder with uncommitted changes** (2026-10-27): like `hl update`
+    before it, such an app is skipped altogether (neither pulled nor rebuilt). Should it still be
+    rebuilt from its local code, with only the pull skipped?

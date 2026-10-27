@@ -39,12 +39,12 @@ release differs from earlier builds of `main`.
 - Apps run unmodified: hl layers a generated compose override on top (`hl show <app> --compose`).
 - Shared `env` for every app, per-app `env` and `env_files`, and `${HL_URL}`, `${HL_PREFIX}`,
   `${HL_HOST}`, `${HL_DATA}`, `${HL_APP}` for an app's settings.
-- Commands: `status`/`ls`, `up`/`start`, `down`/`stop`, `restart`, `rebuild`, `update`, `logs`,
+- Commands: `status`/`ls`, `up`/`start`, `down`/`stop`, `restart`, `rebuild`, `logs`,
   `open`, `shell`, `show`, `doctor`,
   `version` and shell `completion` (which offers app and service names).
 - `hl status` has a HEALTH column: `healthy`, `starting: <services>`, `unhealthy: <services>`,
   or `-` for apps without healthchecks.
-- `--wait` and `--wait-timeout` (default 2m) on `hl up`, `hl rebuild` and `hl update`: wait until
+- `--wait` and `--wait-timeout` (default 2m) on `hl up` and `hl rebuild`: wait until
   each app's service behind the proxy and the services it depends on (`depends_on`) are running
   and healthy, and for an app that isn't, name those services and show their last log lines. A
   sidecar nothing depends on (say, a backup job with a long healthcheck interval) no longer fails
@@ -54,7 +54,9 @@ release differs from earlier builds of `main`.
   and where it came from. When the zone can't be told, no `TZ` is set.
 - `hl logs` with no app shows every app's logs at once, each line prefixed by its app; `-n`/`--tail`
   sets how many lines (default 200).
-- `hl update` says which apps it skipped (not a git repo, uncommitted changes) and why.
+- `hl rebuild --pull` runs `git pull --ff-only` in each app's folder before rebuilding it, skips
+  folders that aren't git repos or have uncommitted changes, and says which it skipped and why;
+  `hl rebuild proxy --pull` pulls the proxy's image.
 - `hl shell` opens the service behind the proxy by default, also when hl detected it rather than
   `hl.yml` pinning it, and exits with the shell's own status.
 - `hl version` shows the Go version, platform and whether the build had local changes;
@@ -132,6 +134,8 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- **Breaking:** `hl update` is `hl rebuild --pull` (same skips: folders that aren't git repos or
+  have uncommitted changes are neither pulled nor rebuilt).
 - **Breaking:** `hl config`, `hl ps`, `hl path` and `--wait-all` are gone. `hl config <app>` is
   `hl show <app> --compose`; `hl config check` is what every command (and `hl doctor`) does
   already; what `hl config defaults` showed that matters is in `hl show` (the `TZ` apps get, the
@@ -152,7 +156,7 @@ release differs from earlier builds of `main`.
 - `hl add` without a terminal no longer stops when several services publish ports and one has a
   usual web name (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`): it routes that one and says
   so. It still asks for `--service` when none has such a name.
-- `hl restart` starts the proxy first, like `hl up`, `hl rebuild` and `hl update`.
+- `hl restart` starts the proxy first, like `hl up` and `hl rebuild`.
 - Error hints name the command that fixes a setting (`hl set proxy port=8000`, `hl unset proxy subnet`,
   `hl set my-app service=...`) instead of the `hl.yml` key to edit; `hl edit` stays as the fallback.
 

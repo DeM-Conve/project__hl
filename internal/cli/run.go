@@ -246,14 +246,25 @@ func upCmd() *cobra.Command {
 
 func rebuildCmd() *cobra.Command {
 	var w waitFlags
-	c := appsCmd("rebuild", "Rebuild apps' images from their folders' current code, then restart them",
+	var pull bool
+	c := appsCmd("rebuild", "Rebuild apps' images from their folders' current code, then restart them; --pull git pulls first",
 		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+			proxyArgs := []string{"--force-recreate"}
+			if pull {
+				proxyArgs = append(proxyArgs, "--pull", "always")
+			}
 			err := proxyThenApps(withProxy, names,
-				func() error { return upProxy(ctx, cfg, "--force-recreate") },
-				func() error { return eachApp(ctx, cfg, names, true, &w, "up", "--detach", "--build") })
+				func() error { return upProxy(ctx, cfg, proxyArgs...) },
+				func() error {
+					if pull {
+						return pullAndRebuild(ctx, cfg, names, &w)
+					}
+					return eachApp(ctx, cfg, names, true, &w, "up", "--detach", "--build")
+				})
 			return statusAfter(ctx, cfg, err)
 		})
 	w.add(c)
+	c.Flags().BoolVar(&pull, "pull", false, "first git pull each app's folder (fast-forward only; skips folders that aren't git repos or have uncommitted changes); for the proxy, pull its image")
 	return c
 }
 
@@ -422,66 +433,60 @@ func downProxy(ctx context.Context, cfg *config.Config, inv *inventory) error {
 	return nil
 }
 
-func updateCmd() *cobra.Command {
-	var w waitFlags
-	c := appsCmd("update", "git pull apps' folders (fast-forward only, skips uncommitted changes), then rebuild",
-		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
-			if withProxy {
-				return withHint(errors.New("the proxy has no folder to pull"), "`hl up proxy` applies its settings")
-			}
-			if _, err := exec.LookPath("git"); err != nil {
-				return withHint(errors.New("git not found on PATH"), "install git: update pulls each app's folder with it")
-			}
-			inv, err := containers(ctx)
-			if err != nil {
+// pullAndRebuild is rebuild --pull for apps: git pull --ff-only in each app's folder, then
+// rebuild it. A folder that isn't a git repo or has uncommitted changes is skipped (neither
+// pulled nor rebuilt), and the summary says why.
+func pullAndRebuild(ctx context.Context, cfg *config.Config, names []string, w *waitFlags) error {
+	if _, err := exec.LookPath("git"); err != nil {
+		return withHint(errors.New("git not found on PATH"), "install git: --pull pulls each app's folder with it, or rebuild without --pull")
+	}
+	inv, err := containers(ctx)
+	if err != nil {
+		return err
+	}
+	if err := ensureProxy(ctx, cfg, inv); err != nil {
+		return err
+	}
+	var updated, skipped []string
+	f := &failures{total: len(names)}
+	for _, n := range names {
+		dir := cfg.AppDir(cfg.Apps[n])
+		step(n + " " + dim + "(" + dir + ")" + reset)
+		if why := dirty(ctx, dir); why != "" {
+			say("%sskipped:%s %s", yellow, reset, why)
+			skipped = append(skipped, n+" ("+why+")")
+			continue
+		}
+		pull := exec.Command("git", "-C", dir, "pull", "--ff-only")
+		pull.Stdout, pull.Stderr = stdout, stderr
+		if err := compose.Exec(ctx, pull); err != nil {
+			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
 			}
-			if err := ensureProxy(ctx, cfg, inv); err != nil {
+			f.add(n, withHint(fmt.Errorf("%s: git pull --ff-only failed; the folder is left as it was", n),
+				"the branch may have diverged or have no upstream - sort it out in %s, then `hl rebuild %s --pull`", dir, n))
+			continue
+		}
+		if err := runApp(ctx, cfg, inv, n, w, "up", "--detach", "--build"); err != nil {
+			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
 			}
-			var updated, skipped []string
-			f := &failures{total: len(names)}
-			for _, n := range names {
-				dir := cfg.AppDir(cfg.Apps[n])
-				step(n + " " + dim + "(" + dir + ")" + reset)
-				if why := dirty(ctx, dir); why != "" {
-					say("%sskipped:%s %s", yellow, reset, why)
-					skipped = append(skipped, n+" ("+why+")")
-					continue
-				}
-				pull := exec.Command("git", "-C", dir, "pull", "--ff-only")
-				pull.Stdout, pull.Stderr = stdout, stderr
-				if err := compose.Exec(ctx, pull); err != nil {
-					if errors.Is(err, interrupt.ErrInterrupted) {
-						return err
-					}
-					f.add(n, withHint(fmt.Errorf("%s: git pull --ff-only failed; the folder is left as it was", n),
-						"the branch may have diverged or have no upstream - sort it out in %s, then `hl update %s`", dir, n))
-					continue
-				}
-				if err := runApp(ctx, cfg, inv, n, &w, "up", "--detach", "--build"); err != nil {
-					if errors.Is(err, interrupt.ErrInterrupted) {
-						return err
-					}
-					f.add(n, err)
-					continue
-				}
-				updated = append(updated, n)
-			}
-			fmt.Fprintln(stdout)
-			if len(updated) > 0 {
-				say("updated: %s", strings.Join(updated, ", "))
-			}
-			if len(skipped) > 0 {
-				say("%sskipped:%s %s", yellow, reset, strings.Join(skipped, "; "))
-			}
-			return statusAfter(ctx, cfg, f.err())
-		})
-	w.add(c)
-	return c
+			f.add(n, err)
+			continue
+		}
+		updated = append(updated, n)
+	}
+	fmt.Fprintln(stdout)
+	if len(updated) > 0 {
+		say("pulled and rebuilt: %s", strings.Join(updated, ", "))
+	}
+	if len(skipped) > 0 {
+		say("%sskipped:%s %s", yellow, reset, strings.Join(skipped, "; "))
+	}
+	return f.err()
 }
 
-// dirty is why update must not pull in dir, or "" when it may.
+// dirty is why rebuild --pull must not pull in dir, or "" when it may.
 func dirty(ctx context.Context, dir string) string {
 	out, err := run2(ctx, "git", "-C", dir, "status", "--porcelain")
 	if err != nil {

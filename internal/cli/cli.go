@@ -211,7 +211,7 @@ app's data (data/<app>/).
 	c.SetVersionTemplate(version.Get().Full() + "\n")
 	c.PersistentFlags().StringVar(&homeFlag, "home", "", "homelab folder (default: $"+defaults.HomeEnv+", the nearest folder with an hl.yml, or the one hl init set)")
 	c.AddCommand(initCmd(), addCmd(), removeCmd(), statusCmd(),
-		upCmd(), downCmd(), restartCmd(), rebuildCmd(), updateCmd(),
+		upCmd(), downCmd(), restartCmd(), rebuildCmd(),
 		logsCmd(), openCmd(), shellCmd(),
 		doctorCmd(), versionCmd(), syncCmd(), projectsCmd(), ignoreCmd(), stripPrefixCmd(),
 		setCmd(), unsetCmd(), editCmd(), showCmd())

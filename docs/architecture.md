@@ -55,7 +55,7 @@ Commands that start or stop apps first take one inventory of every compose conta
 (`cli.containers`: one `docker ps --all` with the project, service, state, status and
 `config_files` labels). It answers "is the proxy running", the HEALTH column, and who owns
 a project: a project whose containers were started from another homelab's `.hl/` folder
-(`inventory.owner`) is never started, stopped or replaced - `up`/`restart`/`rebuild`/`update`/
+(`inventory.owner`) is never started, stopped or replaced - `up`/`restart`/`rebuild`/
 `remove` refuse with the fix, `down` leaves it out with a warning. If Docker can't be
 reached, that first call fails with docker's own message and a hint.
 
@@ -207,7 +207,7 @@ warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
   (compose's `config-hash` label vs `docker compose config --hash traefik`).
 - `doctor` also checks the proxy config (as above), the project/network ownership, and warns (not a
   failure) when `proxy.image` is older than the tested Traefik or its version can't be told.
-- `up`/`start`, `rebuild`, `update` and `restart` start the proxy first if none of its containers
+- `up`/`start`, `rebuild` and `restart` start the proxy first if none of its containers
   runs (`ensureProxy`), because each override joins the proxy network as `external`. Before
   starting it (`startProxy`, also `hl up proxy`): `checkPort` - something else on `bind:port`?
   (`net.Listen`; when hl may not open a low port, a connect instead), named by `docker ps --filter
@@ -216,7 +216,7 @@ warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
   another Docker network or one of the machine's own, each with the fix (a free `172.x.0.0/16`).
 - Multi-app commands (`eachApp`) run every app even when one fails, print each failure as it
   happens and end with "n of m apps failed: ..." (exit 1). An interruption stops the loop.
-- `--wait` (`up`, `rebuild`, `update`) runs the command as usual (every service starts), then
+- `--wait` (`up`, `rebuild`) runs the command as usual (every service starts), then
   `up --detach --wait --wait-timeout <s> <services>` for the routed service and its
   `depends_on`, followed through (`compose.Model.WithDeps`, from the model `prepare` already
   read), so a sidecar with a slow healthcheck doesn't fail an app that serves. `--wait` on an
@@ -228,7 +228,7 @@ warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
   that aren't there are skipped, so it is safe to repeat. An app hl can no longer prepare (folder
   gone) is stopped by project name alone (`downByName`). `remove` does the same for the app,
   deletes it from `hl.yml` and `.hl/<app>/`, and keeps `data/<app>/`.
-- `update` per app: skip if `git status --porcelain` fails (not a repo) or shows changes; otherwise
+- `rebuild --pull` per app (`pullAndRebuild`): skip if `git status --porcelain` fails (not a repo) or shows changes; otherwise
   `git pull --ff-only` (a failed pull is a failure for that app; the folder is left as it was),
   then `up --detach --build`. It ends with the updated and the skipped apps and why.
 - `status`: STATE `down`, `up n/m` or `partial n/m`; HEALTH from the containers' status:
