@@ -105,9 +105,9 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl add <folder> [key=value...]` | Add an app: any folder with a compose file. Takes the [settings](#changing-settings) `hl set <app>` takes, plus `name=`. |
 | `hl up [app...]` | Start apps, the proxy first; builds missing images, and rebuilds an image whose build args changed (a base path from `${HL_PREFIX}`, say). `--wait` waits until they're healthy and shows the logs of any that aren't. Ends with `hl status`. |
 | `hl down [app...]` | Stop and remove containers; with no app, also the proxy. Data stays. |
-| `hl restart [app...]` | Restart containers without rebuilding. |
+| `hl restart [app...]` | Restart containers without rebuilding. An app that isn't running is left alone, with a note to `hl up` it. |
 | `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (a folder with uncommitted changes, or not a git repo, is rebuilt without a pull); for the proxy it pulls the image. |
-| `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every app's, prefixed by its name. |
+| `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every running app's, prefixed by its name. Says so when nothing is running. |
 | `hl status` | The proxy, then each app's state, health, URL and folder. When the running proxy still listens where it was started (after `hl set proxy port=` without `hl up proxy`), it shows that address, URLs on the port that serves them, and a note on applying hl.yml's. Says when `hl sync` has something to do. |
 | `hl open <app>` | Print the app's URL and open it in the browser. |
 | `hl shell <app> [service]` | A shell in a running container (default: the service behind the proxy). |

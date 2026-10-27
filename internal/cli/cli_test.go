@@ -351,6 +351,16 @@ func TestUpRestartRebuild(t *testing.T) {
 	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n  b: {path: '"+b+"'}\n")
 	proxyFile := filepath.Join(lab, ".hl", "proxy", "compose.yml")
 
+	// A stopped app isn't restarted (compose would do nothing): hl says so and starts nothing.
+	r := f.must("restart", "b")
+	contains(t, "restart of a stopped app", r.out, "b isn't running - start it with: hl up b")
+	lacks(t, "restart of a stopped app", r.out, "==> b")
+	if calls := f.find("docker compose"); len(calls) != 0 {
+		t.Errorf("restart of a stopped app ran compose: %v", calls)
+	}
+
+	f.containers(ctr("hl-b", "api", "running", "Up", filepath.Join(lab, ".hl", "b", "override.yml")))
+	f.reset()
 	f.must("restart", "b")
 	calls := f.find("docker compose --project-name")
 	if len(calls) < 2 || !strings.Contains(calls[0].String(), "hl-proxy") || !strings.Contains(calls[len(calls)-1].String(), "--project-name hl-b") ||
@@ -359,6 +369,7 @@ func TestUpRestartRebuild(t *testing.T) {
 	}
 
 	// With the proxy running, it is left alone; rebuild builds.
+	f.rules = nil
 	f.containers(ctr("hl-proxy", "traefik", "running", "Up", proxyFile))
 	f.reset()
 	f.must("rebuild", "a", "a")
@@ -372,7 +383,7 @@ func TestUpRestartRebuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.reset()
-	r := f.hl("up")
+	r = f.hl("up")
 	if r.code != 1 {
 		t.Fatalf("want a failure: %s", r)
 	}
@@ -688,6 +699,8 @@ func TestLogs(t *testing.T) {
 	contains(t, "logs of a stopped app", r.out, "a isn't running", "hl up a")
 	r = f.must("logs", "proxy")
 	contains(t, "logs of a stopped proxy", r.out, "proxy isn't running", "hl up proxy")
+	r = f.must("logs")
+	contains(t, "logs with nothing running", r.out, "no app is running", "hl up")
 	if l := f.find("logs --tail"); len(l) != 0 {
 		t.Errorf("compose logs ran for nothing: %v", l)
 	}
@@ -699,6 +712,17 @@ func TestLogs(t *testing.T) {
 	}
 	contains(t, "logs a", r.out, "web-1  | GET /about")
 
+	// Every app's logs: only the apps that have containers.
+	f.reset()
+	r = f.must("logs")
+	contains(t, "all logs", r.out, "a | web-1  | GET /")
+	if l := f.find("logs --tail 200 --no-color"); len(l) != 1 {
+		t.Errorf("only a's logs: %v", f.calls())
+	}
+	f.rules = f.rules[:2] // the logs rules; a new inventory
+	f.containers(ctr("hl-a", "web", "exited", "Exited (0) 1 minute ago", filepath.Join(lab, ".hl", "a", "override.yml")),
+		ctr("hl-bb", "api", "running", "Up", filepath.Join(lab, ".hl", "bb", "override.yml")))
+	f.reset()
 	r = f.must("logs")
 	contains(t, "all logs", r.out, "a  | web-1  | GET /", "bb | api-1  | ready")
 	if l := f.find("logs --tail 200 --no-color"); len(l) != 2 {
@@ -737,6 +761,8 @@ func TestShellOpenCompose(t *testing.T) {
 	f.containers(
 		ctr("hl-proxy", "traefik", "running", "Up 1 hour", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
 		ctr("hl-a", "web", "running", "Up 1 hour", filepath.Join(lab, ".hl", "a", "override.yml")),
+		ctr("hl-a", "db", "running", "Up 1 hour", filepath.Join(lab, ".hl", "a", "override.yml")),
+		ctr("hl-a", "api", "exited", "Exited (0) 1 hour ago", filepath.Join(lab, ".hl", "a", "override.yml")),
 		ctr("other", "x", "running", "Up", "/elsewhere/compose.yml"),
 	)
 	f.must("shell", "a")
@@ -749,7 +775,14 @@ func TestShellOpenCompose(t *testing.T) {
 	}
 	f.on(rule{Match: []string{"exec api"}, Stderr: "service \"api\" is not running\n", Exit: 1})
 	r := f.hl("shell", "a", "api")
-	contains(t, "shell not running", r.errOut, "service api is not running", "hl up a")
+	// A stopped service: one message from hl, not docker's error line too.
+	if r.code != 1 || strings.Count(r.errOut, "not running")+strings.Count(r.errOut, "isn't running") != 1 {
+		t.Errorf("shell of a stopped service: %s", r)
+	}
+	contains(t, "shell not running", r.errOut, "a: service api isn't running", "hl up a")
+	if s := f.find("exec api"); len(s) != 0 {
+		t.Errorf("docker exec ran for a stopped service: %v", s)
+	}
 	if r := f.hl("shell", "db"); r.code != 2 || !strings.Contains(r.errOut, "which service") {
 		t.Errorf("routing none needs a service: %s", r)
 	}

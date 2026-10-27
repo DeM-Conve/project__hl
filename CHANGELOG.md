@@ -208,6 +208,11 @@ release differs from earlier builds of `main`.
   `hl up proxy`, it used to print hl.yml's address and URLs on a port nothing served. It now
   shows the running address, the app URLs on that port, and a note: "hl.yml says ...:8088 -
   apply it: hl up proxy, then hl up".
+- No more silent no-ops: `hl restart <app>` of an app that isn't running says "`<app>` isn't
+  running - start it with: `hl up <app>`" (exit 0) instead of printing an empty `==> <app>`
+  section; `hl logs` with no app shows only the running apps' logs and says so when none runs;
+  `hl shell` on a stopped service prints one error with the `hl up` hint, not docker's error
+  line as well.
 - `hl up` rebuilds an image whose build args changed: an app that bakes its base path or URL
   into the image (`build: args:` fed from `${HL_PREFIX}` or `${HL_URL}`) kept serving the old
   path after `hl set <app> prefix=...`, `routing=` or a proxy `domain`/`port` change, although hl

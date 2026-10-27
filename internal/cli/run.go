@@ -291,8 +291,32 @@ func restartCmd() *cobra.Command {
 		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
 			return proxyThenApps(withProxy, names,
 				func() error { return restartProxy(ctx, cfg) },
-				func() error { return eachApp(ctx, cfg, names, true, nil, "restart") })
+				func() error {
+					if names = runningApps(ctx, cfg, names); len(names) == 0 {
+						return nil
+					}
+					return eachApp(ctx, cfg, names, true, nil, "restart")
+				})
 		})
+}
+
+// runningApps leaves out the apps that have no containers at all (compose restart would do
+// nothing for them) and says so for each; without Docker it keeps them all and lets compose
+// say what is wrong.
+func runningApps(ctx context.Context, cfg *config.Config, names []string) []string {
+	inv, err := containers(ctx)
+	if err != nil {
+		return names
+	}
+	var out []string
+	for _, n := range names {
+		if len(inv.of(cfg.ProjectName(n))) == 0 {
+			say("%s isn't running - start it with: hl up %s", n, n)
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // proxyRunning takes the inventory and returns the proxy's project, refusing a proxy another
@@ -629,6 +653,14 @@ func logsCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				// Only the apps that have containers: the others have no logs.
+				if inv, err := containers(ctx); err == nil {
+					names = slices.DeleteFunc(names, func(n string) bool { return len(inv.of(cfg.ProjectName(n))) == 0 })
+					if len(names) == 0 {
+						say("no app is running, so there are no logs - start them with: hl up")
+						return nil
+					}
+				}
 				return logsAll(ctx, cfg, names, a)
 			}
 			if _, err := targets(cfg, args[:1]); err != nil {
@@ -657,6 +689,16 @@ func logsCmd() *cobra.Command {
 	c.Flags().BoolVarP(&follow, "follow", "f", false, "keep following")
 	c.Flags().IntVarP(&tail, "tail", "n", defaults.LogTail, "lines to show from the end of each log")
 	return c
+}
+
+// serviceRunning reports whether one of the containers runs service.
+func serviceRunning(cs []container, service string) bool {
+	for _, c := range cs {
+		if c.service == service && c.state == "running" {
+			return true
+		}
+	}
+	return false
 }
 
 // countWriter counts what passes through it.
@@ -797,11 +839,17 @@ func shellCmd() *cobra.Command {
 					return &usageError{err: errNoService, cmd: "hl shell"}
 				}
 			}
+			stopped := withHint(fmt.Errorf("%s: service %s isn't running", args[0], svc), "start it with `hl up %s`", args[0])
+			// Ask Docker first, so a stopped service gets this one message rather than
+			// docker's own error line followed by it.
+			if inv, err := containers(ctx); err == nil && !serviceRunning(inv.of(p.Name), svc) {
+				return stopped
+			}
 			err = p.Run(ctx, "exec", svc, "sh", "-c", defaults.Shell)
 			var ce *compose.Error
 			if errors.As(err, &ce) && ce.Code > 0 {
 				if strings.Contains(ce.Stderr, "is not running") || strings.Contains(ce.Stderr, "no container") {
-					return withHint(fmt.Errorf("%s: service %s is not running", args[0], svc), "start it with `hl up %s`", args[0])
+					return stopped
 				}
 				// The shell's own exit status, as `docker exec` does.
 				return &exitStatus{code: ce.Code}

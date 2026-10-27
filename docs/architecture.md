@@ -260,8 +260,12 @@ warns. Kept apps are never re-mapped.
   Docker compose runs and says what is wrong). Services named after the app must be in its model
   (else a usage error listing them). `logs proxy` counts what compose printed (`countWriter`):
   nothing, without `-f` and `proxy.debug`, gets a note naming `hl set proxy debug=true`.
-- `logs` with no app runs `docker compose logs` for every app at once, each line prefixed by its
-  app; `--tail` (default `defaults.LogTail`) and `-f` apply to all.
+- `logs` with no app runs `docker compose logs` for every app that has containers at once, each
+  line prefixed by its app; `--tail` (default `defaults.LogTail`) and `-f` apply to all. With
+  none, it says nothing is running (exit 0).
+- `restart` leaves out apps with no containers (`runningApps`: "`<app>` isn't running - start it
+  with: `hl up <app>`", exit 0, like `logs`): compose's restart would do nothing for them, and
+  the proxy isn't started when no named app runs.
 - `show` (`internal/cli/show.go`) reads `hl.yml` and, only for an app whose `service` or `port`
   isn't pinned, the compose model (`docker compose config`, as `prepared` would; nothing is
   written or started). The env list comes from `config.EnvVars`: `AppEnv` with one entry per
@@ -278,7 +282,9 @@ warns. Kept apps are never re-mapped.
   `WAYLAND_DISPLAY` is set.
 - `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the
   service name is validated so it can't pass as a flag). Without a service it uses the pinned or
-  detected one. It exits with the shell's own status.
+  detected one. It exits with the shell's own status. It checks the inventory first: a service
+  with no running container fails with one hl error (and the `hl up` hint) before `docker
+  exec` can print its own.
 - `doctor` prints hl's version, Go version and platform, compares it with the latest release
   (`checkLatest`: `version.Kind` skips `dev` builds, tells a Go pseudo-version how to install a
   release, and for a release asks `defaults.LatestReleaseURL` with `defaults.UpdateCheckTimeout`;
