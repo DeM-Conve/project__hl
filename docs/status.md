@@ -46,6 +46,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   [requirements.md](requirements.md)) and has no `--dry-run`; `hl set` value errors name the key
   with the fix as hint and exit 2; `env.FOO` without a value, `scan_depth=0` and `hl add` of a
   file or a folder without compose file give specific hints.
+- **Fixes from review round 4** (2026-10-27): a bare `hl up` applies the proxy's changed
+  settings (then starts every app), so apply hints say `hl up` wherever that is enough.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install

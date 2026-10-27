@@ -275,8 +275,9 @@ func splitProxy(args []string) (withProxy bool, apps []string) {
 }
 
 // appsCmd is a command over [app...] (all by default) that also takes the proxy: withProxy
-// says it was named, names are the apps (none when only the proxy was named).
-func appsCmd(use, short string, run func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error) *cobra.Command {
+// says it was named, names are the apps (none when only the proxy was named, all of them when
+// nothing was).
+func appsCmd(use, short string, run func(ctx context.Context, cfg *config.Config, withProxy bool, names []string, all bool) error) *cobra.Command {
 	return &cobra.Command{
 		Use:               use + " [app...|proxy]",
 		Short:             short,
@@ -293,7 +294,7 @@ func appsCmd(use, short string, run func(ctx context.Context, cfg *config.Config
 					return err
 				}
 			}
-			return run(cmd.Context(), cfg, withProxy, names)
+			return run(cmd.Context(), cfg, withProxy, names, len(args) == 0)
 		},
 	}
 }
@@ -314,11 +315,17 @@ func proxyThenApps(withProxy bool, names []string, proxyRun, apps func() error) 
 
 func upCmd() *cobra.Command {
 	var w waitFlags
-	c := appsCmd("up", "Start apps (all by default), the proxy first; builds images that don't exist yet",
-		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+	c := appsCmd("up", "Start apps (all by default), the proxy first; with no app, also applies the proxy's changed settings",
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string, all bool) error {
+			// A bare hl up brings everything to what hl.yml says, the proxy included (compose
+			// recreates it only when its files changed); hl up <app> only starts a missing proxy,
+			// so one app doesn't take every other app's routes down for a moment.
+			if all {
+				withProxy = true
+			}
 			err := proxyThenApps(withProxy, names,
 				func() error { return upProxy(ctx, cfg) },
-				func() error { return eachApp(ctx, cfg, names, true, &w, "up", "--detach") })
+				func() error { return eachApp(ctx, cfg, names, !withProxy, &w, "up", "--detach") })
 			return statusAfter(ctx, cfg, err)
 		})
 	w.add(c)
@@ -329,7 +336,7 @@ func rebuildCmd() *cobra.Command {
 	var w waitFlags
 	var pull bool
 	c := appsCmd("rebuild", "Rebuild apps' images from their folders' current code, then restart them; --pull git pulls first",
-		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string, _ bool) error {
 			proxyArgs := []string{"--force-recreate"}
 			if pull {
 				proxyArgs = append(proxyArgs, "--pull", "always")
@@ -351,7 +358,7 @@ func rebuildCmd() *cobra.Command {
 
 func restartCmd() *cobra.Command {
 	return appsCmd("restart", "Restart apps' containers without rebuilding (the proxy first, like up)",
-		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string, _ bool) error {
 			return proxyThenApps(withProxy, names,
 				func() error { return restartProxy(ctx, cfg) },
 				func() error {

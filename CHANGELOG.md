@@ -146,6 +146,13 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- A bare `hl up` applies the proxy's changed settings too: `hl set proxy debug=true` (or
+  `port=`, `image=`, ...) then `hl up` used to leave the running proxy as it was, since `hl up`
+  only started a proxy that wasn't running. It now runs the proxy's own `up` first (compose
+  recreates it only when its files changed; a busy new port is still refused before that), then
+  every app. `hl up <app>` still leaves a running proxy alone. `hl set` names `hl up` where that
+  is enough (`domain`, `routing`, `port` and the shared env); `hl status` says "apply it: hl up".
+
 - **Breaking:** `hl sync --dry-run` is gone: answering n, or running without a terminal, already
   shows the plan and writes nothing.
 - **Breaking:** `hl edit` is gone. Every key can be changed with `hl set`/`hl unset`, so a
@@ -240,7 +247,7 @@ release differs from earlier builds of `main`.
 - `hl status` shows the proxy where it really listens: after `hl set proxy port=8088` without
   `hl up proxy`, it used to print hl.yml's address and URLs on a port nothing served. It now
   shows the running address, the app URLs on that port, and a note: "hl.yml says ...:8088 -
-  apply it: hl up proxy, then hl up".
+  apply it: hl up".
 - `hl up --wait` (and `rebuild --wait`) returns only once the app's URL answers through the
   proxy: a request right after it used to get Traefik's "404 page not found" for about a second,
   until the proxy had loaded the new route. Any answer of the app counts, its own 404 too; a
@@ -279,7 +286,7 @@ release differs from earlier builds of `main`.
   `hl set proxy debug=true`. `hl logs <app> <service>` with a service the app doesn't have lists
   its services instead of compose's error.
 - `hl set proxy port=...` said to apply it with `hl up proxy` only, but the port is in every
-  app's `HL_URL`; it now says `hl up proxy, then hl up`, like `domain` and `routing`.
+  app's `HL_URL`; it now says `hl up` (the proxy, then the apps), like `domain` and `routing`.
 
 - `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
   line, shown only with path routing when no base-path variable was mapped. `hl init` and

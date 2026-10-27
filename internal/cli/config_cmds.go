@@ -513,7 +513,8 @@ func applyCommand(scope string, changes []config.Change) string {
 			}
 		}
 		if apps {
-			return "hl up proxy, then hl up (the apps' routes or URLs change too)"
+			// A bare hl up applies the proxy's settings, then the apps'.
+			return "hl up (the proxy, then the apps, whose routes or URLs change too)"
 		}
 		return "hl up proxy"
 	}

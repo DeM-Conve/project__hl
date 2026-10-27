@@ -334,7 +334,7 @@ func TestStatusShowsTheRunningProxyAddress(t *testing.T) {
 	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Ports}}"}, Stdout: "127.0.0.1:8080->80/tcp\n"})
 	r := f.must("status")
 	contains(t, "status", r.out, "proxy running  127.0.0.1:8080",
-		"note: hl.yml says 127.0.0.1:8088 - apply it: hl up proxy, then hl up", "http://localhost:8080/a/")
+		"note: hl.yml says 127.0.0.1:8088 - apply it: hl up\n", "http://localhost:8080/a/")
 	lacks(t, "status", r.out, "localhost:8088")
 
 	// Applied: no note, hl.yml's port.
@@ -397,6 +397,46 @@ func TestUpRestartRebuild(t *testing.T) {
 	// Up twice is fine: compose does nothing the second time.
 	f.must("up", "b")
 	f.must("up", "b")
+}
+
+// A bare hl up applies hl.yml to the running proxy too (hl set proxy debug=true, then hl up);
+// hl up <app> leaves a running proxy alone, and a busy new port is refused before compose
+// replaces the proxy.
+func TestBareUpAppliesProxyChanges(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "proxy: {debug: true}\napps:\n  a: {path: '"+a+"'}\n")
+	f.containers(
+		ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")),
+		ctr("hl-a", "web", "running", "Up", filepath.Join(lab, ".hl", "a", "override.yml")),
+	)
+	f.must("up")
+	var order []string
+	for _, c := range f.find("compose", "up --detach") {
+		s := c.String()
+		s = s[strings.Index(s, "--project-name ")+len("--project-name "):]
+		order = append(order, strings.Fields(s)[0])
+	}
+	if !slices.Equal(order, []string{"hl-proxy", "hl-a"}) {
+		t.Errorf("bare up: want the proxy's up, then the app's, once each: %q\n%v", order, f.calls())
+	}
+	contains(t, "traefik config", f.read(filepath.Join(lab, ".hl", "proxy", "traefik.yml")), "accessLog")
+
+	f.reset()
+	f.must("up", "a")
+	if u := f.find("--project-name hl-proxy", "up"); len(u) != 0 {
+		t.Errorf("hl up <app> touched the running proxy: %v", u)
+	}
+
+	f.on(rule{Match: []string{"ps --filter label=com.docker.compose.project=hl-proxy --format {{.Ports}}"}, Stdout: "127.0.0.1:80->80/tcp\n"})
+	f.lab("lab", "proxy: {port: 8098}\napps:\n  a: {path: '"+a+"'}\n")
+	portInUse = func(_ string, port int) bool { return port == 8098 }
+	f.reset()
+	r := f.hl("up")
+	if r.code != 1 || len(f.find("compose", "up")) != 0 {
+		t.Fatalf("a busy new port: want a refusal and no compose up: %s\n%v", r, f.calls())
+	}
+	contains(t, "busy new port", r.errOut, "port 8098 on 127.0.0.1 is already in use", "the running proxy is left as it is")
 }
 
 // An image keeps the build args it was built with: up rebuilds the services whose resolved

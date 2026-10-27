@@ -105,12 +105,12 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | --- | --- |
 | `hl init [folder]` | Set up a homelab folder (default `~/homelab`), find your apps, make it the default. Shows a plan and asks once; `--yes` doesn't ask. Flags: `--projects`, `--strip-prefix`; it picks the proxy itself (a free port), change it later with `hl set proxy`. |
 | `hl add <folder> [key=value...]` | Add an app: any folder with a compose file. Takes the [settings](#changing-settings) `hl set <app>` takes, plus `name=`. |
-| `hl up [app...]` | Start apps, the proxy first; builds missing images, and rebuilds an image whose build args changed (a base path from `${HL_PREFIX}`, say). `--wait` waits until they're healthy and their URL answers through the proxy, and shows the logs of any that aren't. Ends with `hl status`. |
+| `hl up [app...]` | Start apps, the proxy first; with no app, also applies the proxy's changed settings (`hl up <app>` only starts a proxy that isn't running). Builds missing images, and rebuilds an image whose build args changed (a base path from `${HL_PREFIX}`, say). `--wait` waits until they're healthy and their URL answers through the proxy, and shows the logs of any that aren't. Ends with `hl status`. |
 | `hl down [app...]` | Stop and remove containers; with no app, also the proxy. Data stays. |
 | `hl restart [app...]` | Restart containers without rebuilding. An app that isn't running is left alone, with a note to `hl up` it. |
 | `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (a folder with uncommitted changes, or not a git repo, is rebuilt without a pull); for the proxy it pulls the image. |
 | `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every running app's, prefixed by its name. Says so when nothing is running. |
-| `hl status` | The proxy, then each app's state, health, URL and folder. When the running proxy still listens where it was started (after `hl set proxy port=` without `hl up proxy`), it shows that address, URLs on the port that serves them, and a note on applying hl.yml's. Says when `hl sync` has something to do. |
+| `hl status` | The proxy, then each app's state, health, URL and folder. When the running proxy still listens where it was started (after `hl set proxy port=` without `hl up`), it shows that address, URLs on the port that serves them, and a note on applying hl.yml's. Says when `hl sync` has something to do. |
 | `hl open <app>` | Print the app's URL and open it in the browser. |
 | `hl shell <app> [service]` | A shell in a running container (default: the service behind the proxy). |
 | `hl show [app\|proxy]` | Settings in effect and where each comes from; `--compose` prints the compose config as hl runs it. |
@@ -146,7 +146,7 @@ hl unset proxy port
   `image`, `debug`; the homelab has `env.NAME`, `projects`, `ignore`, `scan_depth`,
   `strip_prefix`, `name`. Each one, with its default: [docs/reference.md](docs/reference.md).
 - **Applying:** hl writes the change only if the result is valid, then says which command applies
-  it (`hl up my-app`, `hl up proxy`, `hl sync`, or `hl down` then `hl up`):
+  it (`hl up my-app`, `hl up`, `hl up proxy`, `hl sync`, or `hl down` then `hl up` for a new subnet):
 
 ```console
 $ hl set my-app routing=host
@@ -233,7 +233,7 @@ Start with `hl doctor`. Every error says what failed and, on a `hint:` line, wha
 - **`no homelab found`.** Run `hl init <folder>`, `cd` into a homelab folder, or set `HL_HOME` /
   `--home`.
 - **Port 80 already in use.** hl names the program or container holding it. Stop it, or move the
-  proxy: `hl set proxy port=8080`, `hl up proxy`.
+  proxy: `hl set proxy port=8080`, `hl up`.
 - **The page loads unstyled, or links and redirects lose the app's prefix.** The app doesn't know
   its base path: map `${HL_PREFIX}` ([Routing](#routing)) or `hl set <app> routing=host`.
 - **404 from the proxy.** Check `hl status` and the URL (`/my-app/`). `hl set proxy debug=true`,

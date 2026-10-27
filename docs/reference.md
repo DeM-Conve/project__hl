@@ -36,8 +36,8 @@ hl unset env.TZ
 - Switches take `true` or `false` (`hl set proxy debug=true`).
 - Single quotes keep your shell from expanding `${...}`: `hl set my-app 'env.APP_URL=${HL_URL}'`.
 - hl writes `hl.yml` only when the result has no problems, keeps its comments, blank lines and order, prints
-  what it changed, and says which command applies it (`hl up <app>`, `hl up proxy`, `hl sync`,
-  or `hl down` then `hl up`).
+  what it changed, and says which command applies it (`hl up <app>`, `hl up`, `hl up proxy`, `hl sync`,
+  or `hl down` then `hl up` for a new proxy subnet).
 - `hl add <folder> key=value...` takes the same app settings, plus `name`.
 - `hl set --help` and shell completion list the keys of each target.
 
@@ -71,9 +71,11 @@ missing, as compose does; an image built before hl kept track needs one `hl rebu
 
 ## Proxy settings
 
-`hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up proxy`; a change of `domain`,
-`routing` or `port` also needs `hl up` (it is in the apps' routes or URLs), one of `network`,
-`subnet` or `project` needs `hl down` then `hl up`, and hl says so. `hl show proxy` says when the running proxy is
+`hl set proxy key=value`, `hl unset proxy key`. Applied by `hl up` (with no app: the proxy,
+then every app) or `hl up proxy` (the proxy alone); hl names `hl up` for `domain`, `routing`
+and `port`, which are in the apps' routes or URLs too, and `hl down` then `hl up` for `subnet`
+(every app joins the proxy's network again). `hl up <app>` starts a proxy that isn't running but
+leaves a running one as it is. `hl show proxy` says when the running proxy is
 behind its settings.
 
 | Key | Default | What it does |
