@@ -163,7 +163,8 @@ in hl may assume the maintainer's setup.
 - [!] Homebrew tap repo `DeM-Conve/homebrew-tap` - maintainer creates it, then the commented block
   in `.goreleaser.yaml` is enabled.
 - [ ] `hl version` tells you when a newer release exists (opt-out, no telemetry, one GitHub API
-  call at most once a day).
+  call at most once a day). Partly done 2026-10-27: `hl doctor` (run on purpose, so no opt-out
+  or daily limit needed) compares with the latest release; `hl version` doesn't yet.
 
 ## 10. Docs and community (P0)
 

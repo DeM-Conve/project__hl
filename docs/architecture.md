@@ -232,7 +232,11 @@ file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
 - `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the
   service name is validated so it can't pass as a flag). Without a service it uses the pinned or
   detected one. It exits with the shell's own status.
-- `doctor` prints hl's version, Go version and platform, then checks docker on PATH (and its
+- `doctor` prints hl's version, Go version and platform, compares it with the latest release
+  (`checkLatest`: `version.Kind` skips `dev` builds, tells a Go pseudo-version how to install a
+  release, and for a release asks `defaults.LatestReleaseURL` with `defaults.UpdateCheckTimeout`;
+  any failure is silent; `version.Newer` compares semver, pre-releases included). This is the
+  only network request hl makes. Then it checks docker on PATH (and its
   version), the daemon (`docker info`: version, OS, architecture), compose >= 2.24, that `hl.yml`
   loads (every problem with its line), the proxy (config, ownership, image), a non-loopback bind
   or public dashboard (warnings), the port and subnet when the proxy isn't running, projects owned

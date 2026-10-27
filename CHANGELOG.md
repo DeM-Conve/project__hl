@@ -104,6 +104,9 @@ release differs from earlier builds of `main`.
 - `hl show [app]` shows what hl stores and works out for an app (folder, service and port, routing,
   URL, data folder, and each env variable with where its value comes from), or with no app the
   homelab: its folder, the proxy's settings, the shared env and the apps.
+- `hl doctor` warns when hl is older than the latest release on GitHub (a 3-second request,
+  silently skipped offline and for development builds) and tells a `go install` build of a
+  commit how to install a release. It is the only network request hl makes.
 - `hl edit` opens `hl.yml` in your editor, checks it on save and reopens it on a problem;
   `hl.yml` is never left broken.
 - `hl config defaults` shows every default, the value in effect and where it comes from, and the

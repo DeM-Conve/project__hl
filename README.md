@@ -427,6 +427,7 @@ today and not `hl.yml` settings (some have a command-line flag):
 | `.hlignore` | a folder holding a file with this name is never picked up as an app |
 | `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` | service names `hl add` prefers when several publish ports |
 | `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
+| GitHub releases API, `3s` | what `hl doctor` asks for the latest release, and how long it waits |
 
 `hl config defaults` prints every setting that has a default, the value in effect and where it
 comes from (`hl.yml`, default, flag or environment), including the homelab folder, the `TZ` apps get (`env.TZ`), the
@@ -472,7 +473,7 @@ every app when none is named; they carry on past an app that fails and end with
 | `hl proxy up\|down\|logs` | The proxy on its own; `logs` shows its last 200 lines. |
 | `hl proxy status` | The proxy's state and health, image, listen address, config files, dashboard and access log; warns when the running proxy is behind `hl.yml` or its image is older than the tested Traefik. |
 | `hl proxy config` | The Traefik static config the proxy runs with. |
-| `hl doctor` | Check Docker, compose v2.24+, `hl.yml`, the proxy's Traefik config and that its project and network are this homelab's, and that every app's compose config resolves. Warns when `proxy.image` is older than the tested Traefik. |
+| `hl doctor` | Check Docker, compose v2.24+, `hl.yml`, the proxy's Traefik config and that its project and network are this homelab's, and that every app's compose config resolves. Warns when `proxy.image` is older than the tested Traefik, and when hl itself is older than the latest release (asked from GitHub with a 3-second limit, silently skipped offline and for development builds; a `go install` of a commit is told how to install a release). |
 | `hl version` (`--version`) | Version, commit, build date, Go version and platform, and whether the build had local changes (paste it into bug reports). `--short` prints only the version. |
 | `hl completion bash\|zsh\|fish\|powershell` | Shell completion script. |
 
@@ -524,6 +525,8 @@ Guide: [back up the homelab](docs/guides/backup.md).
   [reach your apps from your phone](docs/guides/lan-access.md).
 - The Traefik dashboard is off by default, and refused on a non-loopback bind unless you also set
   `proxy.dashboard_public: true`.
+- hl makes one network request of its own, and only in `hl doctor`: it asks GitHub's API for the
+  latest hl release (no data sent beyond the request itself), and says nothing if that fails.
 - The proxy mounts the Docker socket read-only to discover apps; like any Docker tool, hl runs
   with your user's Docker rights.
 - HTTP only: hl has no TLS in v0.1. Put it [behind your own HTTPS proxy](docs/guides/behind-https.md)

@@ -375,6 +375,7 @@ func builtinDefaults() [][2]string {
 		{"logs.tail", itoa(defaults.LogTail) + " (hl logs --tail)"},
 		{"up.wait_timeout", defaults.WaitTimeout.String() + " (--wait-timeout)"},
 		{"up.wait_fail_log_lines", itoa(defaults.FailLogTail)},
+		{"doctor.latest_release", defaults.LatestReleaseURL + " (timeout " + defaults.UpdateCheckTimeout.String() + ")"},
 		{"add.preferred_services", strings.Join(defaults.ExposedServices, ", ")},
 		{"open.browser", defaults.OpenerLinux + " (Linux), " + defaults.OpenerMac + " (macOS)"},
 	}

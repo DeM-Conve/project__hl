@@ -2,15 +2,20 @@ package cli
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/DeM-Conve/project__hl/internal/config"
 	"github.com/DeM-Conve/project__hl/internal/interrupt"
+	"github.com/DeM-Conve/project__hl/internal/version"
 )
 
 // The journey of a fresh user: init, add, up, status, down - and a second
@@ -647,6 +652,51 @@ func TestDoctor(t *testing.T) {
 	f.lab("lab3", "proxy: {port: x}\n")
 	r = f.hl("doctor")
 	contains(t, "doctor bad hl.yml", r.out, "hl.yml:1:15: proxy.port", "is not a whole number")
+}
+
+func TestDoctorChecksTheLatestRelease(t *testing.T) {
+	f := newFake(t)
+	f.lab("lab", "apps: {}\n")
+	var latest atomic.Value // the server runs in its own goroutine
+	var hits atomic.Int32
+	latest.Store(`{"tag_name": "v0.2.0"}`)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if latest.Load() == "" {
+			http.Error(w, "rate limited", http.StatusForbidden)
+			return
+		}
+		fmt.Fprint(w, latest.Load())
+	}))
+	defer srv.Close()
+	oldURL, oldVersion := latestReleaseURL, version.Version
+	latestReleaseURL = srv.URL
+	t.Cleanup(func() { latestReleaseURL, version.Version = oldURL, oldVersion })
+
+	version.Version = "v0.1.0"
+	r := f.must("doctor")
+	contains(t, "out of date", r.out, "! hl v0.1.0 is out of date: v0.2.0 is the latest release", "update: curl -fsSL", "/releases", "all good (1 warning(s))")
+
+	latest.Store(`{"tag_name": "v0.1.0"}`)
+	r = f.must("doctor")
+	contains(t, "latest", r.out, "✓ hl v0.1.0 is the latest release")
+
+	// GitHub not answering (offline, rate limit): nothing is said.
+	latest.Store("")
+	r = f.must("doctor")
+	lacks(t, "no answer", r.out, "latest release", "out of date")
+
+	// Builds that aren't releases ask nothing.
+	hits.Store(0)
+	version.Version = "v0.0.0-20261016123456-abcdef123456"
+	r = f.must("doctor")
+	contains(t, "pseudo-version", r.out, "is a build of a commit (go install), not a release", "install a release: curl")
+	version.Version = "dev"
+	r = f.must("doctor")
+	lacks(t, "dev build", r.out, "release")
+	if n := hits.Load(); n != 0 {
+		t.Errorf("a build that isn't a release asked GitHub %d time(s)", n)
+	}
 }
 
 func TestErrors(t *testing.T) {

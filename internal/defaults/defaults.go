@@ -154,6 +154,16 @@ const (
 	TimeZoneFile  = "/etc/timezone"
 )
 
+// Releases: `hl doctor` asks GitHub for the latest one (its only network call; skipped for
+// builds that aren't releases, and silently when it fails or takes longer than the timeout).
+const (
+	LatestReleaseURL   = "https://api.github.com/repos/DeM-Conve/project__hl/releases/latest"
+	ReleasesPage       = "https://github.com/DeM-Conve/project__hl/releases"
+	UpdateCheckTimeout = 3 * time.Second
+	// InstallCommand installs (or updates to) the latest release.
+	InstallCommand = "curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh"
+)
+
 // Environment variables.
 const (
 	// HomeEnv is the homelab folder, after --home.

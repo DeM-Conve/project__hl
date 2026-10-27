@@ -2,8 +2,11 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os/exec"
 	"strings"
 
@@ -64,6 +67,7 @@ func firstLine(s string) string {
 func doctor(ctx context.Context) error {
 	c := &checks{}
 	say("%s", version.Get().Full())
+	checkLatest(ctx, c, version.Get().Version)
 
 	// Docker.
 	path, err := exec.LookPath("docker")
@@ -155,6 +159,58 @@ func doctor(ctx context.Context) error {
 		c.check(err, "app "+n)
 	}
 	return c.result()
+}
+
+// latestReleaseURL is where checkLatest asks for the latest release; tests replace it.
+var latestReleaseURL = defaults.LatestReleaseURL
+
+// checkLatest warns when this hl is older than the latest release. A development build is
+// not compared; a `go install` of a commit is told how to install a release. Offline, or when
+// GitHub doesn't answer in time, it says nothing: doctor checks this machine, not the network.
+func checkLatest(ctx context.Context, c *checks, current string) {
+	switch version.Kind(current) {
+	case version.KindDev:
+		return
+	case version.KindPseudo:
+		c.warn("hl "+current+" is a build of a commit (go install), not a release",
+			"install a release: "+defaults.InstallCommand+"  (or download one from "+defaults.ReleasesPage+")")
+		return
+	}
+	latest := latestRelease(ctx)
+	switch {
+	case latest == "":
+	case version.Newer(latest, current):
+		c.warn("hl "+current+" is out of date: "+latest+" is the latest release",
+			"update: "+defaults.InstallCommand+"  (what changed: "+defaults.ReleasesPage+")")
+	default:
+		c.ok("hl " + current + " is the latest release")
+	}
+}
+
+// latestRelease is the tag of the latest GitHub release, or "" when it can't be had quickly.
+func latestRelease(ctx context.Context) string {
+	ctx, cancel := context.WithTimeout(ctx, defaults.UpdateCheckTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestReleaseURL, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var r struct {
+		Tag string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&r); err != nil || version.Kind(r.Tag) != version.KindRelease {
+		return ""
+	}
+	return r.Tag
 }
 
 func (c *checks) result() error {
