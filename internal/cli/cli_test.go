@@ -688,6 +688,20 @@ func TestLogs(t *testing.T) {
 	if r.code != 1 || !strings.Contains(r.errOut, `no app "nope"`) {
 		t.Errorf("unknown app: %s", r)
 	}
+	// A service the app doesn't have: its services are listed.
+	r = f.hl("logs", "a", "wbe")
+	if r.code != 2 || !strings.Contains(r.errOut, `a has no service "wbe"`) || !strings.Contains(r.errOut, "hint: its services: db, web") {
+		t.Errorf("unknown service: %s", r)
+	}
+
+	// The proxy logs nothing until debug is on: hl says how to see more.
+	f.rules = nil
+	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
+	r = f.must("logs", "proxy")
+	contains(t, "empty proxy logs", r.out, "hl set proxy debug=true")
+	f.on(rule{Match: []string{"--project-name hl-proxy", "logs"}, Stdout: "traefik-1  | an error\n"})
+	r = f.must("logs", "proxy")
+	lacks(t, "proxy logs", r.out, "debug=true")
 }
 
 func TestShellOpenCompose(t *testing.T) {

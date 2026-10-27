@@ -204,6 +204,9 @@ release differs from earlier builds of `main`.
   compose files, `compose=` to a missing file, and `service=` to a service the compose files
   don't have (when they can be read) are refused, listing the services. Unsetting the last proxy
   setting leaves no empty `proxy: {}` behind.
+- `hl logs proxy` printing nothing (Traefik logs only errors by default) now says how to see more:
+  `hl set proxy debug=true`. `hl logs <app> <service>` with a service the app doesn't have lists
+  its services instead of compose's error.
 - `hl edit` without a terminal (a script, a pipe) launched `vi` anyway; it now refuses, like
   `hl init` and `hl sync`, and points to `hl set`/`hl unset`.
 - `hl set proxy port=...` said to apply it with `hl up proxy` only, but the port is in every

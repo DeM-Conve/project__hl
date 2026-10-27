@@ -601,7 +601,16 @@ func logsCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return p.Run(ctx, append(a, args[1:]...)...)
+				out := &countWriter{w: stdout}
+				p.Stdout = out
+				if err := p.Run(ctx, append(a, args[1:]...)...); err != nil {
+					return err
+				}
+				if out.n == 0 && !follow && !cfg.Proxy.Debug {
+					// Traefik logs only errors unless debug is on.
+					say("%sno proxy logs: Traefik logs only errors - for its INFO log and one line per request: hl set proxy debug=true, then hl up proxy%s", dim, reset)
+				}
+				return nil
 			}
 			if len(args) == 0 {
 				names, err := targets(cfg, nil)
@@ -616,10 +625,17 @@ func logsCmd() *cobra.Command {
 			if notRunning(ctx, cfg.ProjectName(args[0]), args[0]) {
 				return nil
 			}
-			p, err := prepared(ctx, cfg, args[0])
+			pa, err := prepare(ctx, cfg, args[0])
 			if err != nil {
 				return err
 			}
+			for _, s := range args[1:] {
+				if _, ok := pa.Model.Services[s]; !ok {
+					return &usageError{err: withHint(fmt.Errorf("%s has no service %q", args[0], s),
+						"its services: %s", strings.Join(sortedServices(pa.Model.Services), ", ")), cmd: "hl logs"}
+				}
+			}
+			p := pa.Project
 			if err := p.Run(ctx, append(a, args[1:]...)...); err != nil {
 				return fmt.Errorf("%s: %w", args[0], err)
 			}
@@ -629,6 +645,18 @@ func logsCmd() *cobra.Command {
 	c.Flags().BoolVarP(&follow, "follow", "f", false, "keep following")
 	c.Flags().IntVarP(&tail, "tail", "n", defaults.LogTail, "lines to show from the end of each log")
 	return c
+}
+
+// countWriter counts what passes through it.
+type countWriter struct {
+	w io.Writer
+	n int
+}
+
+func (c *countWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += n
+	return n, err
 }
 
 // notRunning says so and reports true when project has no containers at all (compose would

@@ -252,7 +252,9 @@ warns. `--no-env` (init and sync) passes no `VarsFunc`. Kept apps are never re-m
   apps, states `?`, and a warning with the hint.
 - `logs <app>` (and `logs proxy`) first checks the inventory: a project with no containers at
   all gets "isn't running" and exit 0 instead of compose's empty output (`notRunning`; without
-  Docker compose runs and says what is wrong).
+  Docker compose runs and says what is wrong). Services named after the app must be in its model
+  (else a usage error listing them). `logs proxy` counts what compose printed (`countWriter`):
+  nothing, without `-f` and `proxy.debug`, gets a note naming `hl set proxy debug=true`.
 - `logs` with no app runs `docker compose logs` for every app at once, each line prefixed by its
   app; `--tail` (default `defaults.LogTail`) and `-f` apply to all.
 - `show` (`internal/cli/show.go`) reads `hl.yml` and, only for an app whose `service` or `port`
