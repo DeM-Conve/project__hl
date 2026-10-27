@@ -106,15 +106,6 @@ func varsFunc(cfg *config.Config, noEnv bool) scan.VarsFunc {
 	}
 }
 
-// envMapSummary describes the env auto-mapping rules for `hl config defaults`.
-func envMapSummary() string {
-	parts := []string{
-		"<X>" + defaults.EnvBasePathSuffix + "=" + defaults.EnvBasePathValue + " (path routing)",
-		"<X>" + defaults.EnvURLSuffix + "=" + defaults.EnvURLValue + " (with <X>" + defaults.EnvBasePathSuffix + ")",
-	}
-	return strings.Join(append(parts, scan.EnvList(defaults.EnvByName)...), ", ")
-}
-
 // mapsBasePath reports whether env feeds ${HL_PREFIX} to some variable.
 func mapsBasePath(env map[string]string) bool {
 	for _, v := range env {

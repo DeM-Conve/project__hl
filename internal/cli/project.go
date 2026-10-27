@@ -126,7 +126,7 @@ func prepare(ctx context.Context, cfg *config.Config, name string) (*preparedApp
 	}
 	override, dirs, err := gen.Override(g, m)
 	if err != nil {
-		return nil, withHint(err, "pick one of the app's services: `hl set %s service=<service>` (`hl config %s` lists them)", name, name)
+		return nil, withHint(err, "pick one of the app's services: `hl set %s service=<service>` (`hl show %s --compose` lists them)", name, name)
 	}
 	dirs = append(dirs, envDataDirs(p.Env, cfg.DataDir(name))...)
 	for _, d := range append(dirs, cfg.StateDir(name)) {

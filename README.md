@@ -188,15 +188,14 @@ offers your app names and, where a command takes one, the app's services.
   longer publishes a host port. Each app runs as its own compose project, `hl-<app>` (or
   `hl-<name>-<app>` in a homelab with a [`name`](#name-several-homelabs-on-one-docker)).
 - **Nothing in the app is edited.** On every command hl writes `.hl/<app>/override.yml` and passes
-  it to `docker compose` after the app's own files. `hl config <app>` shows the merged result.
+  it to `docker compose` after the app's own files. `hl show <app> --compose` shows the merged result.
 - **hl doesn't parse compose files.** It asks `docker compose config` for the resolved model, so
   includes, extends, profiles and interpolation work as compose defines them.
 - **No daemon.** hl reads `hl.yml` on every command and runs `docker compose`; the containers keep
   running (and restart with Docker) after hl exits.
 - **`hl.yml` is checked strictly on every command.** Unknown keys (with a "did you mean"), wrong
   types, bad values and clashes between apps (same Docker project, URL prefix or host name) are
-  all reported at once, each with its line, and the command stops. Earlier versions ignored some
-  of these, so run `hl config check` before upgrading hl, and again right after.
+  all reported at once, each with its line, and the command stops (`hl doctor` lists them too).
 - **Files are written whole.** `hl.yml`, the default-homelab note and every generated file are
   written to a temporary file first and then renamed into place, so a crash or Ctrl-C never leaves
   half a file. An existing file keeps its permissions, and a symlinked `hl.yml` stays a symlink.
@@ -251,12 +250,11 @@ DNS.
 `hl init` writes a short `hl.yml` (its projects folders, any proxy setting you changed with a
 flag, and the apps), and hl commands change it from then on. Everything except
 `apps.<name>.path` is optional; each setting's default is in the tables below, and
-`hl config defaults` prints them with the values in effect. You rarely need to open the file:
+`hl show` and `hl show proxy` print the values in effect. You rarely need to open the file:
 `hl set` and `hl unset` change the proxy (`hl set proxy port=8080`), the shared env
 (`hl set env.TZ=UTC`) and each app (`hl set my-app routing=host`); `hl projects`, `hl ignore` and
 `hl strip-prefix` change the scan settings; `hl edit` is there for the rest. hl reads and checks
-the file on every command; a problem stops the command (see
-[`hl config check`](#version-and-editor-support)).
+the file on every command; a problem stops the command and is listed with its line.
 
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/DeM-Conve/project__hl/main/schema/hl.schema.json
@@ -340,7 +338,7 @@ changes its project names: run `hl down` before adding it, then `hl up`.
 
 **The proxy's Traefik config.** hl runs Traefik with one static config file,
 `.hl/proxy/traefik.yml`, generated from these settings (entrypoints, the Docker provider, the
-dashboard, logs, `ping` for the proxy's healthcheck); `hl config proxy` prints it. With `config`
+dashboard, logs, `ping` for the proxy's healthcheck); `hl show proxy` names the file. With `config`
 set, your file is used instead. `hl set proxy key=value` and `hl unset proxy key` change these
 settings; after changing them, `hl up proxy` applies them;
 `hl show proxy` says when the running proxy is behind.
@@ -397,8 +395,8 @@ refused with a message to update hl.
 Code's YAML extension, Neovim, Helix, ...) autocomplete keys, show what each one does, and flag
 mistakes as you type. Add the line yourself to an older `hl.yml`.
 
-`hl config check` lists every problem in `hl.yml` with its line, the key and a fix, including
-unknown keys ("did you mean ..."). `hl set`, `hl unset` and `hl edit` change `hl.yml` only when
+Every command (and `hl doctor`) lists every problem in `hl.yml` with its line, the key and a fix,
+including unknown keys ("did you mean ..."). `hl set`, `hl unset` and `hl edit` change `hl.yml` only when
 the result has no problems, and keep its comments.
 
 ### `apps.<name>`
@@ -406,8 +404,7 @@ the result has no problems, and keep its comments.
 App names use lowercase letters, digits, `.`, `_` and `-`, starting with a letter or digit. By
 default `hl add` uses the folder's name, less a [`strip_prefix`](#projects-ignore-scan_depth-strip_prefix). Reserved names (also `hl sync` and `hl init` skip
 folders with them): `proxy`, whose compose project would be the proxy's, `hl-proxy` (likewise,
-no app's `hl-<app>` may equal `proxy.project`), and the `hl config` subcommands, `check` and
-`defaults`, so `hl config <app>` always reaches the app. `hl config defaults` lists them.
+no app's `hl-<app>` may equal `proxy.project`), and `hl up proxy` and the like mean the proxy.
 
 | Key | Default | What it does |
 | --- | --- | --- |
@@ -430,7 +427,7 @@ no app's `hl-<app>` may equal `proxy.project`), and the `hl config` subcommands,
 | `HL_PREFIX` | the path prefix, e.g. `/my-app`; empty unless routing is `path` |
 | `HL_HOST` | the host name: `<app>.<domain>` for host routing, else `domain` |
 | `HL_DATA` | the app's data folder, `<homelab>/data/<app>` |
-| `TZ` | this machine's time zone (from `$TZ`, else what `/etc/localtime` points to, else `/etc/timezone`), so apps log in your local time - only when neither the shared `env`, the app's `env` nor the app's `.env`/`env_files` set `TZ`, and only when hl can tell the zone. `hl config defaults` shows it and where it came from; `hl set env.TZ=UTC` picks another for every app. |
+| `TZ` | this machine's time zone (from `$TZ`, else what `/etc/localtime` points to, else `/etc/timezone`), so apps log in your local time - only when neither the shared `env`, the app's `env` nor the app's `.env`/`env_files` set `TZ`, and only when hl can tell the zone. `hl show` shows it and where it came from; `hl set env.TZ=UTC` picks another for every app. |
 
 **Order:** a variable's value comes from, later winning: the app's `.env`, the app's
 `env_files`, your shell, the shared `env`, the app's `env`.
@@ -481,9 +478,10 @@ today and not `hl.yml` settings (some have a command-line flag):
 | `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 | GitHub releases API, `3s` | what `hl doctor` asks for the latest release, and how long it waits |
 
-`hl config defaults` prints every setting that has a default, the value in effect and where it
-comes from (`hl.yml`, default, flag or environment), including the homelab folder, the `TZ` apps get (`env.TZ`), the
-editor `hl edit` runs (`$VISUAL`, then `$EDITOR`, else `vi`), and the built-in values above.
+`hl show` prints the homelab's settings with the values in effect and where they come from
+(`hl.yml`, default, flag or environment), including the homelab folder, the `TZ` apps get and
+where `hl init` and `hl sync` look for apps; `hl show proxy` does the same for every proxy
+setting. `hl edit` runs `$VISUAL`, then `$EDITOR`, else `vi`.
 
 **Environment variables hl reads:** `HL_HOME` (the homelab folder) and `NO_COLOR` (no colours;
 colours are also off when output isn't a terminal).
@@ -512,21 +510,15 @@ every app when none is named; `up`, `down`, `restart`, `rebuild`, `logs` and `sh
 | `hl edit` | The fallback for what `hl set`/`hl unset` don't cover (such as `name`, or several changes at once): open `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
 | `hl remove <app>` | Stop the app and remove it from `hl.yml`. Its data in `data/<app>` stays. |
 | `hl status` (`ls`) | The proxy's state (and the dashboard's URL when it is on), then every app's STATE (`up 2/2`, `partial 1/2`, `down`, or `other homelab`), HEALTH (`healthy`, `starting: <services>`, `unhealthy: <services>`, or `-` when the app has no healthchecks), URL and folder. Says when `hl sync` has something to do. |
-| `hl up [app...]` (`start`) | Start apps, the proxy first; builds images that don't exist yet. Before starting the proxy it checks the port is free (naming the program or container that holds it) and that `proxy.subnet` doesn't overlap another network. `--wait` waits until the service behind the proxy and the services it depends on (`depends_on`) are running and healthy - not sidecars nothing depends on, which may take longer - and for an app that isn't, names those services and shows their last 20 log lines; `--wait-all` waits for every service (also what `--wait` does for an app with routing `none`); `--wait-timeout` (default `2m`) is how long it waits for each app. Ends with the `hl status` table. |
+| `hl up [app...]` (`start`) | Start apps, the proxy first; builds images that don't exist yet. Before starting the proxy it checks the port is free (naming the program or container that holds it) and that `proxy.subnet` doesn't overlap another network. `--wait` waits until the service behind the proxy and the services it depends on (`depends_on`) are running and healthy - not sidecars nothing depends on, which may take longer - and for an app that isn't, names those services and shows their last 20 log lines; for an app with routing `none` it waits for every service; `--wait-timeout` (default `2m`) is how long it waits for each app. Ends with the `hl status` table. |
 | `hl down [app...]` (`stop`) | Stop and remove the apps' containers; with no app, also the proxy. Data stays. Apps another homelab runs are left alone. |
 | `hl restart [app...]` | Restart containers without rebuilding, the proxy first (started if it isn't running), like `up`. |
-| `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart them. Takes `--wait`, `--wait-all` and `--wait-timeout` like `up`. |
-| `hl update [app...]` | `git pull --ff-only` in each app's folder, then rebuild. Skips folders that aren't git repos or have uncommitted changes, and says which it skipped and why. Takes `--wait`, `--wait-all` and `--wait-timeout` like `up`. |
+| `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart them. Takes `--wait` and `--wait-timeout` like `up`. |
+| `hl update [app...]` | `git pull --ff-only` in each app's folder, then rebuild. Skips folders that aren't git repos or have uncommitted changes, and says which it skipped and why. Takes `--wait` and `--wait-timeout` like `up`. |
 | `hl logs [app] [service...]` | The last 200 log lines of an app (or some of its services); with no app, every app's logs at once, each line prefixed by its app's name. `-n`/`--tail <lines>` changes how many; `-f`/`--follow` keeps following. |
-| `hl ps [app]` | Containers of one app, or of the whole homelab. |
 | `hl open <app>` | Print the app's URL and open it in the browser (only prints when there's no display, e.g. over ssh). |
 | `hl shell <app> [service]` | A shell (`bash`, else `sh`) in a running container; default: the service behind the proxy (the pinned one, or the one hl detects). hl exits with the shell's own exit status. |
-| `hl show [app\|proxy]` | What hl stores and works out for an app, short and readable: folder, compose files, Docker project, the service and port behind the proxy, routing, URL, prefix or host, data folder, and every variable its compose files can use with where the value comes from (`hl`, the shared env, or the app's env, and which one it overrides). Each value says whether it is from `hl.yml`, a default, or detected from the app's compose config. `hl show proxy`: the proxy's state and health, listen address, every proxy setting with where it comes from (and the running image when it differs), the Traefik config file, and warnings: a running proxy that predates `hl.yml` (apply it with `hl up proxy`), an image older than the tested Traefik, a clash with another homelab. With no app: the homelab folder, the proxy's listen address and the settings `hl.yml` sets, the shared env and the apps with their URLs. |
-| `hl config <app>` | The app's full compose config as hl runs it: its own files plus hl's override. |
-| `hl config proxy` | The proxy's Traefik static config. |
-| `hl config check` | Check `hl.yml`: every problem as `file:line:column: key: message - fix`, unknown keys with "did you mean". Exits 1 when there are problems. |
-| `hl config defaults` | Every setting with a default, the value in effect, and where it comes from. |
-| `hl path [app]` | The app's folder, or the homelab folder: `cd "$(hl path my-app)"`. |
+| `hl show [app\|proxy]` | What hl stores and works out for an app, short and readable: folder, compose files, Docker project, the service and port behind the proxy, routing, URL, prefix or host, data folder, and every variable its compose files can use with where the value comes from (`hl`, the shared env, or the app's env, and which one it overrides). Each value says whether it is from `hl.yml`, a default, or detected from the app's compose config. `hl show proxy`: the proxy's state and health, listen address, every proxy setting with where it comes from (and the running image when it differs), the Traefik config file, and warnings: a running proxy that predates `hl.yml` (apply it with `hl up proxy`), an image older than the tested Traefik, a clash with another homelab. With no app: the homelab folder, the proxy's listen address and the settings `hl.yml` sets, the shared env (with the `TZ` apps get), the projects folders, `ignore`, `scan_depth` and `strip_prefix`, and the apps with their URLs. `--compose` prints the whole compose config as hl runs it: the app's (or the proxy's) own files plus hl's override. |
 | `hl doctor` | Check Docker, compose v2.24+, `hl.yml`, the proxy's Traefik config and that its project and network are this homelab's, and that every app's compose config resolves. Warns when `proxy.image` is older than the tested Traefik, and when hl itself is older than the latest release (asked from GitHub with a 3-second limit, silently skipped offline and for development builds; a `go install` of a commit is told how to install a release). |
 | `hl version` (`--version`) | Version, commit, build date, Go version and platform, and whether the build had local changes (paste it into bug reports). `--short` prints only the version. |
 | `hl completion bash\|zsh\|fish\|powershell` | Shell completion script. |
@@ -614,9 +606,8 @@ container when it can. Stop it, or move the proxy: `hl set proxy port=8080` (URL
 **`proxy.subnet ... overlaps ...`.** The fixed subnet is used by another Docker network or by one
 of this machine's networks. Pick the free subnet the hint suggests (`hl set proxy subnet=...`), or let Docker pick one: `hl unset proxy subnet`.
 
-**`hl.yml` problems after an upgrade.** hl checks `hl.yml` strictly on every command. Run
-`hl config check`: it lists every problem with its line and a fix (unknown keys get a "did you
-mean").
+**`hl.yml` problems after an upgrade.** hl checks `hl.yml` strictly on every command and lists
+every problem with its line and a fix (unknown keys get a "did you mean").
 
 **`Docker project hl-... belongs to another homelab`.** Another homelab folder on this Docker
 already runs an app or proxy under the same name. Give one of the homelabs a
@@ -634,7 +625,7 @@ app's prefix.** The app doesn't know its base path. Set it from `${HL_PREFIX}`
 ([guide](docs/guides/base-path-app.md)), or use host routing for that app.
 
 **404 from the proxy.** Check the app is up (`hl status`) and the URL ends where it should
-(`/my-app/`). `hl logs proxy` shows Traefik's view; `hl config <app>` shows the labels hl added.
+(`/my-app/`). `hl logs proxy` shows Traefik's view; `hl show <app> --compose` shows the labels hl added.
 
 **`http://my-app.localhost` doesn't resolve.** Browsers resolve `*.localhost`; some other tools
 don't. Use the browser, `curl --resolve`, or add the name to `/etc/hosts`.

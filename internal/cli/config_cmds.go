@@ -6,9 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -31,39 +29,8 @@ func upgradeConfig(dir string) error {
 }
 
 // homeDir is the homelab folder without loading hl.yml, for commands that must work on a
-// broken hl.yml (checking or fixing it).
+// broken hl.yml (fixing it).
 func homeDir() (string, error) { return config.Home(homeFlag) }
-
-func configCheckCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "check",
-		Short: "Check hl.yml: every problem with its line number and how to fix it",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir()
-			if err != nil {
-				return err
-			}
-			path := filepath.Join(home, config.FileName)
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if ps := config.Check(b); len(ps) > 0 {
-				for _, p := range ps {
-					say("%s", p.In(path))
-				}
-				return fmt.Errorf("%s in %s", plural(len(ps), "problem", "problems"), path)
-			}
-			say("%s✓%s %s is fine", green, reset, path)
-			if config.FileVersion(b) == 0 {
-				say("%snote:%s it has no `version:` line (the format before versions) - hl adds `version: %d` the next time it changes the file",
-					yellow, reset, defaults.ConfigVersion)
-			}
-			return nil
-		},
-	}
-}
 
 const setScopesHelp = `What to change is the first argument:
   <app>    that app's settings. Keys: ` + "%s" + `
@@ -342,115 +309,4 @@ func homeSource(home string) string {
 		}
 	}
 	return "default (hl init)"
-}
-
-// builtinDefaults are the named values hl uses that hl.yml doesn't set (yet), as name, value.
-// The one place `hl config defaults` reads them from; point it at a shared defaults package
-// once there is one.
-func builtinDefaults() [][2]string {
-	itoa := strconv.Itoa
-	return [][2]string{
-		{"traefik.tested_version", defaults.TestedTraefikVersion},
-		{"traefik.entrypoint", defaults.EntryPointWeb},
-		{"traefik.container_port", itoa(defaults.ProxyContainerPort)},
-		{"traefik.ping", defaults.EntryPointPing + ":" + itoa(defaults.PingPort)},
-		{"traefik.healthcheck", fmt.Sprintf("every %s, timeout %s, %d retries, start %s",
-			defaults.ProxyHealthInterval, defaults.ProxyHealthTimeout, defaults.ProxyHealthRetries, defaults.ProxyHealthStartPeriod)},
-		{"traefik.access_log_format", defaults.AccessLogFormat},
-		{"traefik.log_level", defaults.DefaultProxyLogLevel},
-		{"traefik.dashboard_host", defaults.DashboardHostPrefix + "<domain>"},
-		{"proxy.files", filepath.Join(defaults.StateDir, defaults.ProxyStateDir, defaults.ProxyComposeFile) + ", " + defaults.TraefikStaticFile},
-		{"proxy.restart", defaults.ProxyRestart},
-		{"app_name.reserved", strings.Join(config.ReservedAppNames(), ", ")},
-		{"sync.ignore_file", defaults.IgnoreFile},
-		{"init.projects", strings.Join(defaults.CandidateProjects, ", ") + " (under your home, if they exist)"},
-		{"init.alt_port", itoa(defaults.AltPort)},
-		{"init.network_bind", defaults.BindNetwork},
-		{"edit.draft", defaults.EditDraft},
-		{"schema", defaults.SchemaURL},
-		{"docker.project_prefix", defaults.Prefix + "<app>, " + defaults.Prefix + "<name>-<app> with name:"},
-		{"docker.compose_min", fmt.Sprintf("v%d.%d", defaults.ComposeMinMajor, defaults.ComposeMinMinor)},
-		{"files.data", defaults.DataDir + "/<app>/<volume>"},
-		{"files.generated", filepath.Join(defaults.StateDir, "<app>", defaults.OverrideFile)},
-		{"logs.tail", itoa(defaults.LogTail) + " (hl logs --tail)"},
-		{"up.wait_timeout", defaults.WaitTimeout.String() + " (--wait-timeout)"},
-		{"up.wait_fail_log_lines", itoa(defaults.FailLogTail)},
-		{"doctor.latest_release", defaults.LatestReleaseURL + " (timeout " + defaults.UpdateCheckTimeout.String() + ")"},
-		{"add.preferred_services", strings.Join(defaults.ExposedServices, ", ")},
-		{"add.env_map", envMapSummary()},
-		{"sync.web_ports", joinInts(defaults.WebPorts) + " (or a preferred service name)"},
-		{"open.browser", defaults.OpenerLinux + " (Linux), " + defaults.OpenerMac + " (macOS)"},
-	}
-}
-
-// tzSetting is the TZ every app gets: the shared env's, else the host's time zone. An app's
-// own env or env files may still set another (hl show <app> says).
-func tzSetting(home string) config.Setting {
-	s := config.Setting{Key: "env." + defaults.TZEnv, Default: "the host's time zone"}
-	if cfg, err := config.Load(home); err == nil {
-		if tz, ok := cfg.Env[defaults.TZEnv]; ok {
-			s.Value, s.Source = tz, config.FileName
-			return s
-		}
-	}
-	if tz, source := config.HostTimeZone(); tz != "" {
-		s.Value, s.Source = tz, source
-		return s
-	}
-	s.Value, s.Source = "-", "none: the host's time zone can't be told, so apps keep their own default"
-	return s
-}
-
-func configDefaultsCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "defaults",
-		Short: "Every setting that has a default: the default, the value in effect, and where it comes from",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir()
-			if err != nil {
-				return err
-			}
-			settings, err := config.Settings(home)
-			if err != nil {
-				return err
-			}
-			b, err := os.ReadFile(filepath.Join(home, config.FileName))
-			if err != nil {
-				return err
-			}
-			ver, verFrom := strconv.Itoa(config.FileVersion(b)), config.FileName
-			if ver == "0" {
-				ver, verFrom = "-", "none (the format before versions)"
-			}
-			// Settings whose default lives outside config (0 / empty in hl.yml means "use it").
-			for i, st := range settings {
-				switch st.Key {
-				case "scan_depth":
-					settings[i].Default = strconv.Itoa(defaults.ScanDepth)
-					if st.Source == "default" {
-						settings[i].Value = settings[i].Default
-					}
-				case "ignore":
-					settings[i].Default = "-  (always: " + strings.Join(defaults.DefaultIgnore, ", ") + ")"
-				}
-			}
-			editor, editorFrom := editorCommand()
-			settings = append(settings, tzSetting(home))
-			settings = append(settings,
-				config.Setting{Key: "home", Default: "-", Value: home, Source: homeSource(home)},
-				config.Setting{Key: "version", Default: strconv.Itoa(defaults.ConfigVersion), Value: ver, Source: verFrom},
-				config.Setting{Key: "editor", Default: defaults.DefaultEditor, Value: editor, Source: editorFrom},
-			)
-			for _, b := range builtinDefaults() {
-				settings = append(settings, config.Setting{Key: b[0], Default: b[1], Value: b[1], Source: "built in"})
-			}
-			w := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "SETTING\tDEFAULT\tVALUE\tFROM")
-			for _, s := range settings {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Key, s.Default, s.Value, s.Source)
-			}
-			return w.Flush()
-		},
-	}
 }

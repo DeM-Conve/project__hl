@@ -13,7 +13,7 @@ internal/config         hl.yml: types, defaults, validation, derived values, com
 internal/compose        runs `docker compose`; reads the resolved model (`config --format json`);
                         Exec keeps the tail of a failed command's stderr for the error (compose.Error)
 internal/defaults       every default and every name hl gives files, labels and Docker objects
-                        (one file; `hl config defaults` lists them)
+                        (one file; the README's "Built-in values" lists them)
 internal/fsutil         atomic file writes (temp file + rename, mode and symlinks kept)
 internal/interrupt      Ctrl-C/SIGTERM while docker runs (Notify, Run, exit code 128+signal)
 internal/gen            writes the per-app override, the proxy's compose file and its Traefik
@@ -53,10 +53,10 @@ and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/j
 
 Commands that start or stop apps first take one inventory of every compose container
 (`cli.containers`: one `docker ps --all` with the project, service, state, status and
-`config_files` labels). It answers "is the proxy running", the HEALTH column, `ps`, and who owns
+`config_files` labels). It answers "is the proxy running", the HEALTH column, and who owns
 a project: a project whose containers were started from another homelab's `.hl/` folder
 (`inventory.owner`) is never started, stopped or replaced - `up`/`restart`/`rebuild`/`update`/
-`remove` refuse with the fix, `down` and `ps` leave it out with a warning. If Docker can't be
+`remove` refuse with the fix, `down` leaves it out with a warning. If Docker can't be
 reached, that first call fails with docker's own message and a hint.
 
 hl never parses compose files itself: everything it knows about an app comes from compose's own
@@ -71,12 +71,10 @@ resolved model, so anything compose accepts (includes, extends, profiles, interp
   default proxy project and network `hl-<name>-proxy` (`Config.ProjectName`, `ProxyProject`).
   Without it they are `hl-<id>` and `hl-proxy` as before, so existing setups keep their names.
 - Reserved names: one list in `internal/config/reserved.go` (`IsReserved`, `ReservedAppNames`),
-  compared by ID. It starts with `proxy` (`config.ReservedAppName`: its project would be the
-  proxy's default `hl-proxy`); `internal/cli/reserved.go` adds, at start-up, every subcommand
-  name and alias of `hl config` plus `proxy` (read from the registered command, not a second
-  list), so `hl config <app>` is never shadowed. `ValidName` (so `Load`, `hl add`, `config
-  check`) and `scan` (init/sync skip such folders) use it; a cli test checks the schema's
-  `apps.propertyNames.not.enum` lists the same names. `Validate` also rejects an app whose
+  compared by ID. It holds only `proxy` (`defaults.ReservedAppName`): its project would be the
+  proxy's default `hl-proxy`, and commands take `proxy` to mean the proxy. `ValidName` (so
+  `Load` and `hl add`) and `scan` (init/sync skip such folders) use it; a cli test checks the
+  schema's `apps.propertyNames.not.enum` lists the same names. `Validate` also rejects an app whose
   `hl-<id>` equals `proxy.project`.
 - `config.ID` turns `.` and `_` into `-` for Docker and Traefik: compose project `hl-<id>` (two apps
   with the same ID are a config error),
@@ -117,7 +115,7 @@ no `traefik.yml` (and removes a stale one); it reads the user's file and `gen.Ch
 problems (no `entryPoints.web` on port 80, no `providers.docker`, `providers.docker.network` not
 `proxy.network`, `proxy.dynamic` set but no `providers.file` reading it) that stop every proxy
 command, and warnings (`exposedByDefault` not false, no `api.dashboard` while the dashboard is on,
-no `ping`, so no healthcheck) shown by `hl show proxy`, `hl config proxy` and `hl doctor`. Keys
+no `ping`, so no healthcheck) shown by `hl show proxy` and `hl doctor`. Keys
 are matched case-insensitively, like Traefik does. `proxy.access_log` and `proxy.log_level` are
 config errors together with `proxy.config`.
 
@@ -173,7 +171,7 @@ after the `HL_*` values: `$TZ` (unless it names a file, `:...`), else the part a
 of `/etc/localtime`'s symlink target (Linux and macOS), else `/etc/timezone`. If none tells,
 no `TZ` is added. `config.HostTimeZone` is a variable so tests can fix it; the paths are in
 `internal/defaults`. `config.EnvVars` reports it with the source (`host ($TZ)`, ...), and
-`hl config defaults` lists it as `env.TZ`.
+`hl show` (no app) lists it with the shared env.
 
 These are only interpolation variables: an app sees them in its containers only if its own compose
 file passes them through (e.g. `environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`).
@@ -206,8 +204,7 @@ warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
   `proxy.*` setting with its source (`config.Settings`) and the running image when it differs,
   the static config file and its source, dashboard URL, the config warnings, a clash, an image
   older than `config.TestedTraefikVersion`, and whether the running container predates the config
-  (compose's `config-hash` label vs `docker compose config --hash traefik`). `config proxy` prints
-  the static config file with its path.
+  (compose's `config-hash` label vs `docker compose config --hash traefik`).
 - `doctor` also checks the proxy config (as above), the project/network ownership, and warns (not a
   failure) when `proxy.image` is older than the tested Traefik or its version can't be told.
 - `up`/`start`, `rebuild`, `update` and `restart` start the proxy first if none of its containers
@@ -222,9 +219,9 @@ warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
 - `--wait` (`up`, `rebuild`, `update`) runs the command as usual (every service starts), then
   `up --detach --wait --wait-timeout <s> <services>` for the routed service and its
   `depends_on`, followed through (`compose.Model.WithDeps`, from the model `prepare` already
-  read), so a sidecar with a slow healthcheck doesn't fail an app that serves. `--wait-all`, and
-  `--wait` on an app with routing `none` (no service matters more), pass `--wait --wait-timeout
-  <s>` to the command itself, waiting for everything. When an app doesn't come up, hl lists the
+  read), so a sidecar with a slow healthcheck doesn't fail an app that serves. `--wait` on an
+  app with routing `none` (no service matters more) passes `--wait --wait-timeout <s>` to the
+  command itself, waiting for everything. When an app doesn't come up, hl lists the
   waited-for services that aren't running or healthy and prints their last
   `defaults.FailLogTail` log lines.
 - `down`/`stop` with no app stops every app that has containers, then the proxy; apps and a proxy
@@ -244,9 +241,12 @@ warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
   isn't pinned, the compose model (`docker compose config`, as `prepared` would; nothing is
   written or started). The env list comes from `config.EnvVars`: `AppEnv` with one entry per
   name, its source (`hl`, the shared `env`, the app's `env`), the value as written, and the
-  source it overrides. With no app it lists `config.Settings`' `proxy.*` entries, leaving out
-  options that are unset and off.
-- `ps` with no app lists the containers of this homelab's projects (the proxy and each app).
+  source it overrides. With no app it lists the homelab folder and its source (`homeSource`),
+  the `proxy.*` entries of `config.Settings` that `hl.yml` sets, the shared env with the `TZ`
+  apps get (`config.HostTimeZone` when the shared env has none), the projects folders (and which
+  are missing), `ignore` with the built-in patterns, `scan_depth`, `strip_prefix`, and the apps.
+  `--compose` runs `docker compose config` on the prepared app (or the proxy's project) instead:
+  the whole config as hl runs it.
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.
 - `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the
@@ -307,8 +307,8 @@ normalises indentation to two spaces).
   subnet or project changed).
 - `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
   `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
-  checks out. It and `hl config check` find the homelab with `config.Home`, not `Load`, so they
-  work on a file that doesn't load.
+  checks out. It finds the homelab with `config.Home`, not `Load`, so it works on a file that
+  doesn't load.
 
 **Checking** (`config.Check`, `internal/config/validate.go`): walks the node tree against the
 `Config` type by reflection (yaml tags give the known keys, so a new field needs no checker
@@ -330,11 +330,9 @@ after any header comment) and the CLI prints a note; it runs before `add`/`remov
 `config.SchemaComment`. `internal/config/schema_test.go` keeps it in step with the code: same keys
 as the Go types, same enums, patterns and defaults, and it accepts the README's yaml examples.
 
-**Defaults listing** (`hl config defaults`, `config.Settings`): the homelab-wide fields of `Config`
-by reflection, the default taken by running `defaults()` on an empty config, the source `hl.yml` when
-the raw file sets it; the CLI fills in `scan_depth`/`ignore` from `internal/defaults`, adds the
-homelab folder, version and editor with their sources, and the named values hl.yml can't set from
-`cli.builtinDefaults` (all read from `internal/defaults`).
+**Settings listing** (`config.Settings`, used by `hl show` and `hl show proxy`): the
+homelab-wide fields of `Config` by reflection, the default taken by running `defaults()` on an
+empty config, the source `hl.yml` when the raw file sets it.
 
 ## Version
 

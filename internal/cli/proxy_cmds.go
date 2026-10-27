@@ -123,27 +123,6 @@ func samePath(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
-// printProxyConfig prints the Traefik static config the proxy runs with.
-func printProxyConfig() error {
-	cfg, err := load()
-	if err != nil {
-		return err
-	}
-	files, warnings, ferr := proxyFiles(cfg)
-	b, err := os.ReadFile(files.Static)
-	if err != nil {
-		if ferr != nil {
-			return ferr
-		}
-		return err
-	}
-	fmt.Fprintf(stdout, "# %s\n%s", files.Static, b)
-	for _, w := range warnings {
-		warn("%s", w)
-	}
-	return ferr
-}
-
 // showProxy is `hl show proxy`: the proxy's state and health, where it listens, every setting
 // with where it comes from, and what is wrong or out of date.
 func showProxy(cfg *config.Config) error {

@@ -36,11 +36,11 @@ release differs from earlier builds of `main`.
 - One Traefik proxy in front of every app, with `path` (`http://localhost/<app>/`), `host`
   (`http://<app>.localhost`) or `none` routing, per homelab or per app.
 - Every named volume kept as a plain folder under `data/<app>/<volume>`.
-- Apps run unmodified: hl layers a generated compose override on top (`hl config <app>`).
+- Apps run unmodified: hl layers a generated compose override on top (`hl show <app> --compose`).
 - Shared `env` for every app, per-app `env` and `env_files`, and `${HL_URL}`, `${HL_PREFIX}`,
   `${HL_HOST}`, `${HL_DATA}`, `${HL_APP}` for an app's settings.
 - Commands: `status`/`ls`, `up`/`start`, `down`/`stop`, `restart`, `rebuild`, `update`, `logs`,
-  `ps`, `open`, `shell`, `config`, `path`, `doctor`,
+  `open`, `shell`, `show`, `doctor`,
   `version` and shell `completion` (which offers app and service names).
 - `hl status` has a HEALTH column: `healthy`, `starting: <services>`, `unhealthy: <services>`,
   or `-` for apps without healthchecks.
@@ -48,9 +48,9 @@ release differs from earlier builds of `main`.
   each app's service behind the proxy and the services it depends on (`depends_on`) are running
   and healthy, and for an app that isn't, name those services and show their last log lines. A
   sidecar nothing depends on (say, a backup job with a long healthcheck interval) no longer fails
-  `--wait`; `--wait-all` waits for every service.
+  `--wait`; for an app with routing `none` it waits for every service.
 - Apps get this machine's time zone as `TZ` (from `$TZ`, `/etc/localtime` or `/etc/timezone`)
-  unless the shared env, the app's env or its env files set one; `hl config defaults` shows it
+  unless the shared env, the app's env or its env files set one; `hl show` shows it
   and where it came from. When the zone can't be told, no `TZ` is set.
 - `hl logs` with no app shows every app's logs at once, each line prefixed by its app; `-n`/`--tail`
   sets how many lines (default 200).
@@ -79,7 +79,7 @@ release differs from earlier builds of `main`.
 - `hl.yml`, the default-homelab note and every generated file are written atomically (an existing
   file keeps its mode, a symlink stays a symlink).
 - The proxy runs with one readable Traefik static config file, `.hl/proxy/traefik.yml`, generated
-  from `hl.yml`; `hl config proxy` prints it. `proxy.config` uses your own
+  from `hl.yml`; `hl show proxy` names it. `proxy.config` uses your own
   file instead, and hl says what it is missing for hl's apps.
 - `proxy.dynamic` for a Traefik dynamic config file (extra routes and middlewares), kept in a
   subfolder of the homelab.
@@ -93,15 +93,12 @@ release differs from earlier builds of `main`.
   warns while it is reachable from the network.
 - The Traefik image is pinned to the tested version (`traefik:v3.6.25`); `hl doctor` warns when
   `proxy.image` is older.
-- Reserved app names: `proxy` (its compose project would be the proxy's), and `check` and
-  `defaults` (the `hl config` subcommands), so `hl config <app>` always shows the app. `hl add`,
-  `hl.yml`, `hl init`, `hl sync` and the schema all refuse them.
+- Reserved app name: `proxy` (its compose project would be the proxy's, and `hl up proxy` and
+  the like mean the proxy). `hl add`, `hl.yml`, `hl init`, `hl sync` and the schema refuse it.
 - `hl.yml` is versioned (`version: 1`). Older files without it keep working and get the line,
   with a message, the first time hl edits them; a newer file asks you to update hl.
 - A JSON Schema for `hl.yml` (`schema/hl.schema.json`); `hl init` writes the
   `yaml-language-server` line so editors autocomplete and flag mistakes.
-- `hl config check` lists every problem in `hl.yml` with its line number and a fix, including
-  unknown keys with a "did you mean".
 - `hl set <app> key=value` and `hl unset <app> key` change an app's settings, keeping `hl.yml`'s
   comments and writing only a valid result. `hl set proxy port=8080 bind=0.0.0.0` changes the
   proxy and `hl set env.TZ=UTC` (no app) the env every app gets; `hl unset proxy port` and
@@ -115,8 +112,6 @@ release differs from earlier builds of `main`.
   commit how to install a release. It is the only network request hl makes.
 - `hl edit` opens `hl.yml` in your editor, checks it on save and reopens it on a problem;
   `hl.yml` is never left broken.
-- `hl config defaults` shows every default, the value in effect and where it comes from, and the
-  built-in values (log tail, wait timeout, Docker names, generated files).
 - Windows gets a short "not supported" error suggesting WSL 2; `hl version` and `hl completion`
   still work there.
 - Release archives for Linux and macOS (amd64, arm64) with `checksums.txt` and an SPDX SBOM per
@@ -137,14 +132,19 @@ release differs from earlier builds of `main`.
 
 ### Changed
 
+- **Breaking:** `hl config`, `hl ps`, `hl path` and `--wait-all` are gone. `hl config <app>` is
+  `hl show <app> --compose`; `hl config check` is what every command (and `hl doctor`) does
+  already; what `hl config defaults` showed that matters is in `hl show` (the `TZ` apps get, the
+  projects folders, `ignore`, `scan_depth`) and `hl show proxy`, the rest in the README's
+  "Built-in values". Use `hl status` or `docker ps` for containers and `hl show` for folders.
+  `check` and `defaults` are no longer reserved app names.
 - **Breaking:** the `hl proxy` command group is gone; the proxy is a pseudo-app instead.
   `hl proxy up|down|logs` are `hl up|down|logs proxy`, `hl proxy status` is `hl show proxy`, and
-  `hl proxy config` is `hl config proxy`.
+  `hl proxy config` is gone (`hl show proxy` names the file).
 
-- `hl.yml` is checked strictly on every command, not only by `hl config check`: unknown keys,
+- `hl.yml` is checked strictly on every command: unknown keys,
   wrong types, bad values and clashes between apps (same Docker project, URL prefix or host) stop
-  the command, all listed at once with their lines. Run `hl config check` before upgrading and
-  fix what it lists.
+  the command, all listed at once with their lines (`hl doctor` lists them too).
 - The Traefik dashboard is off unless `proxy.dashboard: true` is set.
 - `hl init` and `hl sync` add only folders that look like web apps (a preferred service name or a
   common HTTP port); others, like a database on its own port, are listed with the `hl add`

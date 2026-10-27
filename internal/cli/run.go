@@ -26,27 +26,26 @@ import (
 
 // waitFlags are --wait and --wait-timeout, for commands that start apps.
 type waitFlags struct {
-	wait, all bool
-	timeout   time.Duration
+	wait    bool
+	timeout time.Duration
 }
 
 func (w *waitFlags) add(c *cobra.Command) {
 	c.Flags().BoolVar(&w.wait, "wait", false, "wait until each app's service behind the proxy, and the services it depends on, run and are healthy; show the logs of any that aren't")
-	c.Flags().BoolVar(&w.all, "wait-all", false, "like --wait, but wait for every service of the app, sidecars too")
 	c.Flags().DurationVar(&w.timeout, "wait-timeout", defaults.WaitTimeout, "how long --wait waits for each app")
 }
 
 // on reports whether hl waits at all.
-func (w *waitFlags) on() bool { return w != nil && (w.wait || w.all) }
+func (w *waitFlags) on() bool { return w != nil && w.wait }
 
 func (w *waitFlags) args(args ...string) []string {
 	return append(args, "--wait", "--wait-timeout", strconv.Itoa(int(w.timeout.Seconds())))
 }
 
 // services are the services --wait waits for: the routed one and what it depends on, or nil
-// for all of them (--wait-all, or an app that isn't behind the proxy).
+// for all of them (an app that isn't behind the proxy).
 func (w *waitFlags) services(pa *preparedApp) []string {
-	if w.all || pa.Service == "" {
+	if pa.Service == "" {
 		return nil
 	}
 	return pa.Model.WithDeps(pa.Service)
@@ -130,7 +129,7 @@ func runApp(ctx context.Context, cfg *config.Config, inv *inventory, name string
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	if waitFor != nil {
-		say("%swaiting for %s (--wait-all waits for every service)%s", dim, strings.Join(waitFor, ", "), reset)
+		say("%swaiting for %s%s", dim, strings.Join(waitFor, ", "), reset)
 		if err := p.Run(ctx, append(w.args("up", "--detach"), waitFor...)...); err != nil {
 			if errors.Is(err, interrupt.ErrInterrupted) {
 				return err
@@ -622,60 +621,6 @@ func logsAll(ctx context.Context, cfg *config.Config, names []string, args []str
 		return stopped
 	}
 	return f.err()
-}
-
-func psCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:               "ps [app]",
-		Short:             "List containers (of one app, or of the whole homelab)",
-		Args:              cobra.MaximumNArgs(1),
-		ValidArgsFunction: completeApp,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			cfg, err := load()
-			if err != nil {
-				return err
-			}
-			if len(args) == 1 {
-				if _, err := targets(cfg, args); err != nil {
-					return err
-				}
-				p, err := prepared(ctx, cfg, args[0])
-				if err != nil {
-					return err
-				}
-				if err := p.Run(ctx, "ps"); err != nil {
-					return fmt.Errorf("%s: %w", args[0], err)
-				}
-				return nil
-			}
-			inv, err := containers(ctx)
-			if err != nil {
-				return err
-			}
-			w := table()
-			fmt.Fprintln(w, "APP\tCONTAINER\tSTATUS")
-			rows := 0
-			show := func(app, project string) {
-				if inv.owner(cfg, project) != "" {
-					return
-				}
-				for _, c := range inv.of(project) {
-					fmt.Fprintf(w, "%s\t%s\t%s\n", app, c.name, c.status)
-					rows++
-				}
-			}
-			show("(proxy)", cfg.ProxyProject())
-			for _, n := range cfg.Names() {
-				show(n, cfg.ProjectName(n))
-			}
-			if rows == 0 {
-				say("no containers - start the apps with `hl up`")
-				return nil
-			}
-			return w.Flush()
-		},
-	}
 }
 
 func shellCmd() *cobra.Command {

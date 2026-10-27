@@ -172,7 +172,7 @@ func TestAddMapsEnv(t *testing.T) {
 	}
 	// The mapped values reach compose as interpolation variables.
 	f.reset()
-	f.must("config", "notes")
+	f.must("show", "notes", "--compose")
 	c := f.find("config")[0]
 	if c.Env["HL_PREFIX"] != "/notes" {
 		t.Errorf("HL_* env = %v", c.Env)
@@ -343,7 +343,7 @@ func TestUpRestartRebuild(t *testing.T) {
 func TestUpWait(t *testing.T) {
 	f := newFake(t)
 	a := f.app("a", webModel2)
-	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"'}\n")
+	lab := f.lab("lab", "apps:\n  a: {path: '"+a+"', routing: none}\n")
 	f.on(rule{Match: []string{"--project-name hl-a", "up --detach --wait --wait-timeout 30"}, Stderr: "container hl-a-db-1 is unhealthy\n", Exit: 1})
 	f.on(rule{Match: []string{"--project-name hl-a", "logs"}, Stdout: "db | FATAL: password authentication failed\n"})
 	f.containers(
@@ -351,18 +351,18 @@ func TestUpWait(t *testing.T) {
 		ctr("hl-a", "web", "running", "Up (healthy)", filepath.Join(lab, ".hl", "a", "override.yml")),
 		ctr("hl-a", "db", "running", "Up (unhealthy)", filepath.Join(lab, ".hl", "a", "override.yml")),
 	)
-	// --wait-all waits for every service in the one up call.
-	r := f.hl("up", "--wait-all", "--wait-timeout", "30s")
+	// An app that isn't behind the proxy: --wait waits for every service in the one up call.
+	r := f.hl("up", "--wait", "--wait-timeout", "30s")
 	if r.code != 1 {
 		t.Fatalf("want a failure: %s", r)
 	}
-	contains(t, "up --wait-all", r.errOut, "a: not running and healthy: db", "hint: see `hl logs a db`")
-	contains(t, "up --wait-all", r.out, "last 20 log lines of a/db", "password authentication failed")
+	contains(t, "up --wait", r.errOut, "a: not running and healthy: db", "hint: see `hl logs a db`")
+	contains(t, "up --wait", r.out, "last 20 log lines of a/db", "password authentication failed")
 	if l := f.find("logs --no-color --tail 20 db"); len(l) != 1 {
 		t.Errorf("logs of the unhealthy service: %v", f.calls())
 	}
 	if u := f.find("--project-name hl-a ", "up --detach --wait --wait-timeout 30"); len(u) != 1 || strings.HasSuffix(u[0].String(), " web") {
-		t.Errorf("--wait-all: want one up that waits for everything: %v", u)
+		t.Errorf("--wait: want one up that waits for everything: %v", u)
 	}
 }
 
@@ -475,22 +475,22 @@ func TestHostTimeZoneIsTheDefaultTZ(t *testing.T) {
 	if u := f.find("--project-name hl-b ", "up --detach"); len(u) != 1 || u[0].Env["TZ"] != "UTC" {
 		t.Errorf("b's own TZ wins: %v", u)
 	}
-	r := f.must("config", "defaults")
-	contains(t, "config defaults", r.out, "env.TZ", "the host's time zone", "Asia/Kolkata", "host ($TZ)")
+	r := f.must("show")
+	contains(t, "show", r.out, "TZ=Asia/Kolkata", "host ($TZ)")
 	r = f.must("show", "a")
 	contains(t, "show a", r.out, "TZ=Asia/Kolkata", "host ($TZ)")
 
 	// A shared TZ wins over the host's, everywhere.
 	f.lab("lab2", "env: {TZ: Europe/Paris}\napps:\n  a: {path: '"+a+"'}\n")
-	r = f.must("config", "defaults")
-	contains(t, "config defaults", r.out, "Europe/Paris")
-	lacks(t, "config defaults", r.out, "Asia/Kolkata")
+	r = f.must("show")
+	contains(t, "show", r.out, "TZ=Europe/Paris")
+	lacks(t, "show", r.out, "Asia/Kolkata")
 
 	// Unknown host zone: no TZ, and defaults says so.
 	config.HostTimeZone = func() (string, string) { return "", "" }
 	f.lab("lab3", "apps: {}\n")
-	r = f.must("config", "defaults")
-	contains(t, "config defaults", r.out, "none: the host's time zone can't be told")
+	r = f.must("show")
+	contains(t, "show", r.out, "none: the host's time zone can't be told")
 }
 
 func TestDown(t *testing.T) {
@@ -594,7 +594,7 @@ func TestLogs(t *testing.T) {
 	}
 }
 
-func TestPsShellOpenConfigPath(t *testing.T) {
+func TestShellOpenCompose(t *testing.T) {
 	f := newFake(t)
 	a, db := f.app("a", webModel2), f.app("db", apiModel)
 	lab := f.lab("lab", "proxy: {port: 8080}\napps:\n  a: {path: '"+a+"'}\n  db: {path: '"+db+"', routing: none}\n")
@@ -603,14 +603,6 @@ func TestPsShellOpenConfigPath(t *testing.T) {
 		ctr("hl-a", "web", "running", "Up 1 hour", filepath.Join(lab, ".hl", "a", "override.yml")),
 		ctr("other", "x", "running", "Up", "/elsewhere/compose.yml"),
 	)
-	r := f.must("ps")
-	contains(t, "ps", r.out, "APP", "(proxy)  hl-proxy-traefik-1", "a        hl-a-web-1")
-	lacks(t, "ps", r.out, "other")
-	f.must("ps", "a")
-	if p := f.find("--project-name hl-a", " ps"); len(p) != 1 {
-		t.Errorf("ps a: %v", f.calls())
-	}
-
 	f.must("shell", "a")
 	if s := f.find("exec web sh -c"); len(s) != 1 || s[0].Args[len(s[0].Args)-1] != "command -v bash >/dev/null && exec bash || exec sh" {
 		t.Errorf("shell: %v", s)
@@ -620,7 +612,7 @@ func TestPsShellOpenConfigPath(t *testing.T) {
 		t.Errorf("the shell's own exit status: %s", r)
 	}
 	f.on(rule{Match: []string{"exec api"}, Stderr: "service \"api\" is not running\n", Exit: 1})
-	r = f.hl("shell", "a", "api")
+	r := f.hl("shell", "a", "api")
 	contains(t, "shell not running", r.errOut, "service api is not running", "hl up a")
 	if r := f.hl("shell", "db"); r.code != 2 || !strings.Contains(r.errOut, "which service") {
 		t.Errorf("routing none needs a service: %s", r)
@@ -648,18 +640,22 @@ func TestPsShellOpenConfigPath(t *testing.T) {
 		t.Errorf("browser: %v", f.calls())
 	}
 
-	f.must("config", "a")
-	if c := f.find("--project-name hl-a", " config"); len(c) < 2 {
-		t.Errorf("config: %v", c)
+	f.reset()
+	f.must("show", "a", "--compose")
+	if c := f.find("--project-name hl-a", " config"); len(c) < 2 || !strings.HasSuffix(c[len(c)-1].String(), " config") {
+		t.Errorf("show --compose: %v", c)
 	}
-	if r := f.must("path"); r.out != lab+"\n" {
-		t.Errorf("path: %q", r.out)
+	f.must("show", "proxy", "--compose")
+	if c := f.find("--project-name hl-proxy", " config"); len(c) != 1 {
+		t.Errorf("show proxy --compose: %v", f.calls())
 	}
-	if r := f.must("path", "a"); r.out != a+"\n" {
-		t.Errorf("path a: %q", r.out)
-	}
-	if r := f.hl("path", "aa"); r.code != 1 || !strings.Contains(r.errOut, `did you mean "a"`) {
+	if r := f.hl("show", "aa", "--compose"); r.code != 1 || !strings.Contains(r.errOut, `did you mean "a"`) {
 		t.Errorf("close name: %s", r)
+	}
+	for _, gone := range []string{"ps", "path", "config", "proxy"} {
+		if r := f.hl(gone); r.code != 2 {
+			t.Errorf("hl %s: want an unknown command: %s", gone, r)
+		}
 	}
 }
 
@@ -970,8 +966,6 @@ func TestSettingsReachEveryPlace(t *testing.T) {
 			t.Errorf("a default name was used: %s", c)
 		}
 	}
-	r = f.must("config", "defaults")
-	contains(t, "config defaults", r.out, "logs.tail", "up.wait_timeout", "docker.project_prefix")
 }
 
 // Folders the app's env points at inside its data folder exist before compose runs, so Docker

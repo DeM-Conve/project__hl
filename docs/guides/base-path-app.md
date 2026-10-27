@@ -63,7 +63,7 @@ file. They don't reach the container unless the compose file passes them on, as 
 
 ```sh
 hl up base-path-app
-hl config base-path-app | grep BASE_PATH   # BASE_PATH: /base-path-app
+hl show base-path-app --compose | grep BASE_PATH   # BASE_PATH: /base-path-app
 curl -s http://localhost/base-path-app/ | grep -o 'href="[^"]*"'
 ```
 

@@ -35,7 +35,7 @@ in hl may assume the maintainer's setup.
   folder and file names (`.hl/`, `data/`, `override.yml`, `traefik.yml`), label prefixes,
   timeouts and retry counts, healthcheck intervals, log tail length, backup folder and name
   pattern, ignore patterns, editor fallback, update-check URL and interval. Each default can be
-  overridden in hl.yml (or a flag/env var where it makes sense), and `hl config defaults` prints
+  overridden in hl.yml (or a flag/env var where it makes sense), and the README's "Built-in values" lists
   them all. Tests assert that changing a setting changes every place it's used.
 - [x] **Every path comes from the user or the OS**: the homelab folder from `hl init`/`--home`/
   `$HL_HOME`/nearest `hl.yml`; the projects folders from `projects:`; hl's own state from the OS
@@ -90,7 +90,7 @@ in hl may assume the maintainer's setup.
 - [x] **`hl set <app> key=value` / `hl unset`** (routing, prefix, host, port, service, env.X) -
   edits hl.yml keeping its comments, validates first. Also `hl set proxy key=value` and
   `hl set env.X=value` (the shared env), so hl.yml never has to be opened.
-- [x] **`hl config check`** (or `hl doctor`): validates hl.yml with line numbers and a fix for
+- [x] **hl.yml checking** (every command, and `hl doctor`; `hl config check` was dropped 2026-10-27): validates hl.yml with line numbers and a fix for
   each problem; unknown keys are errors with a "did you mean".
 - [x] **`hl edit`**: opens hl.yml in `$EDITOR`, validates on save, re-opens on error.
 - [x] **Versioned config**: `version: 1` at the top of hl.yml; older files keep working and are
@@ -102,7 +102,7 @@ in hl may assume the maintainer's setup.
 
 - [x] **One readable Traefik config file**: `.hl/proxy/traefik.yml` (static config: entrypoints,
   docker provider, dashboard, logs) generated from hl.yml, instead of command-line flags hidden in
-  the proxy's compose file. `hl config proxy` prints it.
+  the proxy's compose file. `hl show proxy` names it.
 - [x] **Bring your own Traefik file**: `proxy.config: traefik.yml` (relative to the homelab)
   replaces the generated static config entirely - hl only checks it has the entrypoint and docker
   provider hl needs and says what's missing. One file, your choice, default generated.
@@ -138,7 +138,7 @@ in hl may assume the maintainer's setup.
 
 ## 7. Scripting and output (P1)
 
-- [ ] `--json` for `status`, `ls`, `ps`, `config`, `doctor` (stable, documented fields).
+- [ ] `--json` for `status`, `ls`, `show`, `doctor` (stable, documented fields).
 - [ ] `--quiet` / `--no-color` / `NO_COLOR`; output that works in pipes.
 - [x] Shell completion includes app names (and an app's services where a command takes one).
 - [ ] Man page generated from cobra.

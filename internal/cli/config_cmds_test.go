@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -118,30 +117,20 @@ func TestAddUpgradesOldFileWithAMessage(t *testing.T) {
 	}
 }
 
-func TestConfigCheck(t *testing.T) {
+// Every command checks hl.yml and lists every problem with its line; there is no separate check.
+func TestEveryCommandChecksHlYml(t *testing.T) {
 	home, _ := homelab(t, "version: 1\nproxy:\n  bnd: 0.0.0.0\napps:\n  my-app: {path: ~/code/my-app, port: 0}\n")
-	out, err := run(t, "", "config", "check")
-	if err == nil || !strings.Contains(err.Error(), "2 problems") {
-		t.Fatalf("err = %v\n%s", err, out)
+	out, err := run(t, "", "show")
+	if err == nil {
+		t.Fatalf("want the problems:\n%s", out)
 	}
 	for _, want := range []string{
 		filepath.Join(home, "hl.yml") + `:3:3: proxy.bnd: unknown key - did you mean "bind"?`,
 		":5:39: apps.my-app.port: 0 is not a port",
 	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("missing %q in:\n%s", want, out)
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("missing %q in:\n%v", want, err)
 		}
-	}
-
-	homelab(t, "apps:\n  my-app: {path: ~/code/my-app}\n")
-	out, err = run(t, "", "config", "check")
-	if err != nil || !strings.Contains(out, "is fine") || !strings.Contains(out, "no `version:` line") {
-		t.Errorf("err = %v\n%s", err, out)
-	}
-	// Still works when hl.yml doesn't even parse.
-	homelab(t, "apps: [\n")
-	if out, err := run(t, "", "config", "check"); err == nil || !strings.Contains(out, "hl.yml:1:1: not valid YAML") {
-		t.Errorf("err = %v\n%s", err, out)
 	}
 }
 
@@ -448,62 +437,28 @@ func TestAddWithoutTerminalNamesTheFlag(t *testing.T) {
 	}
 }
 
-func TestConfigDefaults(t *testing.T) {
-	home, _ := homelab(t, "proxy:\n  port: 8080\n")
-	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", "my-editor")
-	out, err := run(t, "", "config", "defaults")
+func TestShowHomelabSettings(t *testing.T) {
+	home, _ := homelab(t, "proxy:\n  port: 8080\nprojects: [~/nowhere]\nignore: [old]\n")
+	out, err := run(t, "", "show")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	rows := map[string][]string{}
-	for _, l := range strings.Split(out, "\n") {
-		if f := strings.Fields(l); len(f) > 0 {
-			rows[f[0]] = f[1:]
-		}
-	}
-	for key, want := range map[string]string{
-		"proxy.port":       "80 8080 hl.yml",
-		"proxy.bind":       "127.0.0.1 127.0.0.1 default",
-		"proxy.routing":    "path path default",
-		"home":             "- " + home + " env ($HL_HOME)",
-		"version":          "1 - none (the format before versions)",
-		"editor":           defaults.DefaultEditor + " my-editor env ($EDITOR)",
-		"schema":           defaults.SchemaURL + " " + defaults.SchemaURL + " built in",
-		"scan_depth":       strconv.Itoa(defaults.ScanDepth) + " " + strconv.Itoa(defaults.ScanDepth) + " default",
-		"proxy.image":      defaults.DefaultProxyImage + " " + defaults.DefaultProxyImage + " default",
-		"proxy.project":    defaults.DefaultProxyProject + " " + defaults.DefaultProxyProject + " default",
-		"sync.ignore_file": defaults.IgnoreFile + " " + defaults.IgnoreFile + " built in",
-		"edit.draft":       defaults.EditDraft + " " + defaults.EditDraft + " built in",
+	for _, want := range []string{
+		home, "env ($HL_HOME)", "port", "8080", "http://127.0.0.1:8080",
+		"~/nowhere", "not found", "ignore", "old", "always: .*", "scan_depth", strconv.Itoa(defaults.ScanDepth), "default",
 	} {
-		if got := strings.Join(rows[key], " "); got != want {
-			t.Errorf("%s: %q, want %q", key, got, want)
+		if !strings.Contains(out, want) {
+			t.Errorf("show is missing %q:\n%s", want, out)
 		}
 	}
-	if out, err := run(t, "", "config", "defaults", "--home", home); err != nil || !strings.Contains(out, "flag (--home)") {
+	if out, err := run(t, "", "show", "--home", home); err != nil || !strings.Contains(out, "flag (--home)") {
 		t.Errorf("%v\n%s", err, out)
 	}
 }
 
-// Every name `hl config` takes as its first argument besides an app is reserved, read from the
-// registered command, and the schema lists the same names.
-func TestConfigSubcommandNamesAreReserved(t *testing.T) {
-	var want []string
-	want = append(want, proxyArg)
-	for _, sub := range configCmd().Commands() {
-		want = append(want, sub.Name())
-		want = append(want, sub.Aliases...)
-	}
-	sort.Strings(want)
-	if got := config.ReservedAppNames(); strings.Join(got, " ") != strings.Join(want, " ") {
-		t.Errorf("reserved %v, want %v", got, want)
-	}
-	for _, n := range want {
-		if err := config.ValidName(n); err == nil {
-			t.Errorf("ValidName(%s) accepted", n)
-		}
-	}
-
+// The schema reserves the same app names as config.
+func TestSchemaReservesTheSameNames(t *testing.T) {
+	want := config.ReservedAppNames()
 	b, err := os.ReadFile("../../schema/hl.schema.json")
 	if err != nil {
 		t.Fatal(err)
@@ -527,14 +482,14 @@ func TestConfigSubcommandNamesAreReserved(t *testing.T) {
 
 func TestAddAndCheckRefuseReservedNames(t *testing.T) {
 	fakeDocker(t, oneService)
-	home, appDir := homelab(t, "version: 1\napps:\n  defaults: {path: ~/code/my-app}\n")
-	if out, err := run(t, "", "config", "check"); err == nil || !strings.Contains(out, "apps.defaults: app name \"defaults\" is reserved") {
-		t.Errorf("config check: %v\n%s", err, out)
+	home, appDir := homelab(t, "version: 1\napps:\n  proxy: {path: ~/code/my-app}\n")
+	if out, err := run(t, "", "status"); err == nil || !strings.Contains(err.Error(), "apps.proxy: app name \"proxy\" is reserved") {
+		t.Errorf("status: %v\n%s", err, out)
 	}
 	if err := os.WriteFile(filepath.Join(home, config.FileName), []byte("version: 1\napps: {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := run(t, "", "add", appDir, "--name", "check"); err == nil || !strings.Contains(err.Error(), "reserved") {
-		t.Errorf("add --name check: %v\n%s", err, out)
+	if out, err := run(t, "", "add", appDir, "--name", "proxy"); err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Errorf("add --name proxy: %v\n%s", err, out)
 	}
 }

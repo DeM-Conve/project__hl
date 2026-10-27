@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -17,7 +18,8 @@ import (
 )
 
 func showCmd() *cobra.Command {
-	return &cobra.Command{
+	var composeOut bool
+	c := &cobra.Command{
 		Use:   "show [app|proxy]",
 		Short: "What hl knows about an app (folder, route, URL, env and where each value comes from), the proxy, or the homelab",
 		Long: `Show what hl stores in hl.yml and works out from it, without opening the file.
@@ -27,10 +29,12 @@ URL, prefix and host, the data folder, and every variable hl gives its compose f
 where the value comes from (hl, the shared env or the app's env). With proxy: its state and
 health, where it listens, every proxy setting, and warnings (a running proxy that predates the
 config, an old image). With no app: the homelab folder, the proxy's settings that hl.yml sets,
-the shared env and the apps.
+the shared env (with the time zone apps get), where hl init and hl sync look for apps, and the
+apps.
 
 Each value says where it comes from: hl.yml, default, or detected (from the app's compose
-config). Change them with hl set / hl unset. The app's full compose config is hl config <app>.`,
+config). Change them with hl set / hl unset. hl show <app> --compose prints the app's whole
+compose config as hl runs it: its own files plus hl's override.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeTarget,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -42,16 +46,32 @@ config). Change them with hl set / hl unset. The app's full compose config is hl
 				return showHomelab(cfg)
 			}
 			if args[0] == proxyArg {
+				if composeOut {
+					p, err := proxy(cfg)
+					if err != nil {
+						return err
+					}
+					return p.Run(cmd.Context(), "config")
+				}
 				return showProxy(cfg)
 			}
 			a, err := cfg.App(args[0])
 			if err != nil {
 				return withHint(err, "`hl show` lists the apps")
 			}
+			if composeOut {
+				p, err := prepared(cmd.Context(), cfg, args[0])
+				if err != nil {
+					return err
+				}
+				return p.Run(cmd.Context(), "config")
+			}
 			showApp(cmd.Context(), cfg, args[0], a)
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&composeOut, "compose", false, "print the whole compose config as hl runs it (the app's files plus hl's override)")
+	return c
 }
 
 // from formats where a value comes from, dimmed.
@@ -206,15 +226,45 @@ func showHomelab(cfg *config.Config) error {
 	_ = w.Flush()
 
 	say("%senv%s %s(every app; an app's own env wins)%s", bold, reset, dim, reset)
-	if len(cfg.Env) == 0 {
-		say("  %snone - hl set env.NAME=value adds one%s", dim, reset)
-	} else {
-		w = table()
-		for _, k := range sortedKeys(cfg.Env) {
-			fmt.Fprintf(w, "  %s=%s\t%s\n", k, cfg.Env[k], from(config.FileName))
+	w = table()
+	if _, ok := cfg.Env[defaults.TZEnv]; !ok {
+		if tz, source := config.HostTimeZone(); tz != "" {
+			fmt.Fprintf(w, "  %s=%s\t%s\n", defaults.TZEnv, tz, from(source+", unless an app's env or env files set one"))
+		} else {
+			fmt.Fprintf(w, "  %s\t%s\n", defaults.TZEnv, from("none: the host's time zone can't be told, so apps keep their own default"))
 		}
-		_ = w.Flush()
 	}
+	for _, k := range sortedKeys(cfg.Env) {
+		fmt.Fprintf(w, "  %s=%s\t%s\n", k, cfg.Env[k], from(config.FileName))
+	}
+	_ = w.Flush()
+
+	say("%sprojects%s %s(where hl init and hl sync look for apps)%s", bold, reset, dim, reset)
+	w = table()
+	if len(cfg.Projects) == 0 {
+		fmt.Fprintf(w, "  folders\t-\t%s\n", from("none: hl sync needs one"))
+	}
+	for i, p := range cfg.Projects {
+		note := config.FileName
+		if st, err := os.Stat(cfg.ProjectDirs()[i]); err != nil || !st.IsDir() {
+			note = yellow + "not found: " + cfg.ProjectDirs()[i] + reset
+		}
+		fmt.Fprintf(w, "  folder\t%s\t%s\n", p, from(note))
+	}
+	ignore := strings.Join(cfg.Ignore, ", ")
+	if ignore == "" {
+		ignore = "-"
+	}
+	fmt.Fprintf(w, "  ignore\t%s\t%s\n", ignore, from("always: "+strings.Join(defaults.DefaultIgnore, ", ")+", folders with a "+defaults.IgnoreFile))
+	depth, depthFrom := cfg.ScanDepth, config.FileName
+	if depth == 0 {
+		depth, depthFrom = defaults.ScanDepth, "default"
+	}
+	fmt.Fprintf(w, "  scan_depth\t%d\t%s\n", depth, from(depthFrom))
+	if len(cfg.StripPrefix) > 0 {
+		fmt.Fprintf(w, "  strip_prefix\t%s\t%s\n", strings.Join(cfg.StripPrefix, ", "), from(config.FileName))
+	}
+	_ = w.Flush()
 
 	say("%sapps%s", bold, reset)
 	if len(cfg.Apps) == 0 {

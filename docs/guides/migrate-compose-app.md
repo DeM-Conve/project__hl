@@ -39,11 +39,11 @@ path prefix, add `--routing host` (see [base path](base-path-app.md)). Apps with
 ## 3. Copy the data
 
 For each named volume, copy the old Docker volume into the folder hl will use. hl creates
-`data/<app>/<volume>` on the first command that prepares the app (`hl config my-app` is enough):
+`data/<app>/<volume>` on the first command that prepares the app (`hl show my-app --compose` is enough):
 
 ```sh
-hl config my-app > /dev/null        # creates data/my-app/<volume> folders
-HOMELAB=$(hl path)
+hl show my-app --compose > /dev/null   # creates data/my-app/<volume> folders
+HOMELAB=~/homelab                      # your homelab folder: hl show prints it
 docker run --rm \
   -v my-app_db:/from:ro \
   -v "$HOMELAB/data/my-app/db":/to \

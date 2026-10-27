@@ -36,6 +36,6 @@ as it's ready. You'll be credited in the advisory unless you'd rather not be.
 - hl has no TLS in v0.1. To reach apps over an untrusted network, put hl behind your own HTTPS
   proxy ([guide](docs/guides/behind-https.md)).
 - hl reads apps' `.env` files and the `env_files` you list, but never writes or copies secrets;
-  `hl config <app>` prints the resolved config, including those values - mind where you paste it.
+  `hl show <app> --compose` prints the resolved config, including those values - mind where you paste it.
 - Release archives come with `checksums.txt` (sha256), which `install.sh` checks, and an SPDX
   SBOM per archive.

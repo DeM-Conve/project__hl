@@ -17,10 +17,11 @@ The apps' own folders (code, compose files, their `.env` with secrets, bind moun
 Copy the data while the apps are stopped, so databases are consistent on disk:
 
 ```sh
+HOMELAB=~/homelab                             # your homelab folder: hl show prints it
 hl down                                       # stops every app and the proxy
-cd "$(hl path)/.."
+cd "$HOMELAB/.."
 sudo tar -cpzf "homelab-$(date +%Y%m%d).tar.gz" \
-  --exclude="$(basename "$(hl path)")/.hl" "$(basename "$(hl path)")"
+  --exclude="$(basename "$HOMELAB")/.hl" "$(basename "$HOMELAB")"
 hl up
 ```
 
@@ -31,7 +32,7 @@ To keep downtime short, stop and copy one app at a time:
 
 ```sh
 hl down my-app
-sudo tar -cpzf "my-app-$(date +%Y%m%d).tar.gz" -C "$(hl path)/data" my-app
+sudo tar -cpzf "my-app-$(date +%Y%m%d).tar.gz" -C "$HOMELAB/data" my-app
 hl up my-app
 ```
 
@@ -41,7 +42,7 @@ A copied database folder is only safe when the database was stopped. To back up 
 stopping, use the database's own dump tool inside its container, for example:
 
 ```sh
-hl ps my-app                                       # find the database container
+docker ps --filter label=com.docker.compose.project=hl-my-app   # find the database container
 docker exec hl-my-app-db-1 pg_dump -U postgres app > my-app.sql
 ```
 
@@ -51,8 +52,8 @@ Many apps ship a backup service of their own for this; hl runs it like any other
 
 ```sh
 hl down my-app
-sudo rm -rf "$(hl path)/data/my-app"
-sudo tar -xpzf my-app-20260101.tar.gz -C "$(hl path)/data"
+sudo rm -rf "$HOMELAB/data/my-app"
+sudo tar -xpzf my-app-20260101.tar.gz -C "$HOMELAB/data"
 hl up my-app
 ```
 

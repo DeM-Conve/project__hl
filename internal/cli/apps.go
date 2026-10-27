@@ -224,7 +224,7 @@ func openCmd() *cobra.Command {
 			}
 			u := cfg.URL(args[0], a)
 			if u == "" {
-				return withHint(fmt.Errorf("%s is not behind the proxy (routing: none)", args[0]), "`hl ps %s` shows its own ports", args[0])
+				return withHint(fmt.Errorf("%s is not behind the proxy (routing: none)", args[0]), "its compose file publishes its own ports: `hl show %s --compose`", args[0])
 			}
 			u += "/"
 			fmt.Fprintln(stdout, u)
@@ -239,56 +239,6 @@ func openCmd() *cobra.Command {
 					go func() { _ = o.Wait() }()
 				}
 			}
-			return nil
-		},
-	}
-}
-
-func configCmd() *cobra.Command {
-	c := &cobra.Command{
-		Use:               "config <app>|proxy",
-		Short:             "Show an app's compose config as hl runs it (its own files + hl's override), or the proxy's Traefik config",
-		Args:              cobra.ExactArgs(1),
-		ValidArgsFunction: completeApp,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if args[0] == proxyArg {
-				return printProxyConfig()
-			}
-			cfg, err := load()
-			if err != nil {
-				return err
-			}
-			p, err := prepared(cmd.Context(), cfg, args[0])
-			if err != nil {
-				return err
-			}
-			return p.Run(cmd.Context(), "config")
-		},
-	}
-	c.AddCommand(configCheckCmd(), configDefaultsCmd())
-	return c
-}
-
-func pathCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:               "path [app]",
-		Short:             "Print an app's folder, or with no app the homelab folder  (cd \"$(hl path my-app)\")",
-		Args:              cobra.MaximumNArgs(1),
-		ValidArgsFunction: completeApp,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := load()
-			if err != nil {
-				return err
-			}
-			if len(args) == 0 {
-				fmt.Fprintln(stdout, cfg.Dir)
-				return nil
-			}
-			a, err := cfg.App(args[0])
-			if err != nil {
-				return withHint(err, "`hl status` lists the apps")
-			}
-			fmt.Fprintln(stdout, cfg.AppDir(a))
 			return nil
 		},
 	}
