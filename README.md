@@ -116,7 +116,6 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl sync` | Make the homelab follow your projects folders: add new apps, remove ones whose folder is gone. Shows a plan and asks; `--dry-run`, `--yes`. |
 | `hl remove <app>` | Stop the app and forget it. Its data stays; `hl sync` won't add its folder back. |
 | `hl doctor` | Check Docker, compose, the settings, the proxy and every app; warns about an old Traefik or hl. |
-| `hl edit` | Fallback: open `hl.yml` in your editor; saved only if it checks out. |
 | `hl version` | Version, commit and platform, for bug reports. |
 | `hl completion <shell>` | Shell completion script. |
 
@@ -237,6 +236,9 @@ Start with `hl doctor`. Every error says what failed and, on a `hint:` line, wha
   its base path: map `${HL_PREFIX}` ([Routing](#routing)) or `hl set <app> routing=host`.
 - **404 from the proxy.** Check `hl status` and the URL (`/my-app/`). `hl set proxy debug=true`,
   `hl up proxy`, then `hl logs proxy -f` shows each request Traefik gets.
+- **`hl.yml has 1 problem`** after editing it by hand. The error lists each problem as
+  `hl.yml:line:column`; fix those lines in any editor (or `hl unset` a key that shouldn't be
+  there), then `hl doctor` checks it again. `hl set`/`hl unset` never write a broken file.
 - **`hl add` can't tell which service to route to.** Pass `service=<name>` (and `port=<port>`).
 - **`... belongs to another homelab`.** Two homelabs on one Docker: give one a
   [`name`](docs/reference.md#several-homelabs-on-one-docker-name), or stop the other.

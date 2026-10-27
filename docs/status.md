@@ -11,8 +11,9 @@ here changes (a release, a pending item done, a question answered). Last reviewe
 - **CLI first** (2026-10-27): the goal is that a user never has to open `hl.yml`. `hl set`/`hl unset`
   cover every app key, every `proxy.*` key (`hl set proxy port=8080`) and the shared env
   (`hl set env.TZ=UTC`), the homelab's own settings (`hl set projects+=~/src`, `scan_depth`,
-  `name` - refused while anything runs); `hl show [app|proxy]` reads it back; `hl edit` stays as
-  a fallback that nothing needs. Error hints name
+  `name` - refused while anything runs); `hl show [app|proxy]` reads it back; `hl edit` was cut
+  (round 3 of the review): a file broken by hand gets its problem lines and a hint to fix them
+  in any editor. Error hints name
   the `hl set`/`hl unset` command instead of the `hl.yml` key. Left on purpose: the "edit
   hl.yml, not this file" header of generated files (changing it would change the static
   config's hash and recreate every running proxy once). `hl add`'s base-path note, `hl sync`
@@ -34,7 +35,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   renames an app with its data; `hl set proxy port=` says to `hl up` the apps too; `hl add`
   warns about a non-web service, and init/sync's base-path note is one line like add's;
   `hl set`/`hl unset` mistakes exit 2 and name the right scope, bad paths and services are
-  refused; `hl edit` needs a terminal; `hl rebuild --pull` rebuilds a folder it can't pull;
+  refused; `hl rebuild --pull` rebuilds a folder it can't pull;
   `hl logs` hints and service checks; `~/` paths and unpadded rows in `status`/`show`; init's
   plan says when the default homelab changes.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under

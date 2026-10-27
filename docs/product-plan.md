@@ -93,7 +93,8 @@ in hl may assume the maintainer's setup.
   `hl set env.X=value` (the shared env), so hl.yml never has to be opened.
 - [x] **hl.yml checking** (every command, and `hl doctor`; `hl config check` was dropped 2026-10-27): validates hl.yml with line numbers and a fix for
   each problem; unknown keys are errors with a "did you mean".
-- [x] **`hl edit`**: opens hl.yml in `$EDITOR`, validates on save, re-opens on error.
+- [ ] ~~**`hl edit`**~~: dropped 2026-10-27 - `hl set`/`hl unset` reach every key; a file
+  broken by hand gets its problem lines and a hint instead.
 - [x] **Versioned config**: `version: 1` at the top of hl.yml; older files keep working and are
   upgraded with a message, never silently.
 - [x] **JSON Schema** for hl.yml (published in the repo; since 2026-10-27 init no longer writes a

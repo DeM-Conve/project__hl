@@ -362,10 +362,9 @@ normalises indentation to two spaces).
   `routing` or `port` changed (they are in the apps' routes or `HL_URL`; `bind` is not), `hl sync`
   for the projects settings, or `hl down` then `hl up` when the proxy's network, subnet or
   project changed).
-- `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
-  `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy
-  checks out. It finds the homelab with `config.Home`, not `Load`, so it works on a file that
-  doesn't load. Without a terminal (`stdinTerminal`) it refuses before starting an editor.
+- There is no editor command: every key is reachable with `hl set`/`hl unset`. A file broken by
+  hand fails `config.Load` with a `*config.ProblemsError` (each problem with file:line:column);
+  `cli.load` adds the hint to fix those lines in an editor and re-check with `hl doctor`.
 
 **Checking** (`config.Check`, `internal/config/validate.go`): walks the node tree against the
 `Config` type by reflection (yaml tags give the known keys, so a new field needs no checker

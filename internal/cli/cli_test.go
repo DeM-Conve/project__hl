@@ -1007,6 +1007,24 @@ func TestDoctor(t *testing.T) {
 	contains(t, "doctor bad hl.yml", r.out, "hl.yml:1:15: proxy.port", "is not a whole number")
 }
 
+// hl.yml broken by hand (hl itself never writes a broken one): every command names the lines
+// and says how to fix them, since there is no hl edit.
+func TestHandBrokenHlYml(t *testing.T) {
+	f := newFake(t)
+	f.lab("lab", "proxy: {port: x}\napps: {}\n")
+	r := f.hl("status")
+	if r.code != 1 {
+		t.Fatalf("want a failure: %s", r)
+	}
+	contains(t, "broken hl.yml", r.errOut, "hl.yml:1:15: proxy.port", "hint: fix those lines in hl.yml with any editor", "hl doctor")
+	f.lab("lab2", "apps: [\n")
+	r = f.hl("status")
+	contains(t, "unparsable hl.yml", r.errOut, "hl.yml", "hint: fix those lines")
+	if r := f.hl("edit"); r.code != 2 {
+		t.Errorf("hl edit is gone: %s", r)
+	}
+}
+
 func TestDoctorChecksTheLatestRelease(t *testing.T) {
 	f := newFake(t)
 	f.lab("lab", "apps: {}\n")

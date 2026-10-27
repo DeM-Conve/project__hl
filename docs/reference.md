@@ -265,9 +265,10 @@ apps:
 - **Schema.** [schema/hl.schema.json](../schema/hl.schema.json) describes the file for editors
   with a YAML language server, if you edit it by hand; hl doesn't point the file at it (add
   `# yaml-language-server: $schema=<its raw GitHub URL>` yourself). hl's own check doesn't need it.
-- **`hl edit`** is the fallback for editing by hand: it opens a copy (`.hl/edit/hl.yml`) in
-  `$VISUAL`, then `$EDITOR`, else `vi`, checks it when the editor closes and saves it only if it
-  has no problems, else lists them and offers to reopen the editor. It works on a broken `hl.yml`, and needs a terminal.
+- **Broken by hand.** `hl set`/`hl unset` write only a valid result, so a broken `hl.yml` comes
+  from editing it by hand. Every command then refuses with each problem's `hl.yml:line:column`
+  and what is wrong; fix those lines in any editor (or `hl unset` a key that shouldn't be
+  there), and `hl doctor` checks the file again.
 - **Written whole.** `hl.yml`, the default-homelab note and every generated file are written to a
   temporary file and renamed into place, so a crash or Ctrl-C never leaves half a file. An
   existing file keeps its permissions, and a symlinked `hl.yml` stays a symlink.
@@ -306,7 +307,7 @@ and not settings (some have a command-line flag):
 | GitHub releases API, `3s` | what `hl doctor` asks for the latest release, and how long it waits |
 
 **Environment variables hl reads:** `HL_HOME` (the homelab folder), `NO_COLOR` (no colours;
-colours are also off when output isn't a terminal), and `VISUAL`/`EDITOR` for `hl edit`.
+colours are also off when output isn't a terminal).
 
 ## Errors and exit codes
 
