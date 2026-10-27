@@ -135,7 +135,7 @@ func TestEditAppRefusesBadResults(t *testing.T) {
 
 func TestAppKeys(t *testing.T) {
 	got := strings.Join(AppKeys(), " ")
-	for _, k := range []string{"routing", "prefix", "host", "port", "service", "env.", "compose", "path"} {
+	for _, k := range []string{"routing", "host", "port", "service", "env.", "compose", "path"} {
 		if !strings.Contains(" "+got+" ", " "+k+" ") {
 			t.Errorf("AppKeys() = %s, missing %s", got, k)
 		}

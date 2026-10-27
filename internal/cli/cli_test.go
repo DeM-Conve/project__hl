@@ -102,14 +102,14 @@ func TestAddSettings(t *testing.T) {
 	lab := f.lab("lab", "apps: {}\n")
 
 	r := f.must("add", dir, "name=tool", "routing=host", "host=tool.example.com",
-		"service=ui", "port=8081", "compose=compose.yml,compose.prod.yml", "prefix=/t")
+		"service=ui", "port=8081", "compose=compose.yml,compose.prod.yml")
 	contains(t, "add", r.out, "added tool (service ui, port 8081)", "http://tool.example.com/")
 	cfg, err := config.Load(lab)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a := cfg.Apps["tool"]
-	if a.Routing != "host" || a.Host != "tool.example.com" || a.Service != "ui" || a.Port != 8081 || len(a.Compose) != 2 || a.Prefix != "/t" {
+	if a.Routing != "host" || a.Host != "tool.example.com" || a.Service != "ui" || a.Port != 8081 || len(a.Compose) != 2 {
 		t.Errorf("app = %+v", a)
 	}
 	if !strings.Contains(a.Path, "my code") {
@@ -652,7 +652,7 @@ func TestShow(t *testing.T) {
 	r = f.must("show", "a")
 	contains(t, "show a", r.out, "folder   ~/my code/a  hl.yml\n", "  project  hl-a\n", "  url      http://localhost:8082/a/\n", "compose.yml", "found in the folder",
 		"service", "web", "detected", "port", "80", "routing", "default (proxy.routing)", "http://localhost:8082/a/",
-		"prefix", "/a", filepath.Join(lab, "data", "a"),
+		filepath.Join(lab, "data", "a"),
 		"HL_URL=http://localhost:8082/a", "A_BASE=/a", "apps.a.env: ${HL_PREFIX}",
 		"TZ=Europe/Berlin", "apps.a.env, over the shared env", "LANG=C", "shared env")
 	if n := len(f.find("compose", "up")); n != 0 {
@@ -1194,9 +1194,15 @@ func TestErrors(t *testing.T) {
 	if r := f.hl("set", "a", "env_files=x.env"); r.code == 0 {
 		t.Errorf("hl set a env_files= should be refused: %s", r)
 	}
-	f.lab("hints", "proxy: {bind: 127.0.0.1}\napps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', prefix: /x}\n  b: {path: '"+a+"', prefix: /x}\n")
+	// prefix is a removed key: the URL path is /<app>, and name= changes it.
+	f.lab("hints", "proxy: {bind: 127.0.0.1}\napps:\n  a: {path: '"+a+"', prefix: /x}\n")
 	r = f.hl("status")
-	contains(t, "validation hints", r.errOut, "`hl set b prefix=/<path>`")
+	contains(t, "removed prefix", r.errOut, "apps.a.prefix: removed from hl", "`hl set a name=<new>`", "`hl unset a prefix`")
+	f.must("unset", "a", "prefix")
+	f.must("status")
+	if r := f.hl("set", "a", "prefix=/x"); r.code != 2 {
+		t.Errorf("hl set a prefix= should be refused: %s", r)
+	}
 	f.lab("hints2", "apps:\n  gone: {path: /nowhere}\n  a: {path: '"+a+"', compose: [nope.yml]}\n")
 	r = f.hl("up")
 	contains(t, "app hints", r.errOut, "`hl set gone path=<folder>`", "`hl remove gone`", "`hl set a compose=<file>[,<file>...]`", "`hl unset a compose`")

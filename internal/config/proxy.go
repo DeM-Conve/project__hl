@@ -21,6 +21,8 @@ var removedKeys = map[string]string{
 	"proxy.dashboard_public": "the Traefik dashboard is gone; remove it: `hl unset proxy dashboard_public`",
 	"proxy.access_log":       "`hl set proxy debug=true` turns on Traefik's access log and INFO log; remove it: `hl unset proxy access_log`",
 	"proxy.log_level":        "`hl set proxy debug=true` turns on Traefik's INFO log and access log; remove it: `hl unset proxy log_level`",
+	"apps.*.prefix": "path routing serves an app at /<app>; `hl set <app> name=<new>` changes it (or `hl set <app> routing=host`); " +
+		"remove it: `hl unset <app> prefix`",
 	"apps.*.env_files": "keep secrets in the app's own " + defaults.AppEnvFile + " (hl reads it) and the rest in its env " +
 		"(`hl set <app> env.NAME=value`); remove it: `hl unset <app> env_files`",
 }

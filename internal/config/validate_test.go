@@ -38,7 +38,7 @@ apps:
 		{5, "proxy.routing", `did you mean "host"?`},
 		{9, "apps.my-app.servce", `did you mean "service"?`},
 		{10, "apps.my-app.port", "from 1 to 65535"},
-		{11, "apps.my-app.prefix", "without a trailing slash"},
+		{11, "apps.my-app.prefix", "removed from hl"},
 		{12, "apps.My App", "use lowercase"},
 		{15, "apps.no-path", "path is required"},
 		{18, "apps.blog.compose", "expected a list"},

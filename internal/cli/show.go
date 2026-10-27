@@ -25,7 +25,7 @@ func showCmd() *cobra.Command {
 		Long: `Show what hl stores in hl.yml and works out from it, without opening the file.
 
 With an app: its folder and compose files, the service and port behind the proxy, routing,
-URL, prefix and host, the data folder, and every variable hl gives its compose files with
+URL and host, the data folder, and every variable hl gives its compose files with
 where the value comes from (hl, the shared env or the app's env). With proxy: its state and
 health, where it listens, every proxy setting, and warnings (a running proxy that predates the
 config, an old image). With no app: the homelab folder, the proxy's settings that hl.yml sets,
@@ -151,9 +151,6 @@ func showApp(ctx context.Context, cfg *config.Config, name string, a *config.App
 		}
 		row("routing", routing, routingFrom)
 		row("url", cfg.URL(name, a)+"/", "")
-		if routing == config.RoutingPath {
-			row("prefix", cfg.Prefix(name, a), setIn(a.Prefix != ""))
-		}
 		if routing == config.RoutingHost {
 			row("host", cfg.Host(name, a), setIn(a.Host != ""))
 		}

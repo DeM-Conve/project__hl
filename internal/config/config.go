@@ -87,8 +87,6 @@ type App struct {
 	Port    int    `yaml:"port,omitempty"`
 	// path, host or none. Default: proxy.routing.
 	Routing string `yaml:"routing,omitempty"`
-	// Path routing: the URL prefix. Default: /<app>.
-	Prefix string `yaml:"prefix,omitempty"`
 	// Host routing: the host name. Default: <app>.<domain>.
 	Host string `yaml:"host,omitempty"`
 	// Settings passed to the app's compose file. Values may use ${HL_URL},
@@ -252,13 +250,11 @@ func (c *Config) Routing(a *App) string {
 	return c.Proxy.Routing
 }
 
-// Prefix is the app's URL prefix under path routing, "" otherwise.
+// Prefix is the app's URL prefix under path routing, /<app>; "" otherwise. Only the app's
+// name changes it (`hl set <app> name=<new>`).
 func (c *Config) Prefix(name string, a *App) string {
 	if c.Routing(a) != RoutingPath {
 		return ""
-	}
-	if a.Prefix != "" {
-		return a.Prefix
 	}
 	return "/" + name
 }
@@ -615,7 +611,6 @@ func (c *Config) Validate() error {
 	}
 
 	ids := map[string]string{}
-	prefixes := map[string]string{}
 	hosts := map[string]string{}
 	for _, name := range c.Names() {
 		a := c.Apps[name]
@@ -641,9 +636,6 @@ func (c *Config) Validate() error {
 		default:
 			ps.add(key+".routing", "%q is not path, host or none", a.Routing)
 		}
-		if a.Prefix != "" && !prefixRE.MatchString(a.Prefix) {
-			ps.add(key+".prefix", "%q must look like /name, without a trailing slash", a.Prefix)
-		}
 		if a.Host != "" && !hostRE.MatchString(a.Host) {
 			ps.add(key+".host", "%q is not a host name like %s.example.com", a.Host, name)
 		}
@@ -658,13 +650,8 @@ func (c *Config) Validate() error {
 				ps.add(key+".env."+k, "%q is not a valid variable name", k)
 			}
 		}
+		// Path routing needs no check: the prefix is /<app>, and app names differ.
 		switch routing {
-		case RoutingPath:
-			pre := c.Prefix(name, a)
-			if other, ok := prefixes[pre]; ok {
-				ps.add(key, "has the same URL prefix %s as %q - give it another: `hl set %s prefix=/<path>`", pre, other, name)
-			}
-			prefixes[pre] = name
 		case RoutingHost:
 			h := strings.ToLower(c.Host(name, a))
 			if other, ok := hosts[h]; ok {

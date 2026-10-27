@@ -24,7 +24,7 @@ hl set proxy port=8080 bind=0.0.0.0                    # the proxy
 hl set env.TZ=Europe/Berlin                            # the homelab: env every app gets
 hl set projects+=~/src ignore+='scratch-*' scan_depth=2
 
-hl unset my-app prefix env.TZ                          # back to the defaults
+hl unset my-app routing env.TZ                         # back to the defaults
 hl unset proxy port
 hl unset env.TZ
 ```
@@ -99,12 +99,11 @@ folder with that name.
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `name` | the folder's name, less a `strip_prefix` | The app's name. On `hl add` it names the new app; `hl set <app> name=<new>` (on its own) renames one: it keeps its settings, and its `data/<app>/` and `.hl/<app>/` move along. Refused while the app has containers (`hl down <app>` first), when `data/<new>/` exists, and for a name `hl add` would refuse. The new name changes the default `prefix` and `host`, and the Docker project. |
+| `name` | the folder's name, less a `strip_prefix` | The app's name. On `hl add` it names the new app; `hl set <app> name=<new>` (on its own) renames one: it keeps its settings, and its `data/<app>/` and `.hl/<app>/` move along. Refused while the app has containers (`hl down <app>` first), when `data/<new>/` exists, and for a name `hl add` would refuse. The new name changes the app's URL path (`/<name>`), its default `host`, and the Docker project. |
 | `path` | required | The app's folder. `hl set <app> path=<folder>` takes it relative to the current folder (like `hl add`) and writes it relative to the homelab folder when inside it, else as `~/...` or absolute. |
 | `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and asks for `service=<name>` only when none has one of those names. `hl add` writes it. |
 | `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `port=<port>`). `hl add` writes it. |
 | `routing` | `proxy.routing` | `path`, `host` or `none` (not behind the proxy). |
-| `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
 | `host` | `<name>.<domain>` | Host routing: the host name. Use it to give one app its own host name (say `photos.example.com`) instead of `<name>.<domain>`. |
 | `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order (a list). `compose+=compose.dev.yml` on an app that names none starts from the file compose picks, so it adds an override instead of replacing it. |
 | `env.NAME` | none | Variables for the app's compose file (`env.MY_APP_BASE_PATH='${HL_PREFIX}'`). Values can use the [variables hl provides](#variables-hl-provides) and your shell's variables. They are compose interpolation variables: they reach a container only through the app's compose file (`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`). |
@@ -305,7 +304,7 @@ apps:
 ```
 
 - **Checked on every command.** Unknown keys (with a "did you mean"), wrong types, bad values and
-  clashes between apps (same Docker project, URL prefix or host name) are all reported at once,
+  clashes between apps (same Docker project or host name) are all reported at once,
   each with its line and a fix, and the command stops. `hl doctor` lists them too.
 - **`version: 1`** is the format. A file without it keeps working; the first time hl changes the
   file it adds `version: 1` and says so. A file with a newer version than your hl understands is

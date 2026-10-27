@@ -85,7 +85,7 @@ apps:
   my-app.io: {path: ../my-app}
   blog: {path: /srv/blog, routing: host}
   wiki: {path: wiki, routing: host, host: wiki.example.com}
-  api: {path: api, prefix: /v1/api}
+  api: {path: api}
   db: {path: db, routing: none}
 `)
 	c, err := Load(dir)
@@ -96,7 +96,7 @@ apps:
 		{"my-app.io", "http://localhost:8080/my-app.io", "/my-app.io"},
 		{"blog", "http://blog.localhost:8080", ""},
 		{"wiki", "http://wiki.example.com:8080", ""},
-		{"api", "http://localhost:8080/v1/api", "/v1/api"},
+		{"api", "http://localhost:8080/api", "/api"},
 		{"db", "", ""},
 	}
 	for _, tc := range cases {
@@ -122,7 +122,7 @@ func TestValidate(t *testing.T) {
 		"apps: {Bad: {path: x}}",
 		"apps: {a: {}}",
 		"apps: {a: {path: x, routing: sideways}}",
-		"apps: {a: {path: x, prefix: /trailing/}}",
+		"apps: {a: {path: x, prefix: /a}}", // a removed key
 	} {
 		if _, err := Load(write(t, body)); err == nil {
 			t.Errorf("%q: expected an error", body)
@@ -206,7 +206,6 @@ func TestValidateValuesAndClashes(t *testing.T) {
 		{"apps: {a: {path: x, service: '-it'}}", "apps.a.service"},
 		{"apps: {a: {path: x, env: {'1BAD': v}}}", "apps.a.env.1BAD"},
 		{"apps: {a.b: {path: x}, a-b: {path: y}}", "runs as the same Docker project"},
-		{"apps: {a: {path: x, prefix: /p}, b: {path: y, prefix: /p}}", "same URL prefix /p"},
 		{"apps: {a: {path: x, routing: host, host: h.example}, b: {path: y, routing: host, host: h.example}}", "same host h.example"},
 	} {
 		_, err := Load(write(t, c.body))

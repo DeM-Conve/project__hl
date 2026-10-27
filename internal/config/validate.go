@@ -151,7 +151,6 @@ var (
 	yamlLineRE = regexp.MustCompile(`^yaml: line (\d+): (.*)$`)
 	nameRE     = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 	labNameRE  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-	prefixRE   = regexp.MustCompile(`^(/[A-Za-z0-9._~-]+)+$`)
 	hostRE     = regexp.MustCompile(`^(?i)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
 	serviceRE  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 	envKeyRE   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -236,12 +235,6 @@ var rules = map[string]rule{
 	},
 	"apps.*.routing": oneOf(RoutingPath, RoutingHost, RoutingNone),
 	"apps.*.port":    portRule,
-	"apps.*.prefix": func(v string) string {
-		if v != "" && !prefixRE.MatchString(v) {
-			return fmt.Sprintf("%q must look like /name, without a trailing slash - e.g. /my-app", v)
-		}
-		return ""
-	},
 }
 
 // required are the keys a mapping at that path must have, with a hint for the value.

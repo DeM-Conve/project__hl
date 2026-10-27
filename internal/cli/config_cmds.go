@@ -131,7 +131,7 @@ func unsetCmd() *cobra.Command {
 routing falls back to proxy.routing). ` + scopesHelp() + `
 env.NAME removes one env setting, env removes them all.
 
-  hl unset my-app prefix env.TZ
+  hl unset my-app routing env.TZ
   hl unset proxy port
   hl unset env.TZ`,
 		Args:              cobra.MinimumNArgs(1),
@@ -498,7 +498,7 @@ func renameApp(ctx context.Context, home, old, new string) error {
 		return withHint(fmt.Errorf("%s exists already, and %s's data would move there", newData, old),
 			"move or remove that folder, or pick another name")
 	}
-	// hl.yml first: it is checked (a clash with another app's prefix, host or project) and
+	// hl.yml first: it is checked (a clash with another app's host or project) and
 	// nothing has moved if it is refused.
 	if err := config.RenameApp(home, old, new); err != nil {
 		return withHint(err, "pick another name: hl set %s name=<name>", old)

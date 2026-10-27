@@ -188,6 +188,9 @@ release differs from earlier builds of `main`.
   starts with a `# yaml-language-server: $schema=...` line. It only served editing the file by
   hand; hl checks `hl.yml` itself on every command. Remove that line from an existing `hl.yml`
   if you added it (it is a comment, so it does no harm, but the URL no longer resolves).
+- **Breaking:** the app key `prefix` is gone: path routing serves an app at `/<app>`, and
+  `hl set <app> name=<new>` changes that (or `hl set <app> routing=host`). An `hl.yml` that still
+  has it is refused with a message naming `hl unset <app> prefix`.
 - **Breaking:** the app key `env_files` is gone. Keep an app's secrets in its own `.env` (hl
   reads it, as compose does) and anything else in its env (`hl set <app> env.NAME=value`). An
   `hl.yml` that still has it is refused with a message naming `hl unset <app> env_files`.

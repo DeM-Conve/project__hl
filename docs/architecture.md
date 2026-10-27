@@ -122,8 +122,9 @@ no file provider and no way to use a file of one's own: `proxy.config`, `proxy.d
 `proxy.dashboard`, `proxy.dashboard_public`, `proxy.access_log` and `proxy.log_level` were removed
 on 2026-10-27; `config.removedKeys` makes `Check` report each as removed, with the
 `hl unset proxy <key>` that drops it (`config.Edit` accepts unsetting them). The same map holds
-`proxy.network`, `proxy.project` and the app key `env_files` (as `apps.*.env_files`; `Check`
-looks keys up by their pattern, `EditApp` accepts unsetting it).
+`proxy.network`, `proxy.project` and the app keys `env_files` and `prefix` (as `apps.*.<key>`;
+`Check` looks keys up by their pattern, `EditApp` accepts unsetting them). Path routing serves
+every app at `/<app>` (`Config.Prefix`); only a rename changes it.
 
 **`.hl/proxy/compose.yml`** (`gen.Proxy`): compose project `hl-proxy` (`hl-<name>-proxy`),
 one `traefik` service, `restart: unless-stopped`, no `command:` - Traefik reads its static config
@@ -359,7 +360,7 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
   in front (`seedCompose`, not printed as a change), so the list starts from it. `hl set <app>
   name=<new>` (alone) is a rename (`renameApp`): `ValidName`, no such app, no containers of the
   old or new Docker project in the inventory, no `data/<new>`; then `config.RenameApp` changes
-  the key in the node tree (checked like any edit, so a clash of prefix, host or project is
+  the key in the node tree (checked like any edit, so a clash of host or project is
   refused), and `data/<old>` and `.hl/<old>` are renamed (a failed data move puts hl.yml
   back). `ignore` holds folder names, which a rename doesn't change. A missing `proxy:` or
   shared `env:` is added above `apps:`, and a `proxy:` left empty by an unset is removed. A
@@ -397,10 +398,10 @@ encoder's output (a blank line inside a block scalar), the encoder's output is w
 `Config` type by reflection (yaml tags give the known keys, so a new field needs no checker
 change), reporting syntax errors, unknown keys with a Levenshtein "did you mean", keys set twice,
 type mismatches, required keys, and per-key rules (`rules`, keyed by path with app names as `*`:
-routing values, ports, prefix, app names, version; removed keys). If the walk
+routing values, ports, app names, version; removed keys). If the walk
 finds nothing it decodes and runs `Validate`, which collects every value problem and clash (bind
 is an IP, domain/host names, subnet, image, env names,
-two apps with the same Docker project, URL prefix or host) as `Problem`s keyed by path; `check`
+two apps with the same Docker project or host) as `Problem`s keyed by path; `check`
 gives them the line of their key. `Load` calls it, so every command reports unknown keys and bad
 values with their lines.
 

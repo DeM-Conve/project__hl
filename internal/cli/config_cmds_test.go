@@ -247,7 +247,7 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 		t.Errorf("complete set proxy:\n%s", out)
 	}
 	out, _ = run(t, "", "__complete", "unset", "my-app", "")
-	if !strings.Contains(out, "prefix\n") || strings.Contains(out, "subnet") {
+	if !strings.Contains(out, "routing\n") || strings.Contains(out, "subnet") || strings.Contains(out, "prefix") {
 		t.Errorf("complete unset my-app:\n%s", out)
 	}
 	out, _ = run(t, "", "__complete", "set", "env.TZ=UTC", "")
