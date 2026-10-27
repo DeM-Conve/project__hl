@@ -76,7 +76,7 @@ type Proxy struct {
 	Config string `yaml:"config,omitempty"`
 	// A Traefik dynamic config file (file provider) for routes that aren't hl apps.
 	Dynamic string `yaml:"dynamic,omitempty"`
-	// Traefik's access log, on the proxy's output (hl proxy logs).
+	// Traefik's access log, on the proxy's output (hl logs proxy).
 	AccessLog bool `yaml:"access_log,omitempty"`
 	// Traefik's log level (default ERROR).
 	LogLevel string `yaml:"log_level,omitempty"`

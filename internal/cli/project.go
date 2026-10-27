@@ -199,8 +199,8 @@ func ensureProxy(ctx context.Context, cfg *config.Config, inv *inventory) error 
 	return startProxy(ctx, cfg, p)
 }
 
-// startProxy checks the port and the network, then starts the proxy.
-func startProxy(ctx context.Context, cfg *config.Config, p *compose.Project) error {
+// startProxy checks the port and the network, then starts the proxy; args go to compose up.
+func startProxy(ctx context.Context, cfg *config.Config, p *compose.Project, args ...string) error {
 	if err := checkPort(ctx, cfg); err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func startProxy(ctx context.Context, cfg *config.Config, p *compose.Project) err
 		return err
 	}
 	step("proxy")
-	if err := p.Run(ctx, "up", "--detach"); err != nil {
+	if err := p.Run(ctx, append([]string{"up", "--detach"}, args...)...); err != nil {
 		return fmt.Errorf("starting the proxy: %w", err)
 	}
 	return nil

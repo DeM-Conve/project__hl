@@ -433,9 +433,9 @@ func TestShow(t *testing.T) {
 		"  b: {path: '"+b+"', routing: host, service: api, port: 3000}\n")
 
 	r := f.must("show")
-	contains(t, "show", r.out, "homelab", lab, "env ($HL_HOME)", "port", "8082", "hl.yml", "bind", "127.0.0.1", "default",
+	contains(t, "show", r.out, "homelab", lab, "env ($HL_HOME)", "port", "8082", "hl.yml", "listen", "http://127.0.0.1:8082", "hl show proxy",
 		"TZ=UTC", "LANG=C", "http://localhost:8082/a/", "http://b.localhost:8082/")
-	lacks(t, "show", r.out, "dashboard_public") // options that are off and unset stay out
+	lacks(t, "show", r.out, "bind", "dashboard_public") // settings left at their default are in hl show proxy
 
 	r = f.must("show", "a")
 	contains(t, "show a", r.out, "folder", a, "project", "hl-a", "compose.yml", "found in the folder",
@@ -663,12 +663,12 @@ func TestPsShellOpenConfigPath(t *testing.T) {
 	}
 }
 
-func TestProxyCommands(t *testing.T) {
+func TestProxyIsAPseudoApp(t *testing.T) {
 	f := newFake(t)
 	lab := f.lab("lab", "proxy: {port: 8080, subnet: 172.29.0.0/16}\napps: {}\n")
 	f.on(rule{Match: []string{"network ls"}, Stdout: "n1\nn2\n"})
 	f.on(rule{Match: []string{"network inspect", "n1"}, Stdout: "bridge\t172.17.0.0/16 \nmine\t172.29.5.0/24 \n"})
-	r := f.hl("proxy", "up")
+	r := f.hl("up", "proxy")
 	if r.code != 1 {
 		t.Fatalf("subnet clash: %s", r)
 	}
@@ -677,7 +677,7 @@ func TestProxyCommands(t *testing.T) {
 	f.lab("lab", "proxy: {port: 8080}\napps: {}\n")
 	portInUse = func(bind string, port int) bool { return port == 8080 }
 	f.on(rule{Match: []string{"ps --filter publish=8080"}, Stdout: "some-nginx\n"})
-	r = f.hl("proxy", "up")
+	r = f.hl("up", "proxy")
 	if r.code != 1 {
 		t.Fatalf("port in use: %s", r)
 	}
@@ -685,27 +685,50 @@ func TestProxyCommands(t *testing.T) {
 
 	portInUse = func(string, int) bool { return false }
 	f.reset()
-	f.must("proxy", "up")
+	r = f.must("up", "proxy")
 	if u := f.find("--project-name hl-proxy", "up --detach"); len(u) != 1 {
-		t.Errorf("proxy up: %v", f.calls())
+		t.Errorf("up proxy: %v", f.calls())
 	}
+	if u := f.find("compose", "up"); len(u) != 1 {
+		t.Errorf("up proxy started more than the proxy: %v", u)
+	}
+	contains(t, "up proxy", r.out, "proxy", "no apps yet")
 	contains(t, "proxy compose", f.read(filepath.Join(lab, ".hl", "proxy", "compose.yml")), "'127.0.0.1:8080:80'")
 	lacks(t, "proxy compose", f.read(filepath.Join(lab, ".hl", "proxy", "compose.yml")), "api@internal")
 
 	f.containers(ctr("hl-proxy", "traefik", "running", "Up", filepath.Join(lab, ".hl", "proxy", "compose.yml")))
-	f.must("proxy", "logs")
-	f.must("proxy", "down")
-	if d := f.find("--project-name hl-proxy", "down"); len(d) != 1 {
-		t.Errorf("proxy down: %v", f.calls())
+	f.reset()
+	f.must("up", "proxy")
+	f.must("restart", "proxy")
+	f.must("rebuild", "proxy")
+	f.must("logs", "proxy", "-f", "-n", "5")
+	f.must("down", "proxy")
+	for _, want := range [][]string{
+		{"--project-name hl-proxy", "up --detach"},
+		{"--project-name hl-proxy", "restart"},
+		{"--project-name hl-proxy", "up --detach --force-recreate"},
+		{"--project-name hl-proxy", "logs --tail 5 --follow"},
+		{"--project-name hl-proxy", "down"},
+	} {
+		if c := f.find(want...); len(c) == 0 {
+			t.Errorf("want a call with %q: %v", want, f.calls())
+		}
 	}
-	f.must("proxy", "status")
-	f.must("proxy", "config")
-	f.must("config", "proxy")
-	r = f.must("proxy")
-	contains(t, "proxy help", r.out, "Available Commands")
-	if r := f.hl("proxy", "sideways"); r.code != 2 {
-		t.Errorf("unknown proxy command: %s", r)
+
+	r = f.must("show", "proxy")
+	contains(t, "show proxy", r.out, "listen", "http://127.0.0.1:8080", "port", "8080", "hl.yml", "image", "default", "traefik config")
+	for _, args := range [][]string{{"proxy"}, {"proxy", "up"}, {"shell", "proxy"}, {"open", "proxy"}} {
+		if r := f.hl(args...); r.code == 0 {
+			t.Errorf("hl %v: want an error: %s", args, r)
+		}
 	}
+	r = f.hl("shell", "proxy")
+	contains(t, "shell proxy", r.errOut, "the proxy is not an app here", "hl logs proxy")
+
+	out := f.must("__complete", "up", "").out
+	contains(t, "complete up", out, "proxy")
+	out = f.must("__complete", "logs", "proxy", "").out
+	lacks(t, "complete logs proxy", out, "traefik")
 }
 
 func TestDoctor(t *testing.T) {

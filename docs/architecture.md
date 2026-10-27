@@ -117,7 +117,7 @@ no `traefik.yml` (and removes a stale one); it reads the user's file and `gen.Ch
 problems (no `entryPoints.web` on port 80, no `providers.docker`, `providers.docker.network` not
 `proxy.network`, `proxy.dynamic` set but no `providers.file` reading it) that stop every proxy
 command, and warnings (`exposedByDefault` not false, no `api.dashboard` while the dashboard is on,
-no `ping`, so no healthcheck) shown by `hl proxy status`, `hl config proxy` and `hl doctor`. Keys
+no `ping`, so no healthcheck) shown by `hl show proxy`, `hl config proxy` and `hl doctor`. Keys
 are matched case-insensitively, like Traefik does. `proxy.access_log` and `proxy.log_level` are
 config errors together with `proxy.config`.
 
@@ -131,15 +131,15 @@ mounted, `Validate` requires `proxy.dynamic` in a subfolder of the homelab that 
 folder itself, `data/` or `.hl/`. When the static
 config has `ping`, the service gets a healthcheck (`traefik healthcheck --ping`). A label
 `hl.static-config: <hash of the static config>` makes compose recreate the container on
-`hl proxy up` when only the file changed (Traefik doesn't reload static config). The dashboard
+`hl up proxy` when only the file changed (Traefik doesn't reload static config). The dashboard
 router labels (``Host(`traefik.<domain>`)``, `api@internal`) are there when the dashboard is on.
 The `networks:` section (name, and `ipam` subnet when `proxy.subnet` is set) is byte-for-byte what
 earlier versions wrote, so upgrading keeps the existing network and its subnet
 (`internal/gen/proxy_migration_test.go` compares the old flag-based setup with the new one). There
 is no TLS entrypoint.
 
-**Upgrading from the flag-based proxy**: a running proxy keeps running until the next `hl proxy up`
-(or `hl down` and `hl up`), which recreates only the container; `hl proxy status` says when the
+**Upgrading from the flag-based proxy**: a running proxy keeps running until the next `hl up proxy`
+(or `hl down` and `hl up`), which recreates only the container; `hl show proxy` says when the
 running proxy predates the current config (compose's `config-hash` label vs `docker compose config
 --hash traefik`).
 
@@ -195,16 +195,24 @@ warns. `--no-env` passes no `VarsFunc`. Kept apps are never re-mapped.
   exists, belongs to `proxy.project`; otherwise it stops with the fix (another `proxy.project`,
   `proxy.network` and `proxy.port`), so a second homelab never stops or reconfigures the first one's
   proxy. Without Docker the check is skipped.
-- `proxy status`: state and health of the proxy container, image (and the configured one if they
-  differ), listen address, static config file and its source, dynamic file, dashboard URL, access
-  log, the config warnings, a clash, an image older than `config.TestedTraefikVersion`, and whether
-  the running container predates the config. `proxy config` and `config proxy` print the static
-  config file with its path.
+- **The proxy as a pseudo-app**: `proxy` is the reserved app name, so `up`, `down`, `restart`,
+  `rebuild`, `logs` and `show` take it among their arguments (`splitProxy`); the proxy runs first,
+  then any apps named with it. `up proxy` (`upProxy`) starts it, or runs `up --detach` on a running
+  one so compose recreates it only when its files changed; `rebuild proxy` adds
+  `--force-recreate`; `restart proxy` restarts its container (starting it when it isn't running);
+  `down proxy` is `downProxy`; `logs proxy` runs `docker compose logs` on it. Other commands that
+  take an app refuse it with a hint (`targets`). Completion offers `proxy` where it is accepted.
+- `show proxy` (`showProxy`): state and health of the proxy container, listen address, every
+  `proxy.*` setting with its source (`config.Settings`) and the running image when it differs,
+  the static config file and its source, dashboard URL, the config warnings, a clash, an image
+  older than `config.TestedTraefikVersion`, and whether the running container predates the config
+  (compose's `config-hash` label vs `docker compose config --hash traefik`). `config proxy` prints
+  the static config file with its path.
 - `doctor` also checks the proxy config (as above), the project/network ownership, and warns (not a
   failure) when `proxy.image` is older than the tested Traefik or its version can't be told.
 - `up`/`start`, `rebuild`, `update` and `restart` start the proxy first if none of its containers
   runs (`ensureProxy`), because each override joins the proxy network as `external`. Before
-  starting it (`startProxy`, also `hl proxy up`): `checkPort` - something else on `bind:port`?
+  starting it (`startProxy`, also `hl up proxy`): `checkPort` - something else on `bind:port`?
   (`net.Listen`; when hl may not open a low port, a connect instead), named by `docker ps --filter
   publish=<port>`, else `lsof`, else `ss`, with a free port suggested - and `checkNetwork` - with
   `proxy.subnet` set, the proxy network existing with another subnet, or the subnet overlapping
@@ -295,7 +303,7 @@ normalises indentation to two spaces).
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,
   so it is the shared scope; for `unset`, `env`/`env.NAME` is the shared scope unless an app has
   that name (`config.HasApp`). It then prints what applies the change (`applyCommand`:
-  `hl up <app>`, `hl up`, `hl proxy up`, or `hl down` then `hl up` when the proxy's network,
+  `hl up <app>`, `hl up`, `hl up proxy`, or `hl down` then `hl up` when the proxy's network,
   subnet or project changed).
 - `hl edit` copies `hl.yml` to `.hl/edit/hl.yml`, runs `$VISUAL`/`$EDITOR`/`vi` on it (through
   `sh -c`, so the variable may carry arguments), and `config.Replace`s `hl.yml` only when the copy

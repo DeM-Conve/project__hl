@@ -272,7 +272,7 @@ proxy:
   # subnet: 172.31.0.0/16  # fixed subnet, so apps can trust the proxy by address
   # image: traefik:v3.6.25  # default: the Traefik version hl is tested with
   # project: hl-proxy      # the proxy's compose project (hl-<name>-proxy with name)
-  # access_log: false      # Traefik's access log, shown by hl proxy logs
+  # access_log: false      # Traefik's access log, shown by hl logs proxy
   # log_level: ERROR       # Traefik's log level
   # config: traefik.yml    # your own Traefik static config instead of the generated one
   # dynamic: proxy/dynamic.yml  # Traefik dynamic config (file provider) for routes that aren't hl apps
@@ -331,7 +331,7 @@ changes its project names: run `hl down` before adding it, then `hl up`.
 | `subnet` | none (Docker picks) | Fixed subnet for that network, e.g. `172.31.0.0/16`, so an app can trust `X-Forwarded-For` from the proxy's address range. Before creating the network hl checks it doesn't overlap another Docker network or one of this machine's, and suggests a free one if it does. |
 | `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. |
 | `project` | `hl-proxy` (`hl-<name>-proxy` with `name`) | The proxy's compose project. Two homelabs on one machine need different projects, networks and ports: set [`name`](#name-several-homelabs-on-one-docker) and `port`, or all three of these. hl refuses to touch a proxy or network another homelab runs and says so. |
-| `access_log` | `false` | Traefik's access log, in `hl proxy logs`. Not allowed with `config` (set `accessLog` in your file). |
+| `access_log` | `false` | Traefik's access log, in `hl logs proxy`. Not allowed with `config` (set `accessLog` in your file). |
 | `log_level` | `ERROR` | Traefik's log level: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL` or `PANIC`. Not allowed with `config`. |
 | `config` | none (generated) | Your own Traefik static config file, relative to the homelab folder, used instead of the generated `.hl/proxy/traefik.yml`. hl checks it has the `web` entrypoint on `:80` and `providers.docker` with `network:` set to `proxy.network`, and says what is missing. |
 | `dynamic` | none | A Traefik dynamic config file (file provider) for routes that aren't hl apps: another machine, a NAS, redirects. It must be in a subfolder of the homelab (not the homelab folder itself, `data/` or `.hl/`), e.g. `proxy/dynamic.yml`: hl mounts that folder read-only into the proxy, and Traefik picks up edits without a restart. |
@@ -342,8 +342,8 @@ changes its project names: run `hl down` before adding it, then `hl up`.
 `.hl/proxy/traefik.yml`, generated from these settings (entrypoints, the Docker provider, the
 dashboard, logs, `ping` for the proxy's healthcheck); `hl config proxy` prints it. With `config`
 set, your file is used instead. `hl set proxy key=value` and `hl unset proxy key` change these
-settings; after changing them, `hl proxy up` applies them;
-`hl proxy status` says when the running proxy is behind.
+settings; after changing them, `hl up proxy` applies them;
+`hl show proxy` says when the running proxy is behind.
 
 ### `env`
 
@@ -469,7 +469,7 @@ today and not `hl.yml` settings (some have a command-line flag):
 | `traefik.<domain>` | the dashboard's host name, when `proxy.dashboard` is on |
 | healthcheck every 10s, timeout 5s, 3 retries, start period 5s | the proxy container's healthcheck (`traefik healthcheck --ping`) |
 | `unless-stopped` | the proxy container's restart policy |
-| `200` | lines shown by `hl logs` (change with `--tail`) and `hl proxy logs` |
+| `200` | lines shown by `hl logs` and `hl logs proxy` (change with `--tail`) |
 | `2m` | how long `--wait` waits for each app (change with `--wait-timeout`) |
 | `20` | log lines `--wait` shows for each service that didn't become healthy |
 | `8080` | the proxy port `hl init` offers when the default one is in use |
@@ -491,7 +491,9 @@ colours are also off when output isn't a terminal).
 ## Commands
 
 Every command takes `--home <folder>` to pick the homelab. Commands that take `[app...]` act on
-every app when none is named; they carry on past an app that fails and end with
+every app when none is named; `up`, `down`, `restart`, `rebuild`, `logs` and `show` also take
+`proxy` to act on the proxy alone (`hl up proxy` applies changed proxy settings,
+`hl logs proxy -f` follows Traefik's log). Multi-app commands carry on past an app that fails and end with
 `n of m apps failed: ...`. `hl up` and `hl down` are safe to repeat. `hl --help` and
 `hl <command> --help` list every flag.
 
@@ -504,7 +506,7 @@ every app when none is named; they carry on past an app that fails and end with
 | `hl strip-prefix [list]`, `hl strip-prefix add\|remove <prefix>...` | List, add or remove `strip_prefix` entries. Apps already added keep their names. |
 | `hl add <folder>` | Add an app. Flags: `--name`, `--routing path\|host\|none`, `--prefix`, `--host`, `--service`, `--port`, `--compose a.yml,b.yml`, `--env KEY=VALUE` (repeatable; sets `apps.<name>.env` and wins over the mapped values), `--no-env` (don't [fill in env](#env-hl-fills-in) from the compose file's variables). When several services or ports could be the one to route, it asks on a terminal; without one it takes the service with a usual web name (with a note) and otherwise names the flag to pass. |
 | `hl set <app> key=value...` | Change an app's settings in `hl.yml`: `routing`, `prefix`, `host`, `port`, `service`, `path`, `compose` and `env_files` (comma-separated), `env.NAME`. Keeps comments; writes only a valid result. `hl up <app>` applies it. |
-| `hl set proxy key=value...` | Change the proxy's settings: every `proxy.*` key, e.g. `hl set proxy port=8080 bind=0.0.0.0 subnet=172.31.0.0/16`; switches take `true`/`false`. hl says what applies it (`hl proxy up`, or `hl down` then `hl up` for `network`, `subnet` or `project`). |
+| `hl set proxy key=value...` | Change the proxy's settings: every `proxy.*` key, e.g. `hl set proxy port=8080 bind=0.0.0.0 subnet=172.31.0.0/16`; switches take `true`/`false`. hl says what applies it (`hl up proxy`, or `hl down` then `hl up` for `network`, `subnet` or `project`). |
 | `hl set env.NAME=value...` | With no app: the shared `env` every app gets, e.g. `hl set env.TZ=Europe/Berlin`. An app's own `env` wins. `hl up` applies it. |
 | `hl unset [<app>\|proxy] key...` | Remove settings of an app, the proxy (`hl unset proxy port`) or the shared env (`hl unset env.TZ`) so their defaults apply again; `env.NAME` removes one variable, `env` all. |
 | `hl edit` | The fallback for what `hl set`/`hl unset` don't cover (such as `name`, or several changes at once): open `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
@@ -519,15 +521,12 @@ every app when none is named; they carry on past an app that fails and end with
 | `hl ps [app]` | Containers of one app, or of the whole homelab. |
 | `hl open <app>` | Print the app's URL and open it in the browser (only prints when there's no display, e.g. over ssh). |
 | `hl shell <app> [service]` | A shell (`bash`, else `sh`) in a running container; default: the service behind the proxy (the pinned one, or the one hl detects). hl exits with the shell's own exit status. |
-| `hl show [app]` | What hl stores and works out for an app, short and readable: folder, compose files, Docker project, the service and port behind the proxy, routing, URL, prefix or host, data folder, and every variable its compose files can use with where the value comes from (`hl`, the shared env, or the app's env, and which one it overrides). Each value says whether it is from `hl.yml`, a default, or detected from the app's compose config. With no app: the homelab folder, the proxy's settings, the shared env and the apps with their URLs. |
+| `hl show [app\|proxy]` | What hl stores and works out for an app, short and readable: folder, compose files, Docker project, the service and port behind the proxy, routing, URL, prefix or host, data folder, and every variable its compose files can use with where the value comes from (`hl`, the shared env, or the app's env, and which one it overrides). Each value says whether it is from `hl.yml`, a default, or detected from the app's compose config. `hl show proxy`: the proxy's state and health, listen address, every proxy setting with where it comes from (and the running image when it differs), the Traefik config file, and warnings: a running proxy that predates `hl.yml` (apply it with `hl up proxy`), an image older than the tested Traefik, a clash with another homelab. With no app: the homelab folder, the proxy's listen address and the settings `hl.yml` sets, the shared env and the apps with their URLs. |
 | `hl config <app>` | The app's full compose config as hl runs it: its own files plus hl's override. |
-| `hl config proxy` | The proxy's Traefik static config (same as `hl proxy config`). |
+| `hl config proxy` | The proxy's Traefik static config. |
 | `hl config check` | Check `hl.yml`: every problem as `file:line:column: key: message - fix`, unknown keys with "did you mean". Exits 1 when there are problems. |
 | `hl config defaults` | Every setting with a default, the value in effect, and where it comes from. |
 | `hl path [app]` | The app's folder, or the homelab folder: `cd "$(hl path my-app)"`. |
-| `hl proxy up\|down\|logs` | The proxy on its own; `logs` shows its last 200 lines. |
-| `hl proxy status` | The proxy's state and health, image, listen address, config files, dashboard and access log; warns when the running proxy is behind `hl.yml` or its image is older than the tested Traefik. |
-| `hl proxy config` | The Traefik static config the proxy runs with. |
 | `hl doctor` | Check Docker, compose v2.24+, `hl.yml`, the proxy's Traefik config and that its project and network are this homelab's, and that every app's compose config resolves. Warns when `proxy.image` is older than the tested Traefik, and when hl itself is older than the latest release (asked from GitHub with a 3-second limit, silently skipped offline and for development builds; a `go install` of a commit is told how to install a release). |
 | `hl version` (`--version`) | Version, commit, build date, Go version and platform, and whether the build had local changes (paste it into bug reports). `--short` prints only the version. |
 | `hl completion bash\|zsh\|fish\|powershell` | Shell completion script. |
@@ -635,13 +634,13 @@ app's prefix.** The app doesn't know its base path. Set it from `${HL_PREFIX}`
 ([guide](docs/guides/base-path-app.md)), or use host routing for that app.
 
 **404 from the proxy.** Check the app is up (`hl status`) and the URL ends where it should
-(`/my-app/`). `hl proxy logs` shows Traefik's view; `hl config <app>` shows the labels hl added.
+(`/my-app/`). `hl logs proxy` shows Traefik's view; `hl config <app>` shows the labels hl added.
 
 **`http://my-app.localhost` doesn't resolve.** Browsers resolve `*.localhost`; some other tools
 don't. Use the browser, `curl --resolve`, or add the name to `/etc/hosts`.
 
 **`http://traefik.localhost` gives 404.** The dashboard is off by default; set
-`proxy.dashboard: true` and run `hl proxy up`.
+`proxy.dashboard: true` and run `hl up proxy`.
 
 **Permission denied in `data/`.** Containers often change the owner of their data folders. Use
 `sudo` to read or copy them, or set the app's user id if it supports one (many images take

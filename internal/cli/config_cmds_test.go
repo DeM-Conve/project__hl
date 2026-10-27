@@ -209,7 +209,7 @@ func TestSetProxyAndSharedEnv(t *testing.T) {
 		}
 	}
 
-	if out, err := run(t, "", "unset", "proxy", "port"); err != nil || !strings.Contains(out, "unset proxy.port") || !strings.Contains(out, "apply it: hl proxy up\n") {
+	if out, err := run(t, "", "unset", "proxy", "port"); err != nil || !strings.Contains(out, "unset proxy.port") || !strings.Contains(out, "apply it: hl up proxy\n") {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if out, err := run(t, "", "unset", "env.TZ"); err != nil || !strings.Contains(out, "unset env.TZ") {

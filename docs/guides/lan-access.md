@@ -20,7 +20,7 @@ That writes `bind: 0.0.0.0` under `proxy:` in `hl.yml`; `hl unset proxy bind` go
 Restart the proxy so it picks up the new address:
 
 ```sh
-hl proxy down
+hl down proxy
 hl up
 ```
 
@@ -71,4 +71,4 @@ has no login and shows every route and service.
 
 ## Going back
 
-Set `bind: 127.0.0.1` (or remove the line), then `hl proxy down && hl up`.
+Set `bind: 127.0.0.1` (or remove the line), then `hl down proxy && hl up`.

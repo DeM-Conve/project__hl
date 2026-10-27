@@ -110,7 +110,7 @@ const (
 	ExampleDynamicFile = "proxy/dynamic.yml"
 
 	// StaticConfigLabel holds a hash of the static config on the proxy
-	// container, so a changed file recreates the container on `hl proxy up`.
+	// container, so a changed file recreates the container on `hl up proxy`.
 	StaticConfigLabel = "hl.static-config"
 )
 

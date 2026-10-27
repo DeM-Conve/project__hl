@@ -62,5 +62,5 @@ body:
     id: more
     attributes:
       label: Anything else
-      description: Logs (`hl logs <app>`, `hl proxy logs`), `hl config <app>` output, screenshots.
+      description: Logs (`hl logs <app>`, `hl logs proxy`), `hl config <app>` output, screenshots.
       render: text

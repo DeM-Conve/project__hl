@@ -20,7 +20,7 @@ func TestDockerHint(t *testing.T) {
 		"yaml: unknown tag !reset":                                               "v2.24",
 		"Pool overlaps with other one on this address space":                     "proxy.subnet",
 		"could not find an available, non-overlapping IPv4 address pool":         "docker network prune",
-		"network hl-proxy declared as external, but could not be found":          "hl proxy up",
+		"network hl-proxy declared as external, but could not be found":          "hl up proxy",
 		`Conflict. The container name "/x" is already in use by container "abc"`: "docker rm -f",
 		"pull access denied for nope, repository does not exist":                 "docker login",
 		"write /var/lib/docker/x: no space left on device":                       "disk is full",

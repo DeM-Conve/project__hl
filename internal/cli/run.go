@@ -180,31 +180,64 @@ func uniq(s []string) []string {
 	return out
 }
 
-// appsCmd is a command over [app...] (all by default).
-func appsCmd(use, short string, run func(ctx context.Context, cfg *config.Config, names []string) error) *cobra.Command {
+// splitProxy takes the proxy out of a command's arguments: up, down, restart, rebuild, logs and
+// show take it like an app (it is a reserved app name, so no app has it).
+func splitProxy(args []string) (withProxy bool, apps []string) {
+	for _, a := range args {
+		if a == proxyArg {
+			withProxy = true
+		} else {
+			apps = append(apps, a)
+		}
+	}
+	return withProxy, apps
+}
+
+// appsCmd is a command over [app...] (all by default) that also takes the proxy: withProxy
+// says it was named, names are the apps (none when only the proxy was named).
+func appsCmd(use, short string, run func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error) *cobra.Command {
 	return &cobra.Command{
-		Use:               use + " [app...]",
+		Use:               use + " [app...|proxy]",
 		Short:             short,
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeTargets,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
 			if err != nil {
 				return err
 			}
-			names, err := targets(cfg, args)
-			if err != nil {
-				return err
+			withProxy, apps := splitProxy(args)
+			var names []string
+			if !withProxy || len(apps) > 0 {
+				if names, err = targets(cfg, apps); err != nil {
+					return err
+				}
 			}
-			return run(cmd.Context(), cfg, names)
+			return run(cmd.Context(), cfg, withProxy, names)
 		},
 	}
+}
+
+// proxyThenApps runs proxyRun when the proxy was named, then apps when an app was named too,
+// or none was.
+func proxyThenApps(withProxy bool, names []string, proxyRun, apps func() error) error {
+	if withProxy {
+		if err := proxyRun(); err != nil {
+			return err
+		}
+		if len(names) == 0 {
+			return nil
+		}
+	}
+	return apps()
 }
 
 func upCmd() *cobra.Command {
 	var w waitFlags
 	c := appsCmd("up", "Start apps (all by default), the proxy first; builds images that don't exist yet",
-		func(ctx context.Context, cfg *config.Config, names []string) error {
-			err := eachApp(ctx, cfg, names, true, &w, "up", "--detach")
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+			err := proxyThenApps(withProxy, names,
+				func() error { return upProxy(ctx, cfg) },
+				func() error { return eachApp(ctx, cfg, names, true, &w, "up", "--detach") })
 			return statusAfter(ctx, cfg, err)
 		})
 	c.Aliases = []string{"start"}
@@ -215,8 +248,10 @@ func upCmd() *cobra.Command {
 func rebuildCmd() *cobra.Command {
 	var w waitFlags
 	c := appsCmd("rebuild", "Rebuild apps' images from their folders' current code, then restart them",
-		func(ctx context.Context, cfg *config.Config, names []string) error {
-			err := eachApp(ctx, cfg, names, true, &w, "up", "--detach", "--build")
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+			err := proxyThenApps(withProxy, names,
+				func() error { return upProxy(ctx, cfg, "--force-recreate") },
+				func() error { return eachApp(ctx, cfg, names, true, &w, "up", "--detach", "--build") })
 			return statusAfter(ctx, cfg, err)
 		})
 	w.add(c)
@@ -225,9 +260,60 @@ func rebuildCmd() *cobra.Command {
 
 func restartCmd() *cobra.Command {
 	return appsCmd("restart", "Restart apps' containers without rebuilding (the proxy first, like up)",
-		func(ctx context.Context, cfg *config.Config, names []string) error {
-			return eachApp(ctx, cfg, names, true, nil, "restart")
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+			return proxyThenApps(withProxy, names,
+				func() error { return restartProxy(ctx, cfg) },
+				func() error { return eachApp(ctx, cfg, names, true, nil, "restart") })
 		})
+}
+
+// proxyRunning takes the inventory and returns the proxy's project, refusing a proxy another
+// homelab runs; running says whether it runs now.
+func proxyRunning(ctx context.Context, cfg *config.Config) (p *compose.Project, running bool, err error) {
+	inv, err := containers(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := inv.mine(cfg, cfg.ProxyProject(), proxyArg); err != nil {
+		return nil, false, err
+	}
+	if p, err = proxy(cfg); err != nil {
+		return nil, false, err
+	}
+	return p, inv.running(p.Name), nil
+}
+
+// upProxy starts the proxy, or applies a changed config to a running one (compose recreates it
+// only when its files changed, or always with --force-recreate in args).
+func upProxy(ctx context.Context, cfg *config.Config, args ...string) error {
+	p, running, err := proxyRunning(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if !running {
+		return startProxy(ctx, cfg, p, args...)
+	}
+	step(proxyArg)
+	if err := p.Run(ctx, append([]string{"up", "--detach"}, args...)...); err != nil {
+		return fmt.Errorf("starting the proxy: %w", err)
+	}
+	return nil
+}
+
+// restartProxy restarts the proxy's container, or starts it when it isn't running.
+func restartProxy(ctx context.Context, cfg *config.Config) error {
+	p, running, err := proxyRunning(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if !running {
+		return startProxy(ctx, cfg, p)
+	}
+	step(proxyArg)
+	if err := p.Run(ctx, "restart"); err != nil {
+		return fmt.Errorf("restarting the proxy: %w", err)
+	}
+	return nil
 }
 
 // statusAfter prints the status table after a command that started apps.
@@ -244,20 +330,24 @@ func statusAfter(ctx context.Context, cfg *config.Config, err error) error {
 
 func downCmd() *cobra.Command {
 	c := &cobra.Command{
-		Use:               "down [app...]",
+		Use:               "down [app...|proxy]",
 		Aliases:           []string{"stop"},
 		Short:             "Stop and remove apps' containers; data stays. With no app, also stops the proxy",
-		ValidArgsFunction: completeApps,
+		ValidArgsFunction: completeTargets,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			cfg, err := load()
 			if err != nil {
 				return err
 			}
+			withProxy, apps := splitProxy(args)
 			names := cfg.Names()
 			if len(args) > 0 {
-				if names, err = targets(cfg, args); err != nil {
-					return err
+				names = nil
+				if len(apps) > 0 {
+					if names, err = targets(cfg, apps); err != nil {
+						return err
+					}
 				}
 			}
 			inv, err := containers(ctx)
@@ -273,7 +363,7 @@ func downCmd() *cobra.Command {
 					f.add(n, err)
 				}
 			}
-			if len(args) > 0 {
+			if len(args) > 0 && !withProxy {
 				return f.err()
 			}
 			if err := downProxy(ctx, cfg, inv); err != nil {
@@ -336,7 +426,10 @@ func downProxy(ctx context.Context, cfg *config.Config, inv *inventory) error {
 func updateCmd() *cobra.Command {
 	var w waitFlags
 	c := appsCmd("update", "git pull apps' folders (fast-forward only, skips uncommitted changes), then rebuild",
-		func(ctx context.Context, cfg *config.Config, names []string) error {
+		func(ctx context.Context, cfg *config.Config, withProxy bool, names []string) error {
+			if withProxy {
+				return withHint(errors.New("the proxy has no folder to pull"), "`hl up proxy` applies its settings")
+			}
 			if _, err := exec.LookPath("git"); err != nil {
 				return withHint(errors.New("git not found on PATH"), "install git: update pulls each app's folder with it")
 			}
@@ -408,8 +501,8 @@ func logsCmd() *cobra.Command {
 	var follow bool
 	var tail int
 	c := &cobra.Command{
-		Use:   "logs [app] [service...]",
-		Short: "Show an app's logs; with no app, every app's, each line prefixed by its app",
+		Use:   "logs [app|proxy] [service...]",
+		Short: "Show an app's or the proxy's logs; with no app, every app's, each line prefixed by its app",
 		Args: func(cmd *cobra.Command, args []string) error {
 			for _, s := range args[min(1, len(args)):] {
 				if err := config.ValidService(s); err != nil {
@@ -418,7 +511,7 @@ func logsCmd() *cobra.Command {
 			}
 			return nil
 		},
-		ValidArgsFunction: completeAppServices,
+		ValidArgsFunction: completeLogs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			cfg, err := load()
@@ -428,6 +521,13 @@ func logsCmd() *cobra.Command {
 			a := []string{"logs", "--tail", strconv.Itoa(tail)}
 			if follow {
 				a = append(a, "--follow")
+			}
+			if len(args) > 0 && args[0] == proxyArg {
+				p, err := proxy(cfg)
+				if err != nil {
+					return err
+				}
+				return p.Run(ctx, append(a, args[1:]...)...)
 			}
 			if len(args) == 0 {
 				names, err := targets(cfg, nil)
@@ -635,58 +735,4 @@ func shellCmd() *cobra.Command {
 			return err
 		},
 	}
-}
-
-func proxyCmd() *cobra.Command {
-	c := &cobra.Command{
-		Use:   "proxy",
-		Short: "The Traefik proxy on its own",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
-		},
-	}
-	sub := func(use, short string, run func(ctx context.Context, cfg *config.Config, inv *inventory) error) *cobra.Command {
-		return &cobra.Command{
-			Use: use, Short: short, Args: cobra.NoArgs,
-			RunE: func(cmd *cobra.Command, args []string) error {
-				ctx := cmd.Context()
-				cfg, err := load()
-				if err != nil {
-					return err
-				}
-				inv, err := containers(ctx)
-				if err != nil {
-					return err
-				}
-				if err := inv.mine(cfg, cfg.ProxyProject(), "proxy"); err != nil {
-					return err
-				}
-				return run(ctx, cfg, inv)
-			},
-		}
-	}
-	c.AddCommand(
-		sub("up", "Start the proxy", func(ctx context.Context, cfg *config.Config, inv *inventory) error {
-			p, err := proxy(cfg)
-			if err != nil {
-				return err
-			}
-			if inv.running(p.Name) {
-				// Recreate it only if the generated file changed.
-				return p.Run(ctx, "up", "--detach")
-			}
-			return startProxy(ctx, cfg, p)
-		}),
-		sub("down", "Stop the proxy", downProxy),
-		sub("logs", "Show the proxy's logs", func(ctx context.Context, cfg *config.Config, inv *inventory) error {
-			p, err := proxy(cfg)
-			if err != nil {
-				return err
-			}
-			return p.Run(ctx, "logs", "--tail", strconv.Itoa(defaults.LogTail))
-		}),
-		proxyStatusCmd(), proxyConfigCmd(),
-	)
-	return c
 }

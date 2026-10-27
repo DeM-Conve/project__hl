@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -16,19 +18,21 @@ import (
 
 func showCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "show [app]",
-		Short: "What hl knows about an app (folder, route, URL, env and where each value comes from), or the homelab",
+		Use:   "show [app|proxy]",
+		Short: "What hl knows about an app (folder, route, URL, env and where each value comes from), the proxy, or the homelab",
 		Long: `Show what hl stores in hl.yml and works out from it, without opening the file.
 
 With an app: its folder and compose files, the service and port behind the proxy, routing,
 URL, prefix and host, the data folder, and every variable hl gives its compose files with
-where the value comes from (hl, the shared env or the app's env). With no app: the homelab
-folder, the proxy's settings, the shared env and the apps.
+where the value comes from (hl, the shared env or the app's env). With proxy: its state and
+health, where it listens, every proxy setting, and warnings (a running proxy that predates the
+config, an old image). With no app: the homelab folder, the proxy's settings that hl.yml sets,
+the shared env and the apps.
 
 Each value says where it comes from: hl.yml, default, or detected (from the app's compose
 config). Change them with hl set / hl unset. The app's full compose config is hl config <app>.`,
 		Args:              cobra.MaximumNArgs(1),
-		ValidArgsFunction: completeApp,
+		ValidArgsFunction: completeTarget,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := load()
 			if err != nil {
@@ -36,6 +40,9 @@ config). Change them with hl set / hl unset. The app's full compose config is hl
 			}
 			if len(args) == 0 {
 				return showHomelab(cfg)
+			}
+			if args[0] == proxyArg {
+				return showProxy(cfg)
 			}
 			a, err := cfg.App(args[0])
 			if err != nil {
@@ -190,14 +197,12 @@ func showHomelab(cfg *config.Config) error {
 	w = table()
 	for _, s := range settings {
 		key, ok := strings.CutPrefix(s.Key, "proxy.")
-		if !ok || (s.Source == "default" && (s.Value == "-" || s.Value == "false")) {
-			continue // unset options that are off: hl set --help lists them
+		if !ok || s.Source == "default" {
+			continue // hl show proxy lists every setting
 		}
 		fmt.Fprintf(w, "  %s\t%s\t%s\n", key, s.Value, from(s.Source))
 	}
-	if u := cfg.DashboardURL(); u != "" {
-		fmt.Fprintf(w, "  dashboard url\t%s\t\n", u)
-	}
+	fmt.Fprintf(w, "  listen\thttp://%s\t%s\n", net.JoinHostPort(cfg.Proxy.Bind, strconv.Itoa(cfg.Proxy.Port)), from("hl show proxy: state and every setting"))
 	_ = w.Flush()
 
 	say("%senv%s %s(every app; an app's own env wins)%s", bold, reset, dim, reset)

@@ -24,7 +24,7 @@ proxy:
 ```
 
 `domain` is the public name; with host routing apps are at `<app>.apps.example.com`, with path
-routing at `apps.example.com/<app>/`. Restart: `hl proxy down && hl up`.
+routing at `apps.example.com/<app>/`. Restart: `hl down proxy && hl up`.
 
 ## 2. Front proxy
 

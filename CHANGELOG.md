@@ -40,7 +40,7 @@ release differs from earlier builds of `main`.
 - Shared `env` for every app, per-app `env` and `env_files`, and `${HL_URL}`, `${HL_PREFIX}`,
   `${HL_HOST}`, `${HL_DATA}`, `${HL_APP}` for an app's settings.
 - Commands: `status`/`ls`, `up`/`start`, `down`/`stop`, `restart`, `rebuild`, `update`, `logs`,
-  `ps`, `open`, `shell`, `config`, `path`, `proxy up|down|logs|status|config`, `doctor`,
+  `ps`, `open`, `shell`, `config`, `path`, `doctor`,
   `version` and shell `completion` (which offers app and service names).
 - `hl status` has a HEALTH column: `healthy`, `starting: <services>`, `unhealthy: <services>`,
   or `-` for apps without healthchecks.
@@ -79,12 +79,15 @@ release differs from earlier builds of `main`.
 - `hl.yml`, the default-homelab note and every generated file are written atomically (an existing
   file keeps its mode, a symlink stays a symlink).
 - The proxy runs with one readable Traefik static config file, `.hl/proxy/traefik.yml`, generated
-  from `hl.yml`; `hl config proxy` (or `hl proxy config`) prints it. `proxy.config` uses your own
+  from `hl.yml`; `hl config proxy` prints it. `proxy.config` uses your own
   file instead, and hl says what it is missing for hl's apps.
 - `proxy.dynamic` for a Traefik dynamic config file (extra routes and middlewares), kept in a
   subfolder of the homelab.
-- `proxy.access_log`, `proxy.log_level` and `proxy.project`; a healthcheck for the proxy;
-  `hl proxy status`.
+- `proxy.access_log`, `proxy.log_level` and `proxy.project`; a healthcheck for the proxy.
+- The proxy works like an app: `hl up proxy`, `hl down proxy`, `hl restart proxy`,
+  `hl rebuild proxy` (recreates it), `hl logs proxy [-f]`, and `hl show proxy` for its state,
+  health, listen address, every setting, and warnings (a running proxy behind `hl.yml`, an old
+  image).
 - `proxy.dashboard` turns on the Traefik dashboard at `http://traefik.<domain>`; on a
   `proxy.bind` that isn't loopback it also needs `proxy.dashboard_public: true`, and `hl doctor`
   warns while it is reachable from the network.
@@ -133,6 +136,10 @@ release differs from earlier builds of `main`.
   `hl.yml`'s comments and checking the result before writing.
 
 ### Changed
+
+- **Breaking:** the `hl proxy` command group is gone; the proxy is a pseudo-app instead.
+  `hl proxy up|down|logs` are `hl up|down|logs proxy`, `hl proxy status` is `hl show proxy`, and
+  `hl proxy config` is `hl config proxy`.
 
 - `hl.yml` is checked strictly on every command, not only by `hl config check`: unknown keys,
   wrong types, bad values and clashes between apps (same Docker project, URL prefix or host) stop

@@ -177,7 +177,7 @@ func dockerHint(msg string) string {
 	case strings.Contains(m, "non-overlapping ipv4 address pool"), strings.Contains(m, "available, non-overlapping"):
 		return "Docker ran out of network address ranges - remove unused networks (`docker network prune`) or fix the proxy's: `hl set proxy subnet=<a free /16>` (`hl doctor` suggests one)"
 	case strings.Contains(m, "network") && (strings.Contains(m, "not found") || strings.Contains(m, "could not be found")):
-		return "the proxy's network is missing - `hl proxy up` (or `hl up`) creates it"
+		return "the proxy's network is missing - `hl up proxy` (or `hl up`) creates it"
 	case strings.Contains(m, "is already in use by container"):
 		return "a container with that name already exists (from another project or homelab) - remove it with `docker rm -f <name>`, or give this homelab a name of its own (" + nameHowTo + ")"
 	case strings.Contains(m, "pull access denied"), strings.Contains(m, "manifest unknown"), strings.Contains(m, "not found: manifest"):
@@ -213,7 +213,7 @@ app's data (data/<app>/).
 	c.AddCommand(initCmd(), addCmd(), removeCmd(), statusCmd(),
 		upCmd(), downCmd(), restartCmd(), rebuildCmd(), updateCmd(),
 		logsCmd(), psCmd(), openCmd(), shellCmd(), configCmd(), pathCmd(),
-		proxyCmd(), doctorCmd(), versionCmd(), syncCmd(), projectsCmd(), ignoreCmd(), stripPrefixCmd(),
+		doctorCmd(), versionCmd(), syncCmd(), projectsCmd(), ignoreCmd(), stripPrefixCmd(),
 		setCmd(), unsetCmd(), editCmd(), showCmd())
 	c.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return &usageError{err: err, cmd: cmd.CommandPath()}
@@ -271,6 +271,9 @@ func targets(cfg *config.Config, args []string) ([]string, error) {
 	seen := map[string]bool{}
 	var names []string
 	for _, a := range args {
+		if a == proxyArg {
+			return nil, withHint(errors.New("the proxy is not an app here"), "the proxy works with hl up, down, restart, rebuild, logs and show, e.g. `hl logs proxy`")
+		}
 		if _, err := cfg.App(a); err != nil {
 			return nil, withHint(err, "`hl status` lists the apps")
 		}
@@ -297,6 +300,31 @@ func completeApp(cmd *cobra.Command, args []string, toComplete string) ([]string
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	return completeApps(cmd, args, toComplete)
+}
+
+// completeTargets completes app names and the proxy, for the commands that take both.
+func completeTargets(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	apps, dir := completeApps(cmd, args, toComplete)
+	return append(apps, without([]string{proxyArg}, args)...), dir
+}
+
+// completeTarget completes one app name or the proxy: the command's only argument.
+func completeTarget(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return completeTargets(cmd, args, toComplete)
+}
+
+// completeLogs completes an app name or the proxy, then that app's services.
+func completeLogs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) == 0 {
+		return completeTargets(cmd, args, toComplete)
+	}
+	if args[0] == proxyArg {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return completeAppServices(cmd, args, toComplete)
 }
 
 // completeAppServices completes an app name, then that app's services.

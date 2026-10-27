@@ -112,7 +112,7 @@ in hl may assume the maintainer's setup.
   refused on a non-loopback bind unless `proxy.dashboard_public: true`.
 - [x] **Pinned Traefik version** with a tested default; `hl doctor` warns when the configured
   image is older than the tested one.
-- [x] Access log on/off (`proxy.access_log`), proxy healthcheck, `hl proxy status`.
+- [x] Access log on/off (`proxy.access_log`), proxy healthcheck, `hl show proxy` (was `hl proxy status`).
 - [ ] P2: HTTPS (local CA / ACME). v0.1 documents putting hl behind your own TLS proxy.
 
 ## 5. Running apps reliably (P0)

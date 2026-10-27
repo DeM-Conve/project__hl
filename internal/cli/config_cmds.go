@@ -206,9 +206,9 @@ func applyCommand(scope string, changes []config.Change) string {
 			}
 		}
 		if apps {
-			return "hl proxy up, then hl up (the apps' routes change too)"
+			return "hl up proxy, then hl up (the apps' routes change too)"
 		}
-		return "hl proxy up"
+		return "hl up proxy"
 	}
 	return "hl up " + scope
 }

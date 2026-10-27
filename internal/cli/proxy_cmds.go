@@ -2,12 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
-
-	"github.com/spf13/cobra"
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
@@ -15,8 +15,9 @@ import (
 	"github.com/DeM-Conve/project__hl/internal/gen"
 )
 
-// proxyArg is `hl config proxy`: the proxy's Traefik config instead of an app's.
-const proxyArg = "proxy"
+// proxyArg names the proxy where commands take an app (hl up proxy, hl logs proxy, ...). It is
+// the reserved app name, so no app has it.
+const proxyArg = defaults.ReservedAppName
 
 // Labels compose puts on the containers and networks it creates.
 const (
@@ -143,113 +144,87 @@ func printProxyConfig() error {
 	return ferr
 }
 
-func proxyConfigCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "config",
-		Short: "Print the proxy's Traefik static config (same as hl config proxy)",
-		Args:  cobra.NoArgs,
-		RunE:  func(cmd *cobra.Command, args []string) error { return printProxyConfig() },
+// showProxy is `hl show proxy`: the proxy's state and health, where it listens, every setting
+// with where it comes from, and what is wrong or out of date.
+func showProxy(cfg *config.Config) error {
+	p := cfg.Proxy
+	clash := proxyClash(cfg)
+	files, warnings, ferr := proxyFiles(cfg)
+	settings, err := config.Settings(cfg.Dir)
+	if err != nil {
+		return err
 	}
-}
 
-func proxyStatusCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "status",
-		Short: "The proxy's state, health, image and config files",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := load()
-			if err != nil {
-				return err
-			}
-			p := cfg.Proxy
-			clash := proxyClash(cfg)
-			files, warnings, ferr := proxyFiles(cfg)
-
-			state, image, hash := red+"stopped"+reset, "", ""
-			out, err := exec.Command("docker", "ps", "-a", "--filter", "label="+composeProjectLabel+"="+p.Project,
-				"--format", `{{.State}}|{{.Status}}|{{.Image}}|{{.Label "`+composeConfigHashLabel+`"}}`).Output()
-			if err != nil {
-				state = yellow + "unknown (docker not reachable)" + reset
-			} else if line := strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0]); line != "" {
-				f := strings.SplitN(line, "|", 4)
-				for len(f) < 4 {
-					f = append(f, "")
-				}
-				image, hash = f[2], f[3]
-				switch {
-				case f[0] != "running":
-					state = red + f[0] + reset
-				case strings.Contains(f[1], "(unhealthy)"):
-					state = red + "running, unhealthy" + reset
-				case strings.Contains(f[1], "health: starting"):
-					state = yellow + "running, starting" + reset
-				case strings.Contains(f[1], "(healthy)"):
-					state = green + "running, healthy" + reset
-				default:
-					state = green + "running" + reset + " (no healthcheck)"
-				}
-			}
-
-			host := ""
-			if p.Port != 80 {
-				host = fmt.Sprintf(":%d", p.Port)
-			}
-			source := "generated from hl.yml"
-			if p.Config != "" {
-				source = "proxy.config"
-			}
-			dash := "off"
-			if gen.Dashboard(p) {
-				dash = "http://" + defaults.DashboardHostPrefix + p.Domain + host
-			}
-			row := func(k, v string) { say("%s%-10s%s %s", bold, k, reset, v) }
-			row("proxy", state+"  "+dim+"(project "+p.Project+", network "+p.Network+")"+reset)
-			if image != "" && image != p.Image {
-				row("image", image+"  "+dim+"(hl.yml: "+p.Image+")"+reset)
-			} else {
-				row("image", p.Image)
-			}
-			row("listen", fmt.Sprintf("http://%s:%d", p.Bind, p.Port))
-			row("config", files.Static+"  "+dim+"("+source+")"+reset)
-			if files.Dynamic != "" {
-				row("dynamic", files.Dynamic)
-			} else {
-				row("dynamic", "-")
-			}
-			row("dashboard", dash)
-			switch {
-			case p.Config != "":
-				row("access log", "as set in proxy.config")
-			case p.AccessLog:
-				row("access log", "on (hl proxy logs)")
-			default:
-				row("access log", "off")
-			}
-
-			for _, w := range warnings {
-				warn("%s", w)
-			}
-			if clash != nil {
-				say("%s✗%s %v", red, reset, clash)
-			}
-			if ferr != nil {
-				say("%s✗%s %v", red, reset, ferr)
-			}
-			if older, known := gen.ImageOlder(p.Image, defaults.TestedTraefikVersion); older || !known {
-				warn("%s", imageAdvice(p.Image, known))
-			}
-			if hash != "" && clash == nil && ferr == nil {
-				if want := proxyConfigHash(cfg); want != "" && want != hash {
-					warn("the running proxy predates the current config - apply it with: hl proxy up")
-				}
-			}
-			if image == "" && err == nil {
-				say("start it: hl proxy up")
-			}
-			return nil
-		},
+	state, image, hash := red+"stopped"+reset, "", ""
+	out, derr := exec.Command("docker", "ps", "-a", "--filter", "label="+composeProjectLabel+"="+p.Project,
+		"--format", `{{.State}}|{{.Status}}|{{.Image}}|{{.Label "`+composeConfigHashLabel+`"}}`).Output()
+	if derr != nil {
+		state = yellow + "unknown (docker not reachable)" + reset
+	} else if line := strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0]); line != "" {
+		f := strings.SplitN(line, "|", 4)
+		for len(f) < 4 {
+			f = append(f, "")
+		}
+		image, hash = f[2], f[3]
+		switch {
+		case f[0] != "running":
+			state = red + f[0] + reset
+		case strings.Contains(f[1], "(unhealthy)"):
+			state = red + "running, unhealthy" + reset
+		case strings.Contains(f[1], "health: starting"):
+			state = yellow + "running, starting" + reset
+		case strings.Contains(f[1], "(healthy)"):
+			state = green + "running, healthy" + reset
+		default:
+			state = green + "running" + reset + " (no healthcheck)"
+		}
 	}
+
+	say("%sproxy%s %s", bold, reset, state)
+	w := table()
+	fmt.Fprintf(w, "  listen\thttp://%s\t\n", net.JoinHostPort(p.Bind, strconv.Itoa(p.Port)))
+	for _, st := range settings {
+		key, ok := strings.CutPrefix(st.Key, "proxy.")
+		if !ok {
+			continue
+		}
+		v := st.Value
+		if key == "image" && image != "" && image != p.Image {
+			v += "  (running: " + image + ")"
+		}
+		fmt.Fprintf(w, "  %s\t%s\t%s\n", key, v, from(st.Source))
+	}
+	source := "generated from " + config.FileName
+	if p.Config != "" {
+		source = "proxy.config"
+	}
+	fmt.Fprintf(w, "  traefik config\t%s\t%s\n", files.Static, from(source))
+	if u := cfg.DashboardURL(); u != "" {
+		fmt.Fprintf(w, "  dashboard url\t%s\t\n", u)
+	}
+	_ = w.Flush()
+
+	for _, msg := range warnings {
+		warn("%s", msg)
+	}
+	if clash != nil {
+		say("%s✗%s %v", red, reset, clash)
+	}
+	if ferr != nil {
+		say("%s✗%s %v", red, reset, ferr)
+	}
+	if older, known := gen.ImageOlder(p.Image, defaults.TestedTraefikVersion); older || !known {
+		warn("%s", imageAdvice(p.Image, known))
+	}
+	if hash != "" && clash == nil && ferr == nil {
+		if want := proxyConfigHash(cfg); want != "" && want != hash {
+			warn("the running proxy predates the current config - apply it with: hl up proxy")
+		}
+	}
+	if image == "" && derr == nil {
+		say("start it: hl up proxy")
+	}
+	return nil
 }
 
 // proxyConfigHash is compose's hash of the proxy service as hl would run it now.
