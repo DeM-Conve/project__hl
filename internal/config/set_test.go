@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -347,5 +348,95 @@ apps:
 	}
 	if c, err := Load(dir); err != nil || c.Env["MOTD"] != "one\n\ntwo\n" || c.Env["TZ"] != "UTC" {
 		t.Errorf("block scalar: %+v, %v\n%s", c, err, read(t, dir))
+	}
+}
+
+// An edit never adds blank lines: set then unset is the file as it was, and repeated sets
+// don't grow it, with a header comment above everything.
+func TestEditAddsNoBlankLines(t *testing.T) {
+	const spaced = `# My homelab. hl commands change it.
+# Second header line.
+
+version: 1
+
+# Shared by every app.
+env:
+  TZ: UTC
+
+# The proxy.
+proxy:
+  port: 8080 # not 80
+
+apps:
+  # The blog.
+  blog:
+    path: ~/code/blog
+
+  wiki:
+    path: ~/code/wiki
+`
+	dir := write(t, spaced)
+	for scope, key := range map[string]string{HomelabScope: "env.A", ProxyScope: "domain"} {
+		if err := Edit(dir, scope, []Change{{Key: key, Value: "x"}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := Edit(dir, scope, []Change{{Key: key, Unset: true}}); err != nil {
+			t.Fatal(err)
+		}
+		if got := read(t, dir); got != spaced {
+			t.Errorf("%q: set then unset changed the file:\n--- got\n%s--- want\n%s", scope, got, spaced)
+		}
+	}
+	if err := EditApp(dir, "blog", []Change{{Key: "port", Value: "80"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := EditApp(dir, "blog", []Change{{Key: "port", Unset: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, dir); got != spaced {
+		t.Errorf("app set then unset changed the file:\n--- got\n%s--- want\n%s", got, spaced)
+	}
+
+	if err := Edit(dir, HomelabScope, []Change{{Key: "env.A", Value: "0"}}); err != nil {
+		t.Fatal(err)
+	}
+	first := read(t, dir)
+	for i := 1; i <= 5; i++ {
+		if err := Edit(dir, HomelabScope, []Change{{Key: "env.A", Value: strconv.Itoa(i)}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := read(t, dir); len(got) != len(first) || strings.Count(got, "\n\n") != strings.Count(spaced, "\n\n") {
+		t.Errorf("repeated sets changed the spacing:\n--- got\n%s--- first\n%s", got, first)
+	}
+}
+
+// A new hl.yml has one blank line between its sections, and edits keep it that way.
+func TestWriteNewSpacing(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteNew(dir, InitSettings{Name: "lab2", Projects: []string{"~/code"}, StripPrefix: []string{"p__"}, Port: 8080}); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, dir)
+	header := strings.SplitN(Template, "\n\n", 2)[0]
+	// One blank line between the header and each top-level section, never more.
+	if strings.Contains(got, "\n\n\n") || !strings.HasPrefix(got, header+"\n\nversion: 1\n\n#") ||
+		!strings.Contains(got, "name: lab2\n\n#") || !strings.Contains(got, "projects: [~/code]\n\n#") ||
+		!strings.Contains(got, "strip_prefix: [p__]\n\nproxy:\n  port: 8080\n\napps: {}\n") {
+		t.Errorf("new hl.yml's spacing:\n%s", got)
+	}
+	if dir := t.TempDir(); WriteNew(dir, InitSettings{}) != nil || read(t, dir) != Template {
+		t.Errorf("new hl.yml with nothing set isn't Template:\n%s", read(t, dir))
+	}
+	for i := 0; i < 3; i++ {
+		if err := Edit(dir, HomelabScope, []Change{{Key: "env.A", Value: strconv.Itoa(i)}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := Edit(dir, HomelabScope, []Change{{Key: "env", Unset: true}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if after := read(t, dir); after != got {
+		t.Errorf("edits changed the new file:\n--- got\n%s--- want\n%s", after, got)
 	}
 }

@@ -4,7 +4,6 @@ package config
 // comment-keeping hl.yml edits they need.
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -94,7 +93,7 @@ const nameComment = "# Another homelab on this Docker uses the default names, so
 
 // WriteNew writes a new, short <dir>/hl.yml: Template with the projects folders, strip_prefix
 // and the proxy settings of s that differ from the defaults. It refuses to overwrite an
-// existing file.
+// existing file. Its top-level sections are one blank line apart, like Template's.
 func WriteNew(dir string, s InitSettings) error {
 	path := filepath.Join(dir, FileName)
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
@@ -108,7 +107,7 @@ func WriteNew(dir string, s InitSettings) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return editDoc(dir, func(root *yaml.Node) error {
+	out, err := edited(path, func(root *yaml.Node) error {
 		if s.Name != "" {
 			beforeApps(root, &yaml.Node{Kind: yaml.ScalarNode, Value: "name", HeadComment: nameComment},
 				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s.Name})
@@ -135,11 +134,32 @@ func WriteNew(dir string, s InitSettings) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	return writeKeepMode(path, spaceSections(out))
+}
+
+// spaceSections puts one blank line before each top-level key of b (above its head comment)
+// that doesn't have one yet. Only for a file hl writes new: edits never add blank lines.
+func spaceSections(b []byte) []byte {
+	lines := splitLines(b)
+	var out []string
+	topComment := false // the previous line is a top-level comment
+	for i, l := range lines {
+		top := l != "" && l[0] != ' ' && l[0] != '-'
+		if top && i > 0 && lines[i-1] != "" && !topComment {
+			out = append(out, "")
+		}
+		topComment = top && l[0] == '#'
+		out = append(out, l)
+	}
+	return []byte(strings.Join(out, "\n") + "\n")
 }
 
 // SetProjects writes the `projects` list into <dir>/hl.yml, keeping comments.
 func SetProjects(dir string, projects []string) error {
-	return editDoc(dir, func(root *yaml.Node) error {
+	return editFile(dir, func(root *yaml.Node) error {
 		setProjects(root, projects)
 		return nil
 	})
@@ -242,30 +262,4 @@ func setScalar(m *yaml.Node, key, value, tag string) {
 	m.Content = append(m.Content,
 		&yaml.Node{Kind: yaml.ScalarNode, Value: key},
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: value})
-}
-
-// editDoc edits the top-level mapping of <dir>/hl.yml, keeping comments and order.
-func editDoc(dir string, edit func(root *yaml.Node) error) error {
-	path := filepath.Join(dir, FileName)
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	var doc yaml.Node
-	if err := yaml.Unmarshal(b, &doc); err != nil {
-		return fmt.Errorf("%s: %w", path, err)
-	}
-	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
-		return fmt.Errorf("%s: expected a mapping at the top", path)
-	}
-	if err := edit(doc.Content[0]); err != nil {
-		return err
-	}
-	var out bytes.Buffer
-	enc := yaml.NewEncoder(&out)
-	enc.SetIndent(2)
-	if err := enc.Encode(&doc); err != nil {
-		return err
-	}
-	return os.WriteFile(path, out.Bytes(), 0o644)
 }

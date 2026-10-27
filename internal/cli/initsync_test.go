@@ -807,3 +807,30 @@ func TestInitSecondHomelabPort(t *testing.T) {
 		t.Errorf("third homelab: %v %+v\n%s", err, cfg, out)
 	}
 }
+
+// hl.yml's spacing: a new one has one blank line between its sections, and hl set/unset never
+// add blank lines (each edit used to add one below the header comment).
+func TestHlYmlSpacing(t *testing.T) {
+	home := initSyncEnv(t)
+	code := filepath.Join(home, "my code")
+	fakeApp(t, filepath.Join(code, "blog"), webModel)
+	lab := filepath.Join(home, "homelab")
+	if out, err := runHL(t, "", "init", "--yes", lab, "--projects", code); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	file := filepath.Join(lab, config.FileName)
+	fresh := readFile(t, file)
+	if strings.Contains(fresh, "\n\n\n") || !strings.Contains(fresh, "shows them,\n# docs/reference.md lists every setting. hl reads it on every command.\n\nversion: 1\n\n#") {
+		t.Errorf("new hl.yml's spacing:\n%s", fresh)
+	}
+	for i := 0; i < 3; i++ {
+		for _, args := range [][]string{{"set", "env.A=1"}, {"unset", "env.A"}, {"set", "proxy", "port=8080"}, {"unset", "proxy", "port"}, {"set", "blog", "routing=host"}, {"unset", "blog", "routing"}} {
+			if out, err := runHL(t, "", append(args, "--home", lab)...); err != nil {
+				t.Fatalf("%v: %v\n%s", args, err, out)
+			}
+		}
+	}
+	if got := readFile(t, file); got != fresh {
+		t.Errorf("set then unset changed hl.yml:\n--- got\n%s--- want\n%s", got, fresh)
+	}
+}

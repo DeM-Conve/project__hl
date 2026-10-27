@@ -326,7 +326,11 @@ Every change hl makes to `hl.yml` goes through the `yaml.Node` tree (`config.edi
 to two spaces). yaml.v3 also drops blank lines; `keepBlankLines` puts them back: it matches the
 encoder's lines against the old file's non-blank lines (longest common subsequence), and each
 line still there gets the blank lines that stood above it; a changed or removed line hands its
-blank lines on to the next line written. If the result doesn't decode to the same YAML as the
+blank lines on to the next line written. A blank line of the encoder's own (it writes one below
+the document's head comment) counts as one blank line before the next line, merged with the old
+file's there, so an edit never adds blank lines: set then unset gives the file back byte for
+byte. `WriteNew` (hl init) is the only writer that adds them: `spaceSections` puts one blank
+line before each top-level section of a new file. If the result doesn't decode to the same YAML as the
 encoder's output (a blank line inside a block scalar), the encoder's output is written as it is.
 
 - `hl add`/`hl remove` (`config.AddApp`, `RemoveApp`) touch only the `apps:` mapping (`apps: {}`

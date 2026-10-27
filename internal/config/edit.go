@@ -49,7 +49,8 @@ func edited(path string, edit func(root *yaml.Node) error) ([]byte, error) {
 // encoder's output, which drops them). Each blank line belongs to the line after it: new's
 // lines are matched against old's other lines, and a line still there gets its blank lines
 // back. A changed or removed line passes its blank lines on to the next line written, so
-// sections keep their spacing. If the result doesn't decode to the same YAML as new (a blank
+// sections keep their spacing. A blank line of new's own counts as one blank line before the
+// next line, merged with old's there, so an edit never adds blank lines. If the result doesn't decode to the same YAML as new (a blank
 // line inside a block scalar, say), new is returned as it is.
 func keepBlankLines(old, new []byte) []byte {
 	blank := func(s string) bool { return strings.TrimSpace(s) == "" }
@@ -101,6 +102,11 @@ func keepBlankLines(old, new []byte) []byte {
 			// A line new doesn't have: its blank lines go to the next one.
 			pending = max(pending, before[i])
 			i++
+		case blank(b[j]):
+			// The encoder's own blank line (after the document's head comment, or in a block
+			// scalar): it merges with old's blank lines there instead of adding one.
+			pending = max(pending, 1)
+			j++
 		default:
 			emit(b[j])
 			j++

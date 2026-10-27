@@ -214,8 +214,9 @@ release differs from earlier builds of `main`.
 ### Fixed
 
 - `hl set`, `hl unset` and every other command that changes `hl.yml` (add, remove, sync, init)
-  keep its blank lines; they used to remove all of them, so one setting rewrote the whole file's
-  layout.
+  keep its blank lines and never add any; they used to remove all of them, so one setting
+  rewrote the whole file's layout, and then added one below the header comment on every edit.
+  A new `hl.yml` from `hl init` has one blank line between its sections.
 - `hl set <app> path=<folder>` takes a relative folder from the current folder, like `hl add`
   and `hl set projects+=`; it used to write it as given, so hl read it relative to the homelab.
 - `hl init` on an existing homelab changes only what its plan lists. It used to add the
