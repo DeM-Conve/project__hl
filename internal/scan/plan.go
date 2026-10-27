@@ -120,7 +120,7 @@ func planMoves(cfg *config.Config, d *Diff, model ModelFunc) ([]Action, *Diff) {
 			if err != nil || svc != a.Service || port != a.Port {
 				continue
 			}
-			if m, err := model(f.Name, na); err != nil || !hasVolumes(m, cfg.DataDir(g)) {
+			if m, err := model(f.Name, na); err != nil || !hasVolumes(m, cfg.DataDir(g), envFolders(cfg, a)) {
 				continue
 			}
 			matches[g] = append(matches[g], i)
@@ -154,15 +154,47 @@ func planMoves(cfg *config.Config, d *Diff, model ModelFunc) ([]Action, *Diff) {
 }
 
 // hasVolumes reports whether m has a named volume for every folder in the app's data folder
-// (data/<app>/<volume>), so a moved app finds its data again.
-func hasVolumes(m *compose.Model, dataDir string) bool {
+// (data/<app>/<volume>), so a moved app finds its data again. Folders the app's env puts there
+// (envFolders: BACKUP_LOCATION=${HL_DATA}/backups, say) and empty ones don't count; with
+// all set (DATA_LOCATION=${HL_DATA}: the app's bind mounts may be any folder there) none do.
+func hasVolumes(m *compose.Model, dataDir string, env map[string]bool) bool {
+	if env[""] {
+		return true
+	}
 	entries, _ := os.ReadDir(dataDir)
 	for _, e := range entries {
-		if _, ok := m.Volumes[e.Name()]; e.IsDir() && !ok {
-			return false
+		if _, ok := m.Volumes[e.Name()]; !e.IsDir() || ok || env[e.Name()] || isEmptyDir(filepath.Join(dataDir, e.Name())) {
+			continue
 		}
+		return false
 	}
 	return true
+}
+
+// envFolders are the folders of the app's data folder that its env values (its own and the
+// shared env) point into: "backups" for ${HL_DATA}/backups/..., and "" for ${HL_DATA} itself.
+func envFolders(cfg *config.Config, a *config.App) map[string]bool {
+	out := map[string]bool{}
+	for _, env := range []map[string]string{cfg.Env, a.Env} {
+		for _, v := range env {
+			for _, ref := range []string{"${" + defaults.DataVar + "}", "$" + defaults.DataVar} {
+				rest, ok := strings.CutPrefix(strings.TrimSpace(v), ref)
+				if !ok || (rest != "" && rest[0] != '/') {
+					continue // not HL_DATA, or a longer name ($HL_DATAX)
+				}
+				first, _, _ := strings.Cut(strings.Trim(rest, "/"), "/")
+				out[first] = true
+				break
+			}
+		}
+	}
+	return out
+}
+
+// isEmptyDir reports whether dir has nothing in it.
+func isEmptyDir(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	return err == nil && len(entries) == 0
 }
 
 // hasFiles reports whether every file in files exists in dir.

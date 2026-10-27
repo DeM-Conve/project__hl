@@ -436,7 +436,10 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   `planMoves` pairs gone apps with new folders: a gone app with a pinned `service` and `port`
   (routing not `none`) matches a new folder that has its `compose` files, isn't named like
   another app, exposes that service on that port, and has a named volume for every folder in
-  `data/<app>/`. A pair unambiguous both ways (one folder for the app, one app for the folder)
+  `data/<app>/` (`hasVolumes`). Folders there that the app's env (its own or the shared env)
+  points into are the app's bind mounts, not volumes, and don't count (`envFolders`:
+  `${HL_DATA}/backups` makes `backups` one; `${HL_DATA}` itself, as `DATA_LOCATION` gets, makes
+  every folder one), and neither do empty folders. A pair unambiguous both ways (one folder for the app, one app for the folder)
   becomes a `scan.Move`, and both drop out of the adds and removes. The `ModelFunc` is cached per
   folder and compose list, so a folder's model is read once.
 - **Showing**: `printPlan` lists each change once (an add with its env); a folder under a

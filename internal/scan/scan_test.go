@@ -264,3 +264,15 @@ func TestSharedPrefixes(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvFolders(t *testing.T) {
+	cfg := &config.Config{Env: map[string]string{"SHARED": "$HL_DATA/cache/x"}}
+	a := &config.App{Env: map[string]string{"B": "${HL_DATA}/backups", "C": "/srv/x", "D": "${HL_DATAX}/y", "E": "${HL_PREFIX}"}}
+	got := envFolders(cfg, a)
+	if len(got) != 2 || !got["backups"] || !got["cache"] {
+		t.Errorf("envFolders = %v", got)
+	}
+	if got := envFolders(&config.Config{}, &config.App{Env: map[string]string{"DATA_LOCATION": "${HL_DATA}"}}); !got[""] {
+		t.Errorf("DATA_LOCATION: %v", got)
+	}
+}

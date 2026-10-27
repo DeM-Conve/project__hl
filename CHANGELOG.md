@@ -16,7 +16,9 @@ release differs from earlier builds of `main`.
 ### Added
 
 - `hl sync` follows a moved or renamed app folder: when an app's folder is gone and exactly one
-  new folder routes the same service and port (and has the app's data volumes), the plan says
+  new folder routes the same service and port (and has the app's data volumes; folders its
+  `${HL_DATA}` env puts there, such as `BACKUP_LOCATION`'s `backups`, and empty ones don't
+  count), the plan says
   `~ moved <app>: <old> -> <new>` and only the app's `path` changes, so it keeps its name,
   settings and data instead of being removed and added again.
 

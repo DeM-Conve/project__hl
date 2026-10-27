@@ -171,6 +171,11 @@ const (
 	EnvURLValue  = "${HL_URL}"
 )
 
+// DataVar is the variable hl sets to an app's data folder (data/<app>); hl sync takes the
+// folders an app's env puts under it (${HL_DATA}/backups) for the app's own when it looks
+// for a moved app's data.
+const DataVar = "HL_DATA"
+
 // EnvByName maps variables by their exact name (any routing). Data the app keeps in bind
 // mounts goes under the app's data folder; named volumes are already there.
 var EnvByName = map[string]string{

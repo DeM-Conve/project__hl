@@ -305,9 +305,7 @@ func TestSync(t *testing.T) {
 	if out, err := runHL(t, "", "init", lab, "--projects", code, "--yes"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if err := os.MkdirAll(filepath.Join(lab, "data", "old", "db"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	dataFile(t, filepath.Join(lab, "data", "old", "db"))
 
 	// No changes yet.
 	out, err := runHL(t, "", "sync", "--home", lab)
@@ -410,9 +408,7 @@ func TestSyncMovedFolder(t *testing.T) {
 	if out, err := runHL(t, "", "set", "--home", lab, "blog", "env.TZ=UTC"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if err := os.MkdirAll(filepath.Join(lab, "data", "blog", "db"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	dataFile(t, filepath.Join(lab, "data", "blog", "db"))
 	if err := os.Rename(filepath.Join(code, "blog"), filepath.Join(code, "my-blog")); err != nil {
 		t.Fatal(err)
 	}
@@ -833,4 +829,67 @@ func TestHlYmlSpacing(t *testing.T) {
 	if got := readFile(t, file); got != fresh {
 		t.Errorf("set then unset changed hl.yml:\n--- got\n%s--- want\n%s", got, fresh)
 	}
+}
+
+// dataFile makes dir with a file in it, like a volume's data (sync passes over empty folders).
+func dataFile(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "data"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An app whose env puts folders in its data folder (BACKUP_LOCATION=${HL_DATA}/backups,
+// DATA_LOCATION=${HL_DATA}) next to its named volumes is still recognised when it moves.
+func TestSyncMovedFolderWithEnvData(t *testing.T) {
+	home := initSyncEnv(t)
+	code := filepath.Join(home, "my code")
+	lab := filepath.Join(home, "lab")
+	model := `{"services":{"web":{"ports":[{"target":3000}]},"db":{}},"volumes":{"pgdata":{}}}`
+	fakeApp(t, filepath.Join(code, "photos"), model)
+	if err := os.WriteFile(filepath.Join(code, "photos", "fake-vars.json"), []byte(varsJSON("BACKUP_LOCATION")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fakeApp(t, filepath.Join(code, "docs"), strings.Replace(model, "3000", "8080", 1)) // not the same as photos
+	if err := os.WriteFile(filepath.Join(code, "docs", "fake-vars.json"), []byte(varsJSON("DATA_LOCATION")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runHL(t, "", "init", lab, "--projects", code, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	cfg, err := config.Load(lab)
+	if err != nil || cfg.Apps["photos"].Env["BACKUP_LOCATION"] != "${HL_DATA}/backups" || cfg.Apps["docs"].Env["DATA_LOCATION"] != "${HL_DATA}" {
+		t.Fatalf("env not mapped: %v %+v", err, cfg)
+	}
+	for _, d := range []string{"photos/pgdata", "photos/backups", "docs/pgdata", "docs/library", "docs/upload"} {
+		dataFile(t, filepath.Join(lab, "data", d))
+	}
+	if err := os.MkdirAll(filepath.Join(lab, "data", "photos", "empty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"photos", "docs"} {
+		if err := os.Rename(filepath.Join(code, n), filepath.Join(code, "my-"+n)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := runHL(t, "", "sync", "--home", lab, "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	contains(t, "sync", out, "~ moved  photos  ~/my code/photos -> ~/my code/my-photos", "~ moved  docs")
+	lacks(t, "sync", out, "+ add", "- remove")
+
+	// A folder neither a volume nor the env accounts for, with data in it: no move.
+	dataFile(t, filepath.Join(lab, "data", "photos", "other"))
+	if err := os.Rename(filepath.Join(code, "my-photos"), filepath.Join(code, "photos2")); err != nil {
+		t.Fatal(err)
+	}
+	if out, err = runHL(t, "", "sync", "--home", lab, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	contains(t, "sync", out, "+ add", "- remove")
+	lacks(t, "sync", out, "~ moved")
 }
