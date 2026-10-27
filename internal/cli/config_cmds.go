@@ -3,10 +3,12 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -40,8 +42,15 @@ const setScopesHelp = `What to change is the first argument:
            and hl sync look for apps. Keys: ` + "%s" + `
 env takes a name: env.TZ=UTC.`
 
+// setAppKeys are the keys `hl set <app>` takes: the app's settings, and name (a rename).
+func setAppKeys() []string {
+	keys := append(config.AppKeys(), "name")
+	sort.Strings(keys)
+	return keys
+}
+
 func scopesHelp() string {
-	return fmt.Sprintf(setScopesHelp, strings.Join(config.AppKeys(), ", "), strings.Join(config.ProxyKeys(), ", "),
+	return fmt.Sprintf(setScopesHelp, strings.Join(setAppKeys(), ", "), strings.Join(config.ProxyKeys(), ", "),
 		strings.Join(config.HomelabKeys(), ", "))
 }
 
@@ -229,8 +238,27 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 			return err
 		}
 	}
+	isApp := scope != config.HomelabScope && scope != config.ProxyScope
+	if isApp {
+		for _, c := range changes {
+			if c.Key != "name" || c.Unset {
+				continue
+			}
+			if len(changes) > 1 || c.Op != "" {
+				return &usageError{err: errors.New("name= renames the app: give it on its own, e.g. hl set " + scope + " name=<new name>"), cmd: "hl set"}
+			}
+			if err := renameApp(ctx, home, scope, c.Value); err != nil {
+				return err
+			}
+			if err := upgradeConfig(home); err != nil {
+				return err
+			}
+			say("apply it: hl up %s", c.Value)
+			return nil
+		}
+	}
 	edits := changes
-	if scope != config.HomelabScope && scope != config.ProxyScope {
+	if isApp {
 		// compose+= on an app that names no compose file starts from the one compose picks.
 		if cfg, err := config.Load(home); err == nil {
 			if a, ok := cfg.Apps[scope]; ok {
@@ -262,6 +290,70 @@ func editScope(ctx context.Context, scope string, changes []config.Change) error
 		}
 	}
 	say("apply it: %s", applyCommand(scope, changes))
+	return nil
+}
+
+// renameApp is `hl set <old> name=<new>`: the app keeps its settings (and hl.yml its comments),
+// its data folder and generated files move along. Refused while the app has containers, since
+// they belong to the Docker project of the old name.
+func renameApp(ctx context.Context, home, old, new string) error {
+	cfg, err := config.Load(home)
+	if err != nil {
+		return err
+	}
+	if _, err := cfg.App(old); err != nil {
+		return &usageError{err: err, cmd: "hl set"}
+	}
+	if new == old {
+		say("%s is already called %s", old, new)
+		return nil
+	}
+	if err := config.ValidName(new); err != nil {
+		return withHint(err, "pick another: hl set %s name=<name>", old)
+	}
+	if _, ok := cfg.Apps[new]; ok {
+		return withHint(fmt.Errorf("app %q exists already", new), "pick another name, or `hl remove %s` first", new)
+	}
+	inv, err := containers(ctx)
+	if err != nil {
+		return withHint(fmt.Errorf("can't tell whether %s runs, so it keeps its name: %w", old, err),
+			"start Docker; renaming needs the app stopped (`hl down %s`)", old)
+	}
+	if len(inv.of(cfg.ProjectName(old))) > 0 {
+		return withHint(fmt.Errorf("%s has containers (Docker project %s); renaming it would leave them behind", old, cfg.ProjectName(old)),
+			"stop it first: hl down %s, then hl set %s name=%s, then hl up %s", old, old, new, new)
+	}
+	if pn := cfg.ProjectName(new); len(inv.of(pn)) > 0 {
+		return withHint(fmt.Errorf("%s would use Docker project %s, which exists already", new, pn),
+			"pick another name, or remove that project (`docker compose -p %s down`)", pn)
+	}
+	oldData, newData := cfg.DataDir(old), cfg.DataDir(new)
+	if exists(newData) {
+		return withHint(fmt.Errorf("%s exists already, and %s's data would move there", newData, old),
+			"move or remove that folder, or pick another name")
+	}
+	// hl.yml first: it is checked (a clash with another app's prefix, host or project) and
+	// nothing has moved if it is refused.
+	if err := config.RenameApp(home, old, new); err != nil {
+		return withHint(err, "pick another name: hl set %s name=<name>", old)
+	}
+	say("renamed apps.%s to apps.%s", old, new)
+	if exists(oldData) {
+		if err := os.Rename(oldData, newData); err != nil {
+			if rerr := config.RenameApp(home, new, old); rerr != nil {
+				return fmt.Errorf("moving %s to %s: %w (and hl.yml couldn't be put back: %v)", oldData, newData, err, rerr)
+			}
+			return fmt.Errorf("moving %s to %s: %w - hl.yml is unchanged", oldData, newData, err)
+		}
+		say("moved its data to %s", newData)
+	}
+	// Generated files and the build record: disposable, but moving them saves a rebuild.
+	_ = os.RemoveAll(cfg.StateDir(new))
+	if exists(cfg.StateDir(old)) {
+		if err := os.Rename(cfg.StateDir(old), cfg.StateDir(new)); err != nil {
+			warn("%s stays where it is: %v", cfg.StateDir(old), err)
+		}
+	}
 	return nil
 }
 
@@ -335,7 +427,7 @@ func completeSetKeys(setting bool) func(*cobra.Command, []string, string) ([]str
 		case args[0] == config.ProxyScope:
 			return keys(config.ProxyKeys()), dir
 		}
-		return keys(config.AppKeys()), dir
+		return keys(setAppKeys()), dir
 	}
 }
 

@@ -315,7 +315,12 @@ normalises indentation to two spaces).
   path) and refuses `name` while any of this homelab's projects has containers (`nothingRuns`),
   since it renames every project and network. For an app with no `compose` list, `compose+=`/
   `compose-=` (in `hl set` and `hl add`) get a replace with the file `compose.FindFile` picks put
-  in front (`seedCompose`, not printed as a change), so the list starts from it. A missing `proxy:` or
+  in front (`seedCompose`, not printed as a change), so the list starts from it. `hl set <app>
+  name=<new>` (alone) is a rename (`renameApp`): `ValidName`, no such app, no containers of the
+  old or new Docker project in the inventory, no `data/<new>`; then `config.RenameApp` changes
+  the key in the node tree (checked like any edit, so a clash of prefix, host or project is
+  refused), and `data/<old>` and `.hl/<old>` are renamed (a failed data move puts hl.yml
+  back). `ignore` holds folder names, which a rename doesn't change. A missing `proxy:` or
   shared `env:` is added above `apps:`. A replaced value keeps the old one's comments. The new
   content is run through `config.Check` and written only if it has no problems. The CLI tells
   the scopes apart without guessing: for `set`, a first argument with `=` can't be an app name,

@@ -468,6 +468,39 @@ func RemoveApp(dir, name string) error {
 	})
 }
 
+// RenameApp renames app old to new in <dir>/hl.yml, keeping its settings, comments and place.
+// The result is checked first (a name clash, a reserved name); on a problem hl.yml is unchanged.
+func RenameApp(dir, old, new string) error {
+	path := filepath.Join(dir, FileName)
+	out, err := edited(path, func(root *yaml.Node) error {
+		apps := lookup(root, "apps")
+		if apps == nil || apps.Kind != yaml.MappingNode {
+			return fmt.Errorf("no app %q in %s", old, FileName)
+		}
+		var key *yaml.Node
+		for i := 0; i+1 < len(apps.Content); i += 2 {
+			switch apps.Content[i].Value {
+			case new:
+				return fmt.Errorf("app %q is already in %s", new, FileName)
+			case old:
+				key = apps.Content[i]
+			}
+		}
+		if key == nil {
+			return fmt.Errorf("no app %q in %s", old, FileName)
+		}
+		key.Value = new
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if ps := Check(out); len(ps) > 0 {
+		return fmt.Errorf("%s not changed: %w", FileName, &ProblemsError{File: path, Problems: ps})
+	}
+	return writeKeepMode(path, out)
+}
+
 func editApps(dir string, edit func(apps *yaml.Node) error) error {
 	return editFile(dir, func(root *yaml.Node) error {
 		apps := lookup(root, "apps")

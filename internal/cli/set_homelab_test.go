@@ -101,3 +101,59 @@ func TestSetNameOnlyWhileNothingRuns(t *testing.T) {
 	f.must("unset", "name")
 	lacks(t, "hl.yml", f.read(filepath.Join(lab, config.FileName)), "name:")
 }
+
+// hl set <app> name=<new> renames an app: settings, comments, data and generated files move.
+func TestRenameApp(t *testing.T) {
+	f := newFake(t)
+	a := f.app("a", webModel2)
+	lab := f.lab("lab", "version: 1\napps:\n  # the blog\n  a: {path: '"+a+"', port: 80} # mine\n  b: {path: '"+a+"', prefix: /c}\n")
+	for _, d := range []string{filepath.Join(lab, "data", "a", "pgdata"), filepath.Join(lab, ".hl", "a")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Running: refused, nothing moves.
+	f.containers(ctr("hl-a", "web", "running", "Up", filepath.Join(lab, ".hl", "a", "override.yml")))
+	r := f.hl("set", "a", "name=c")
+	if r.code != 1 {
+		t.Fatalf("want a refusal while it runs: %s", r)
+	}
+	contains(t, "running", r.errOut, "a has containers", "hint: stop it first: hl down a")
+	f.rules = nil
+	f.containers()
+
+	for _, bad := range []struct {
+		args []string
+		code int
+		want string
+	}{
+		{[]string{"set", "a", "name=proxy"}, 1, "reserved"},
+		{[]string{"set", "a", "name=B"}, 1, "use lowercase letters"},
+		{[]string{"set", "a", "name=b"}, 1, `app "b" exists already`},
+		{[]string{"set", "a", "name=c", "port=81"}, 2, "give it on its own"},
+		{[]string{"set", "a", "name=c"}, 1, "/c"}, // b's prefix: hl.yml's check refuses the clash
+	} {
+		if r := f.hl(bad.args...); r.code != bad.code || !strings.Contains(r.errOut, bad.want) {
+			t.Errorf("%v: want exit %d and %q: %s", bad.args, bad.code, bad.want, r)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(lab, "data", "d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if r := f.hl("set", "a", "name=d"); r.code != 1 || !strings.Contains(r.errOut, "exists already") {
+		t.Errorf("data folder taken: %s", r)
+	}
+	if !strings.Contains(f.read(filepath.Join(lab, config.FileName)), "  a: {") || !exists(filepath.Join(lab, "data", "a", "pgdata")) {
+		t.Fatal("a refused rename changed something")
+	}
+
+	r = f.must("set", "a", "name=e")
+	contains(t, "rename", r.out, "renamed apps.a to apps.e", "moved its data to "+filepath.Join(lab, "data", "e"), "apply it: hl up e")
+	y := f.read(filepath.Join(lab, config.FileName))
+	contains(t, "hl.yml", y, "# the blog", "e: {path: '"+a+"', port: 80} # mine")
+	lacks(t, "hl.yml", y, "  a: {")
+	if !exists(filepath.Join(lab, "data", "e", "pgdata")) || exists(filepath.Join(lab, "data", "a")) || !exists(filepath.Join(lab, ".hl", "e")) {
+		t.Error("data and .hl/ didn't move")
+	}
+}

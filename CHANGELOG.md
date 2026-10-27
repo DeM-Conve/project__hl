@@ -15,6 +15,10 @@ release differs from earlier builds of `main`.
 
 ### Added
 
+- `hl set <app> name=<new>` renames an app: its settings (and hl.yml's comments) stay, its
+  `data/<app>/` and `.hl/<app>/` move along. Refused while the app has containers (`hl down
+  <app>` first), when `data/<new>/` exists, or for a name `hl add` would refuse.
+
 - `hl logs <app>` (or `hl logs proxy`) on something that isn't running says so, instead of
   printing nothing.
 

@@ -129,6 +129,7 @@ where each value comes from. The first argument says what to change:
 ```sh
 hl set my-app routing=host               # an app (also on hl add <folder> routing=host)
 hl set my-app env.TZ=Europe/Berlin       # a variable for that app's compose file
+hl set my-app name=blog                  # rename it (stopped first: hl down my-app)
 hl set proxy port=8080 bind=0.0.0.0      # the proxy
 hl set env.TZ=UTC                        # env every app gets (an app's own wins)
 hl set projects+=~/src ignore+=old       # where hl init and hl sync look for apps
