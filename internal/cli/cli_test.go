@@ -950,3 +950,22 @@ func TestSettingsReachEveryPlace(t *testing.T) {
 	r = f.must("config", "defaults")
 	contains(t, "config defaults", r.out, "logs.tail", "up.wait_timeout", "docker.project_prefix")
 }
+
+// Folders the app's env points at inside its data folder exist before compose runs, so Docker
+// doesn't create them owned by root; paths elsewhere are left alone.
+func TestUpCreatesEnvDataFolders(t *testing.T) {
+	f := newFake(t)
+	blog := f.app("blog", webModel2)
+	outside := filepath.Join(f.home, "elsewhere")
+	lab := f.lab("lab", "apps:\n  blog:\n    path: '"+blog+"'\n    env:\n"+
+		"      BACKUP_LOCATION: ${HL_DATA}/backups\n      MEDIA: ${HL_DATA}/media/../uploads\n      OTHER: '"+outside+"'\n")
+	f.must("up", "blog")
+	for _, d := range []string{"backups", "uploads"} {
+		if _, err := os.Stat(filepath.Join(lab, "data", "blog", d)); err != nil {
+			t.Errorf("data/blog/%s not created: %v", d, err)
+		}
+	}
+	if _, err := os.Stat(outside); err == nil {
+		t.Errorf("created %s, outside the app's data folder", outside)
+	}
+}

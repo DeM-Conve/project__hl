@@ -560,7 +560,9 @@ stops it at once.
 Every named volume an app declares is stored as a plain folder, `data/<app>/<volume>`, created
 by hl. Volumes the app marks `external`, or gives a non-local `driver` or `driver_opts`, are left
 as the app defines them. Bind mounts in the app's compose file (`./uploads:/uploads`) stay where
-the app puts them, inside its own folder.
+the app puts them, inside its own folder, unless the app takes their location from a variable
+(`BACKUP_LOCATION: ${HL_DATA}/backups`): hl creates every folder inside `data/<app>/` that the
+app's env points at before it starts the app, so it is yours and not created by Docker as root.
 
 - **Back up:** stop the apps (`hl down`), copy the homelab folder, start them again (`hl up`).
   Copy with ownership kept (`sudo rsync -a` or `sudo tar -cpzf`), since containers often own

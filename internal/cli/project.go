@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DeM-Conve/project__hl/internal/compose"
 	"github.com/DeM-Conve/project__hl/internal/config"
@@ -127,6 +128,7 @@ func prepare(ctx context.Context, cfg *config.Config, name string) (*preparedApp
 	if err != nil {
 		return nil, withHint(err, "pick one of the app's services: `hl set %s service=<service>` (`hl config %s` lists them)", name, name)
 	}
+	dirs = append(dirs, envDataDirs(p.Env, cfg.DataDir(name))...)
 	for _, d := range append(dirs, cfg.StateDir(name)) {
 		if err := os.MkdirAll(d, defaults.DataDirMode); err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
@@ -142,6 +144,25 @@ func prepare(ctx context.Context, cfg *config.Config, name string) (*preparedApp
 		routed = g.Service
 	}
 	return &preparedApp{Project: p, Model: m, Service: routed}, nil
+}
+
+// envDataDirs are the folders inside the app's data folder that its env points at (say
+// BACKUP_LOCATION=${HL_DATA}/backups). hl creates them as the user, as it does for volumes;
+// left to Docker, a missing bind-mount source is created owned by root, and an app that runs
+// as the user can't write to it.
+func envDataDirs(env []string, dataDir string) []string {
+	var dirs []string
+	for _, kv := range env {
+		k, v, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(k, "HL_") || !filepath.IsAbs(v) {
+			continue
+		}
+		v = filepath.Clean(v)
+		if v == dataDir || strings.HasPrefix(v, dataDir+string(filepath.Separator)) {
+			dirs = append(dirs, v)
+		}
+	}
+	return dirs
 }
 
 // writeGenerated writes a generated file atomically, and only when it changed.

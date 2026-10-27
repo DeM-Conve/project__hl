@@ -44,8 +44,9 @@ and `golang.org/x/term` (is stdin a terminal); tests also use `santhosh-tekuri/j
    then `env_files`), and extra process env (`config.AppEnv`).
 4. **Prepare it** (`cli.prepared`): run `docker compose config --format json` to get the resolved
    model, pick service and port if `hl.yml` doesn't pin them, write
-   `<homelab>/.hl/<app>/override.yml` with `gen.Override`, create the `data/<app>/<volume>` folders,
-   and append the override as the last `--file`.
+   `<homelab>/.hl/<app>/override.yml` with `gen.Override`, create the `data/<app>/<volume>` folders
+   and every folder inside `data/<app>/` an env value points at (`envDataDirs`; left to Docker, a
+   missing bind-mount source is created owned by root), and append the override as the last `--file`.
 5. **Run** `docker compose --project-name hl-<id> --project-directory <app folder> --file ...
    --env-file ... <args>` attached to the terminal (`compose.Project.Run`; arguments are passed
    as they are, never through a shell, so paths with spaces or quotes are safe).

@@ -151,6 +151,9 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- Folders inside `data/<app>/` that the app's env points at (like an auto-mapped
+  `BACKUP_LOCATION`) are created by hl before the app starts; Docker created them owned by root,
+  so an app running as you couldn't write its backups.
 - Colours are used only on a real terminal: output sent to `/dev/null` had them.
 
 [Unreleased]: https://github.com/DeM-Conve/project__hl/commits/main
