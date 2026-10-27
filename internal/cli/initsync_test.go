@@ -893,3 +893,34 @@ func TestSyncMovedFolderWithEnvData(t *testing.T) {
 	contains(t, "sync", out, "+ add", "- remove")
 	lacks(t, "sync", out, "~ moved")
 }
+
+// hl init on an existing homelab with nothing to change needs no terminal and no --yes, also
+// when it isn't the default homelab (which then stays as it is).
+func TestInitNothingToChange(t *testing.T) {
+	home := initSyncEnv(t)
+	a, b := filepath.Join(home, "a"), filepath.Join(home, "b")
+	for _, dir := range []string{a, b} {
+		if out, err := runHL(t, "", "init", "--yes", dir); err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+	}
+	defaultFile := filepath.Join(home, ".config", "hl", "home")
+	out, err := runHL(t, "", "init", b)
+	if err != nil || !strings.Contains(out, "nothing to change in hl.yml\n") {
+		t.Errorf("init of the default homelab: %v\n%s", err, out)
+	}
+	out, err = runHL(t, "", "init", a)
+	if err != nil || !strings.Contains(out, "nothing to change in hl.yml; the default homelab stays "+b) {
+		t.Errorf("init of another homelab: %v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(readFile(t, defaultFile)); got != b {
+		t.Errorf("default homelab = %s, want it kept (%s)", got, b)
+	}
+	if out, err := runHL(t, "", "init", "--yes", a); err != nil || strings.TrimSpace(readFile(t, defaultFile)) != a {
+		t.Errorf("init --yes makes it the default: %v\n%s", err, out)
+	}
+	// Something to write still needs --yes without a terminal.
+	if out, err := runHL(t, "", "init", a, "--projects", home); err == nil || !strings.Contains(err.Error(), "not a terminal") {
+		t.Errorf("want a refusal: %v\n%s", err, out)
+	}
+}

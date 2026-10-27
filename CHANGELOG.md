@@ -215,6 +215,10 @@ release differs from earlier builds of `main`.
 
 ### Fixed
 
+- `hl init` on an existing homelab with nothing to change says `nothing to change in hl.yml`
+  and exits 0 without a terminal; when it isn't the default homelab, it used to fail with "not
+  a terminal, so nothing was written" - now the default stays as it is and hl says how to
+  change it (`hl init --yes <folder>`).
 - `hl unset` removes a key `hl.yml` has that isn't a setting (a typo like `hl unset proxy prot`,
   or a key of another hl version) at any scope, and says it wasn't a known setting; it used to
   refuse it as unknown although the error for such a file suggests it. On a file with several

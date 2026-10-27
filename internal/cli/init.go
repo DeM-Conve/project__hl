@@ -175,6 +175,16 @@ func runInit(in io.Reader, out io.Writer, args []string, o initOptions) error {
 	// Ask once, when there is something to write (or the default homelab changes).
 	old := config.DefaultHome()
 	newDefault := old != "" && !samePath(old, dir)
+	nothing := existing && !saveProjects && !saveStrip && toAdd == 0
+	if nothing && newDefault && !o.yes && !stdinTerminal(in) {
+		// Only the default homelab would change: not worth an error without a terminal.
+		say("nothing to change in %s; the default homelab stays %s (hl init --yes %q makes this one the default)",
+			config.FileName, old, dir)
+		return nil
+	}
+	if nothing {
+		say("nothing to change in %s", config.FileName)
+	}
 	if !existing || saveProjects || saveStrip || toAdd > 0 || newDefault {
 		switch {
 		case o.yes:
