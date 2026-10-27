@@ -25,7 +25,12 @@ done
 case "$*" in
   info*) exit 0 ;;
   "compose version --short") echo 2.29.1; exit 0 ;;
-  ps*) exit 0 ;;
+  ps*) [ -f "$HL_TEST_DOCKER_PS" ] && cat "$HL_TEST_DOCKER_PS"; exit 0 ;;
+  "network inspect"*)
+    # Networks listed (one name a line) in $HL_TEST_DOCKER_NETS exist; others don't.
+    for a in "$@"; do last="$a"; done
+    if [ -f "$HL_TEST_DOCKER_NETS" ] && grep -qx "$last" "$HL_TEST_DOCKER_NETS"; then echo "$last"; exit 0; fi
+    echo "Error response from daemon: network $last not found" >&2; exit 1 ;;
   *"config --variables --format json"*)
     if [ -f "$dir/fake-vars.json" ]; then cat "$dir/fake-vars.json"; else echo "{}"; fi
     exit 0 ;;
@@ -54,6 +59,8 @@ func initSyncEnv(t *testing.T) string {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("HL_HOME", "")
 	t.Setenv("HL_TEST_DOCKER_LOG", filepath.Join(bin, "log"))
+	t.Setenv("HL_TEST_DOCKER_PS", filepath.Join(bin, "ps"))
+	t.Setenv("HL_TEST_DOCKER_NETS", filepath.Join(bin, "nets"))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	oldTerm, oldPort := stdinTerminal, portInUse
 	t.Cleanup(func() { stdinTerminal, portInUse, homeFlag = oldTerm, oldPort, "" })
@@ -108,7 +115,16 @@ func TestInitNonInteractive(t *testing.T) {
 	fakeApp(t, filepath.Join(code, "kv"), `{"services":{"kv":{"ports":[{"target":6380}]}}}`)
 	lab := filepath.Join(home, "homelab")
 
-	out, err := runHL(t, "", "init", lab, "--projects", code, "--routing", "host", "--bind", "0.0.0.0", "--port", "8081")
+	// Without a terminal, init shows the plan but writes only with --yes (like hl sync).
+	out, err := runHL(t, "n\n", "init", lab, "--projects", code)
+	if err == nil || !strings.Contains(err.Error(), "not a terminal") || !strings.Contains(out, "+ add") {
+		t.Errorf("init without a terminal or --yes must refuse after the plan: %v\n%s", err, out)
+	}
+	if exists(lab) || exists(filepath.Join(home, ".config", "hl", "home")) {
+		t.Error("init without --yes wrote something")
+	}
+
+	out, err = runHL(t, "", "init", "--yes", lab, "--projects", code, "--routing", "host", "--bind", "0.0.0.0", "--port", "8081")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -152,7 +168,7 @@ func TestInitNonInteractive(t *testing.T) {
 	}
 	fakeApp(t, filepath.Join(code, "notes"), webModel)
 	fakeApp(t, filepath.Join(code, "later"), webModel)
-	if out, err = runHL(t, "", "init", lab, "--apps", "notes"); err != nil {
+	if out, err = runHL(t, "", "init", "--yes", lab, "--apps", "notes"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	cfg, _ = config.Load(lab)
@@ -207,10 +223,9 @@ func TestInitInteractive(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for _, want := range []string{
-		"port 80 is in use on 127.0.0.1 - the proxy gets port 8080",
 		"homelab    " + lab + " (new hl.yml, data/)",
 		"projects   ~/code\n",
-		"proxy      127.0.0.1:8080 (this machine only), host routing: apps at http://<app>.localhost:8080/",
+		"proxy      127.0.0.1:8080 (this machine only; port 80 is in use), host routing: apps at http://<app>.localhost:8080/",
 		"apps       2 apps to add",
 		"+ add   blog", "env BLOG_URL=${HL_URL}",
 		"! skip  cache", "not a web app?",
@@ -221,6 +236,9 @@ func TestInitInteractive(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
+	}
+	if strings.Count(out, "env BLOG_URL") != 1 {
+		t.Errorf("an app's env is shown once, in the plan:\n%s", out)
 	}
 	if strings.Count(out, "Set it up like this?") != 2 {
 		t.Errorf("init should ask one question (asked again after a bad answer):\n%s", out)
@@ -262,7 +280,7 @@ func TestInitWithoutDocker(t *testing.T) {
 	t.Setenv("PATH", filepath.Join(home, "empty"))
 	code := filepath.Join(home, "code")
 	fakeApp(t, filepath.Join(code, "blog"), webModel)
-	out, err := runHL(t, "", "init", filepath.Join(home, "lab"), "--projects", code)
+	out, err := runHL(t, "", "init", "--yes", filepath.Join(home, "lab"), "--projects", code)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -360,6 +378,36 @@ func TestSync(t *testing.T) {
 	if out, err = runHL(t, "", "sync", "--home", lab, "--yes"); err != nil || !strings.Contains(out, "in sync") {
 		t.Errorf("%v\n%s", err, out)
 	}
+
+	// A folder sync would only skip (not a web app) is no reason to run it.
+	fakeApp(t, filepath.Join(code, "cache"), `{"services":{"cache":{"ports":[{"target":6380}]}}}`)
+	if out, _ = runHL(t, "", "status", "--home", lab); strings.Contains(out, "hl sync") {
+		t.Errorf("status should not send you to hl sync for a folder it skips:\n%s", out)
+	}
+	fakeApp(t, filepath.Join(code, "wiki"), webModel)
+	if out, _ = runHL(t, "", "status", "--home", lab); !strings.Contains(out, "1 new app in ~/my code - run hl sync") {
+		t.Errorf("status hint missing:\n%s", out)
+	}
+}
+
+func TestStatusOtherHomelabsProxy(t *testing.T) {
+	home := initSyncEnv(t)
+	lab, other := filepath.Join(home, "lab"), filepath.Join(home, "other lab")
+	if out, err := runHL(t, "", "init", lab, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	ps := strings.Join([]string{"hl-proxy", "traefik", "running", "Up 1 hour",
+		filepath.Join(other, ".hl", "proxy", "compose.yml"), "hl-proxy-traefik-1"}, "\t") + "\n"
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), []byte(ps), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runHL(t, "", "status", "--home", lab)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !strings.Contains(out, "proxy: run by another homelab ("+other+") - see hl doctor\nhome "+lab) || strings.Contains(out, "127.0.0.1:80") {
+		t.Errorf("status header:\n%s", out)
+	}
 }
 
 func TestStripPrefix(t *testing.T) {
@@ -368,7 +416,7 @@ func TestStripPrefix(t *testing.T) {
 	lab := filepath.Join(home, "lab")
 	fakeApp(t, filepath.Join(code, "project__blog"), webModel)
 	fakeApp(t, filepath.Join(code, "plain"), webModel)
-	out, err := runHL(t, "", "init", lab, "--projects", code, "--strip-prefix", "project__")
+	out, err := runHL(t, "", "init", "--yes", lab, "--projects", code, "--strip-prefix", "project__")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -396,10 +444,10 @@ func TestStripPrefix(t *testing.T) {
 
 	// On an existing homelab --strip-prefix is saved only when none is set.
 	other := filepath.Join(home, "other")
-	if out, err = runHL(t, "", "init", other); err != nil {
+	if out, err = runHL(t, "", "init", "--yes", other, "--strip-prefix", "none"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if out, err = runHL(t, "", "init", other, "--strip-prefix", "x-,y-"); err != nil || !strings.Contains(out, "strip_prefix saved") {
+	if out, err = runHL(t, "", "init", "--yes", other, "--strip-prefix", "x-,y-"); err != nil || !strings.Contains(out, "strip_prefix saved") {
 		t.Errorf("%v\n%s", err, out)
 	}
 	if out, err = runHL(t, "", "init", other, "--strip-prefix", "z-"); err != nil || !strings.Contains(out, "--strip-prefix is ignored") {
@@ -410,13 +458,222 @@ func TestStripPrefix(t *testing.T) {
 	}
 }
 
+func TestInitSharedPrefix(t *testing.T) {
+	home := initSyncEnv(t)
+	code := filepath.Join(home, "code")
+	for _, f := range []string{"project__blog", "project__wiki", "plain"} {
+		fakeApp(t, filepath.Join(code, f), webModel)
+	}
+	lab := filepath.Join(home, "lab")
+	out, err := runHL(t, "", "init", lab, "--projects", code, "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !strings.Contains(out, "app names  without project__ - the folders share it (--strip-prefix none keeps whole names)") {
+		t.Errorf("the plan should say it strips the shared prefix:\n%s", out)
+	}
+	if !strings.Contains(out, "or route it by host name: hl set <app> routing=host") {
+		t.Errorf("the base-path note should name the command:\n%s", out)
+	}
+	cfg, err := config.Load(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.Names(), ",") != "blog,plain,wiki" || strings.Join(cfg.StripPrefix, ",") != "project__" {
+		t.Errorf("apps = %v, strip_prefix = %q\n%s", cfg.Names(), cfg.StripPrefix, out)
+	}
+
+	// --strip-prefix none keeps the whole folder names.
+	whole := filepath.Join(home, "whole")
+	if out, err = runHL(t, "", "init", whole, "--projects", code, "--strip-prefix", "none", "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	cfg, _ = config.Load(whole)
+	if strings.Join(cfg.Names(), ",") != "plain,project__blog,project__wiki" || len(cfg.StripPrefix) != 0 || strings.Contains(out, "app names") {
+		t.Errorf("apps = %v, strip_prefix = %q\n%s", cfg.Names(), cfg.StripPrefix, out)
+	}
+}
+
+func TestShortPath(t *testing.T) {
+	cfg := &config.Config{Projects: []string{"/srv/long/path/code", "~/src"}}
+	for in, want := range map[string]string{
+		"/srv/long/path/code/blog":   "code/blog",
+		"/srv/long/path/code/a/b":    "code/a/b",
+		"~/src/wiki":                 "~/src/wiki",
+		"/elsewhere/app":             "/elsewhere/app",
+		"/srv/long/path/codex/other": "/srv/long/path/codex/other",
+	} {
+		if got := shortPath(cfg, in); got != want {
+			t.Errorf("shortPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestSyncWithoutProjects(t *testing.T) {
 	home := initSyncEnv(t)
 	lab := filepath.Join(home, "lab")
-	if out, err := runHL(t, "", "init", lab); err != nil {
+	if out, err := runHL(t, "", "init", "--yes", lab); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if _, err := runHL(t, "", "sync", "--home", lab); err == nil || !strings.Contains(err.Error(), "projects") {
 		t.Errorf("got %v", err)
+	}
+}
+
+func TestInitClash(t *testing.T) {
+	home := initSyncEnv(t)
+	// Another homelab runs the default proxy on port 80; 8080 is taken too.
+	other := filepath.Join(home, "other lab")
+	ps := strings.Join([]string{"hl-proxy", "traefik", "running", "Up 1 hour",
+		filepath.Join(other, ".hl", "proxy", "compose.yml"), "hl-proxy-traefik-1"}, "\t") + "\n"
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), []byte(ps), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_NETS"), []byte("hl-proxy\nhl-taken-proxy\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	portInUse = func(_ string, port int) bool { return port == 80 || port == 8080 }
+
+	lab := filepath.Join(home, "My Lab")
+	out, err := runHL(t, "", "init", lab, "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, want := range []string{
+		"name       my-lab - the homelab in " + other + " runs hl-proxy, so this one's Docker names are hl-my-lab-<app> and hl-my-lab-proxy",
+		"proxy      127.0.0.1:8000 (this machine only; port 80 is in use)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("plan lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "warning") {
+		t.Errorf("init settled the clashes, nothing to warn about:\n%s", out)
+	}
+	cfg, err := config.Load(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Name != "my-lab" || cfg.Proxy.Port != 8000 || cfg.ProxyProject() != "hl-my-lab-proxy" || cfg.Proxy.Network != "hl-my-lab-proxy" {
+		t.Errorf("name %q, proxy %+v", cfg.Name, cfg.Proxy)
+	}
+	if text := readFile(t, filepath.Join(lab, config.FileName)); !strings.Contains(text, "# Another homelab on this Docker") {
+		t.Errorf("hl.yml should say why it has a name:\n%s", text)
+	}
+
+	// The folder's name is taken too: the next free one.
+	out, err = runHL(t, "", "init", filepath.Join(home, "taken"), "--yes")
+	if err != nil || !strings.Contains(out, "name       taken-2 - the homelab in "+other+" runs hl-proxy") {
+		t.Errorf("%v\n%s", err, out)
+	}
+
+	// Only the network is left (its proxy stopped): taken all the same.
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_PS"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err = runHL(t, "", "init", filepath.Join(home, "net"), "--yes")
+	if err != nil || !strings.Contains(out, "name       net - Docker network hl-proxy exists already") {
+		t.Errorf("%v\n%s", err, out)
+	}
+
+	// No clash: no name.
+	if err := os.WriteFile(os.Getenv("HL_TEST_DOCKER_NETS"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	free := filepath.Join(home, "free")
+	if out, err = runHL(t, "", "init", free, "--yes"); err != nil || strings.Contains(out, "name  ") {
+		t.Errorf("%v\n%s", err, out)
+	}
+	if cfg, _ := config.Load(free); cfg.Name != "" {
+		t.Errorf("name = %q", cfg.Name)
+	}
+}
+
+func TestInitOtherHome(t *testing.T) {
+	home := initSyncEnv(t)
+	a, b, c := filepath.Join(home, "a"), filepath.Join(home, "b"), filepath.Join(home, "c")
+	if out, err := runHL(t, "", "init", a, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+
+	// $HL_HOME points at a: hl would keep using it.
+	t.Setenv("HL_HOME", a)
+	out, err := runHL(t, "", "init", b, "--yes")
+	if err != nil || !strings.Contains(out, "$HL_HOME is "+a+", so hl commands use that homelab, not "+b+" - unset HL_HOME, or set it to "+b) {
+		t.Errorf("%v\n%s", err, out)
+	}
+	t.Setenv("HL_HOME", "")
+
+	// Inside homelab a, setting up c elsewhere.
+	chdir(t, a)
+	out, err = runHL(t, "", "init", c, "--yes")
+	if err != nil || !strings.Contains(out, "the current folder is inside the homelab "+a) {
+		t.Errorf("%v\n%s", err, out)
+	}
+
+	// Nothing to say when hl will use the new homelab.
+	chdir(t, home)
+	if out, err = runHL(t, "", "init", filepath.Join(home, "d"), "--yes"); err != nil || strings.Contains(out, "warning") {
+		t.Errorf("%v\n%s", err, out)
+	}
+}
+
+// chdir changes the working folder for the rest of the test.
+func chdir(t *testing.T, dir string) {
+	t.Helper()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+}
+
+func TestInitDefaultFolder(t *testing.T) {
+	home := initSyncEnv(t)
+	chdir(t, home)
+
+	// No folder, no homelab yet: ~/homelab, never the current folder.
+	out, err := runHL(t, "", "init", "--yes")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	lab := filepath.Join(home, "homelab")
+	if !exists(filepath.Join(lab, config.FileName)) {
+		t.Errorf("init without a folder should set up ~/homelab:\n%s", out)
+	}
+	for _, f := range []string{config.FileName, "data", ".gitignore"} {
+		if exists(filepath.Join(home, f)) {
+			t.Errorf("init wrote %s into the current folder", f)
+		}
+	}
+
+	// Again, from anywhere: the homelab hl uses, not a new one.
+	other := filepath.Join(home, "elsewhere")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, other)
+	if out, err = runHL(t, "", "init", "--yes"); err != nil || !strings.Contains(out, "hl.yml kept") || !strings.Contains(out, lab) {
+		t.Errorf("%v\n%s", err, out)
+	}
+	if exists(filepath.Join(other, config.FileName)) {
+		t.Error("init wrote hl.yml into the current folder")
+	}
+
+	// Inside a homelab folder: that one. Named explicitly: the current folder.
+	second := filepath.Join(home, "second")
+	if out, err = runHL(t, "", "init", second, "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	chdir(t, second)
+	if out, err = runHL(t, "", "init", "--yes"); err != nil || !strings.Contains(out, "homelab    "+second+" (hl.yml kept)") {
+		t.Errorf("%v\n%s", err, out)
+	}
+	chdir(t, other)
+	if out, err = runHL(t, "", "init", ".", "--yes"); err != nil || !exists(filepath.Join(other, config.FileName)) {
+		t.Errorf("hl init . sets up the current folder: %v\n%s", err, out)
 	}
 }

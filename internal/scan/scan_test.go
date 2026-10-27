@@ -192,7 +192,7 @@ apps:
 	want := []string{
 		"add new-one app:5000",
 		"add server server:8080",
-		"skip cache (not a web app? service cache on port 6380 - add it with hl add",
+		"skip cache (not a web app? (service cache, port 6380) - run it without the proxy: hl add ~/'my code/cache' routing=none, or skip it for good: hl set ignore+=cache)",
 		"remove gone",
 		"update moved-port web:3000",
 		"update renamed frontend:8080",
@@ -229,5 +229,27 @@ func TestIgnoreEntry(t *testing.T) {
 	cfg := &config.Config{Dir: "/lab", Projects: []string{"/code"}}
 	if !InProjects(cfg, "/code/blog") || InProjects(cfg, "/elsewhere/blog") || InProjects(cfg, "/code") {
 		t.Error("InProjects")
+	}
+}
+
+func TestSharedPrefixes(t *testing.T) {
+	for _, c := range []struct {
+		folders []string
+		want    string
+	}{
+		{[]string{"project__blog", "project__wiki", "project__notes", "tools"}, "project__"},
+		{[]string{"project__blog"}, ""},                     // one folder: nothing shared
+		{[]string{"my-blog", "my-wiki", "a", "b", "c"}, ""}, // fewer than half
+		{[]string{"my-blog", "my-wiki", "other"}, "my-"},
+		{[]string{"a-b-x", "a-b-y", "a-c"}, "a-"},                  // the one most folders share
+		{[]string{"x_one", "x_two", "y-three", "y-four"}, "x_,y-"}, // two groups
+		{[]string{"pre-blog", "pre-wiki", "blog"}, ""},             // stripping would clash
+		{[]string{"plain", "names"}, ""},
+		{[]string{"svc-", "svc-a"}, ""},                   // nothing left after svc- in one
+		{[]string{"lab__a", "lab__b", "lab__a"}, "lab__"}, // duplicates count once
+	} {
+		if got := strings.Join(SharedPrefixes(c.folders), ","); got != c.want {
+			t.Errorf("SharedPrefixes(%q) = %q, want %q", c.folders, got, c.want)
+		}
 	}
 }

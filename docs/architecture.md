@@ -365,20 +365,36 @@ patterns, scan depth 1, the folders init suggests, init's fallback port and netw
   `hl set ignore+=`). A kept app with a pinned `service` is checked against its model: service gone -> detect
   both again; pinned port not among the service's published targets -> pin its first one. Apps
   with nothing pinned are detected on every run anyway and are left alone.
+- **Showing**: `printPlan` lists each change once (an add with its env); a folder under a
+  projects folder written as an absolute path shows as `<its name>/<rest>` (`shortPath`), and
+  skip reasons name the folder once, as in hl.yml when that starts with `~/` (`scan.shellPath`).
+  Applying then says only "added <app>".
 - **Applying**: adds go through `config.AddApp` with `path` = the projects entry as written joined
   with the subfolder (so `~/code/blog`, not an absolute path); removes stop the app by compose
   project name if it still runs (its files are gone), then `config.RemoveApp` and delete
   `.hl/<app>/` - `data/<app>/` is never touched; updates use `config.PinApp`. All edits keep
   hl.yml's comments.
-- **`hl status`** calls `syncHint`, which runs only `scan.Compare` (no Docker), and prints one line
-  when there are new folders or gone apps.
-- **`hl init`** plans first and writes nothing until it is confirmed: the settings come from flags
+- **`hl status`** calls `syncHint`: `scan.Compare`, then, for new folders only, `scan.PlanAdds`
+  (one `docker compose config` each, as sync does), and prints one line when sync would add an
+  app or remove a gone one. Folders sync only skips are left out, so the hint doesn't stay
+  forever. When another homelab runs the proxy project, the header says so instead of this
+  homelab's address.
+- **`hl init`** sets up the folder given, else the one `config.Home` finds (so a second run adds
+  new apps to it), else `~/homelab` (`defaults.HomelabDir`) - never the current folder by itself
+  (`initDir`). After recording the default it runs `config.Home` again and warns (`otherHome`)
+  when `--home`, `$HL_HOME` or an hl.yml above the working folder would still win. It plans first and writes nothing until it is confirmed: the settings come from flags
   and defaults only (`--projects`, else `defaults.CandidateProjects` that exist in the home folder;
-  the default port, or `defaults.AltPort` when that is busy and free), `InitSettings.Config` makes
-  the homelab in memory, `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,
-  env, skips; `--apps` narrows the adds) and prints the plan with `printPlan`. Then one
-  `confirm` (`prompt.go`, plain bufio, Enter = yes) when stdin is a terminal and `--yes` isn't
-  given, and only when there is something to write; "no" writes nothing. Pre-flight runs the
+  the default port, or the first free of `defaults.AltPorts` (`freePort`) when that is busy, shown
+  as "port 80 is in use" in the plan; with docker working, `initName` gives a new homelab a `name`
+  when `proxyNamesTaken` (docker.go) finds the default proxy project run from another homelab's
+  folder or the proxy network already there - the folder's name as an ID, else
+  `defaults.HomelabDir`, then `-2` ... up to `defaults.MaxNameTries` - and `WriteNew` writes it
+  with a comment saying why), `InitSettings.Config` makes
+  the homelab in memory (with no `--strip-prefix`, `strip_prefix` is `scan.SharedPrefixes` of the
+  new folders' names; `none` turns that off), `initPlan` runs `scan.Compare`/`scan.PlanAdds` on it (service, port,
+  env, skips; `--apps` narrows the adds) and prints the plan with `printPlan`. Then, only when there is something to write and `--yes`
+  isn't given: without a terminal it stops ("pass --yes", like `hl sync`), else one `confirm`
+  (`prompt.go`, plain bufio, Enter = yes); "no" writes nothing. Pre-flight runs the
   doctor's docker checks; without a working docker it still writes hl.yml but leaves app
   detection to `hl sync`. Port check: `net.Listen` on bind:port; only "address in use" counts
   as busy (a normal user may not open port 80, Docker can). A new hl.yml is the short `Template`

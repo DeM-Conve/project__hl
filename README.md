@@ -27,20 +27,18 @@ hl init plan
   apps       2 apps to add
   + add   blog     ~/code/blog     web:8080
   + add   tracker  ~/code/tracker  frontend:80
-                     env TRACKER_BASE_PATH=${HL_PREFIX}
-                     env TRACKER_URL=${HL_URL}
-  ! skip  cache    ~/code/cache    not a web app? service redis on port 6379 - add it with ...
+                                   env TRACKER_BASE_PATH=${HL_PREFIX}
+                                   env TRACKER_URL=${HL_URL}
+  ! skip  cache    ~/code/cache    not a web app? (service redis, port 6379) - run it without the proxy: ...
 
 Set it up like this? [Y/n]: y
 wrote /home/you/homelab/hl.yml
 default homelab: /home/you/homelab
 added blog
 added tracker
-  env TRACKER_BASE_PATH=${HL_PREFIX}
-  env TRACKER_URL=${HL_URL}
 note: path routing serves each app under /<app>/; an app must support that base path.
 No base-path setting was found for blog: map ${HL_PREFIX} to its setting
-(hl set <app> env.<NAME>='${HL_PREFIX}'), or set routing: host for it.
+(hl set <app> env.<NAME>='${HL_PREFIX}'), or route it by host name: hl set <app> routing=host
 start them: hl up blog tracker
 
 $ hl up
@@ -117,7 +115,7 @@ hl doctor                       # checks Docker and compose
 #    folder (~/code, ~/projects or ~/src), shows its plan and asks once
 hl init ~/homelab
 #    other folders, no question:  hl init ~/homelab --projects ~/work --yes
-#    folders named prefix__app:   hl init ~/homelab --strip-prefix prefix__
+#    folders named project__app give apps named app; keep whole names: --strip-prefix none
 #    or one app at a time:        hl add ~/code/my-app
 
 # 3. start everything (the proxy first); --wait also waits for healthchecks
@@ -298,7 +296,7 @@ Compose project and network names are global to a Docker daemon. Without `name`,
 `hl-<app>` and the proxy as `hl-proxy` on the network `hl-proxy`, as they always have. With
 `name: lab2`, apps run as `hl-lab2-<app>`, and the proxy's project and network default to
 `hl-lab2-proxy`. Give the second homelab its own `proxy.port` too (two proxies can't both listen
-on port 80). `name` renames every project, so `hl set` refuses it while any of this homelab's
+on port 80). `hl init` does both for a new homelab when it finds another homelab's proxy on this Docker. `name` renames every project, so `hl set` refuses it while any of this homelab's
 apps or its proxy runs: run `hl down` first, then set it, then `hl up`. For example:
 
 ```sh
@@ -369,7 +367,7 @@ scan_depth: 2
 | `projects` | none | Folders holding your projects: absolute, `~/...`, or relative to the homelab folder. Each subfolder with a compose file (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) is an app, named after the folder (lowercased). A folder with a compose file is not looked into further. |
 | `ignore` | none | Folder-name patterns (`*`, `?`, `[...]`) to skip. Always skipped as well: hidden folders (`.*`), `node_modules`, `vendor`, `__pycache__`, `venv`. |
 | `scan_depth` | `1` | How many levels below a projects folder to look. |
-| `strip_prefix` | none | Folder-name prefixes left out of app names, by `hl init`, `hl sync` and `hl add` (without `--name`). A folder loses the first one it starts with, unless nothing would be left. Apps already in `hl.yml` keep their names. |
+| `strip_prefix` | none | Folder-name prefixes left out of app names, by `hl init`, `hl sync` and `hl add` (without `--name`). A new homelab gets the prefix its folders share, if any (see `hl init`). A folder loses the first one it starts with, unless nothing would be left. Apps already in `hl.yml` keep their names. |
 
 A folder with a `.hlignore` file in it is skipped too, so a library or an experiment can opt out
 without touching `hl.yml`. Ignoring only stops sync from adding a folder; an app already in
@@ -471,7 +469,7 @@ today and not `hl.yml` settings (some have a command-line flag):
 | `200` | lines shown by `hl logs` and `hl logs proxy` (change with `--tail`) |
 | `2m` | how long `--wait` waits for each app (change with `--wait-timeout`) |
 | `20` | log lines `--wait` shows for each service that didn't become healthy |
-| `8080` | the proxy port `hl init` offers when the default one is in use |
+| `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use (and error hints suggest) |
 | `code`, `projects`, `src` | projects folders `hl init` suggests, under your home folder, when they exist |
 | `.hlignore` | a folder holding a file with this name is never picked up as an app |
 | `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` | service names `hl add` prefers when several publish ports |
@@ -499,7 +497,7 @@ every app when none is named; `up`, `down`, `restart`, `rebuild`, `logs` and `sh
 
 | Command | What it does |
 | --- | --- |
-| `hl init [folder]` | Set up a homelab folder (default: the current one) with a short `hl.yml`, `data/` and `.gitignore`, and make it the default. First checks Docker, compose and that the proxy port is free (if 80 is taken it uses 8080). Then it shows its plan - the homelab folder, the projects folders (`~/code`, `~/projects`, `~/src` when they exist), the proxy, each web app found with its service, port and [env](#env-hl-fills-in), and the folders it skips and why - and asks once. Flags change the plan: `--projects`, `--routing`, `--bind`, `--port`, `--apps a,b` (or `none`), `--strip-prefix project__` (app names without that folder prefix), `--no-env`. `--yes`, or stdin that isn't a terminal, applies it without asking. Never overwrites an existing `hl.yml`; on one it adds the new apps instead. |
+| `hl init [folder]` | Set up a homelab folder with a short `hl.yml`, `data/` and `.gitignore`, and make it the default. Without a folder it uses the homelab hl already uses (`--home`, `$HL_HOME`, an `hl.yml` at or above the current folder, the default), else `~/homelab`; it never turns the current folder into a homelab unless you name it (`hl init .`). First checks Docker, compose and that the proxy port is free (if 80 is taken it uses the first free of 8080, 8000, 8081, 8888, 8090), and whether another homelab on this Docker already runs the proxy project or network `hl-proxy` - then it gives the new homelab a [`name`](#name-several-homelabs-on-one-docker) from its folder (`~/lab2` -> `lab2`, or `lab2-2` if that is taken too). Both show in the plan. Then it shows its plan - the homelab folder, the projects folders (`~/code`, `~/projects`, `~/src` when they exist), the proxy, each web app found with its service, port and [env](#env-hl-fills-in), and the folders it skips and why - and asks once. Flags change the plan: `--projects`, `--routing`, `--bind`, `--port`, `--apps a,b` (or `none`), `--strip-prefix project__` (app names without that folder prefix; by default init strips a prefix ending in `-`, `_` or `__` that at least two, and at least half, of the folders found share, and says so in the plan; `--strip-prefix none` keeps whole names), `--no-env`. `--yes` applies it without asking; without a terminal (a script, a pipe) `--yes` is required, as for `hl sync`. Never overwrites an existing `hl.yml`; on one it adds the new apps instead. Warns when `$HL_HOME`, `--home` or an `hl.yml` above the current folder means hl commands would still use another homelab. |
 | `hl sync` | Make `hl.yml` follow the `projects` folders. Shows a plan first: new folders with a compose file are added (service, port and [env](#env-hl-fills-in) detected like `hl add`; `--no-env` skips the env), apps whose folder is gone are removed (stopped if running; their data stays), apps whose pinned service or port left their compose file are re-detected, and folders it can't add are listed with the `hl add` command to use. Asks before applying; `--yes` applies without asking, `--dry-run` only shows. |
 | `hl add <folder> [key=value...]` | Add an app. Takes the settings `hl set <app>` takes, plus `name`: `hl add ~/code/wiki name=wiki routing=host service=web port=8080 env.TZ=UTC`. `name` defaults to the folder's name (less a `strip_prefix`); `env.NAME=value` sets a variable and wins over the [mapped ones](#env-hl-fills-in), `env.NAME=` leaves a mapped one out; lists such as `compose=a.yml,b.yml` are comma-separated. When several services or ports could be the one to route, it asks on a terminal; without one it takes the service with a usual web name (with a note) and otherwise says which setting to pass (`service=`, `port=`). With path routing and no base-path variable mapped, it ends with a one-line hint on mapping `${HL_PREFIX}` (or using `routing=host`). |
 | `hl set <app> key=value...` | Change an app's settings in `hl.yml`: `routing`, `prefix`, `host`, `port`, `service`, `path`, `compose` and `env_files` (comma-separated), `env.NAME`. Keeps comments; writes only a valid result. `hl up <app>` applies it. |
@@ -508,7 +506,7 @@ every app when none is named; `up`, `down`, `restart`, `rebuild`, `logs` and `sh
 | `hl unset [<app>\|proxy] key...` | Remove settings of an app, the proxy (`hl unset proxy port`) or the homelab (`hl unset env.TZ`, `hl unset ignore`) so their defaults apply again; `env.NAME` removes one variable, `env` all. |
 | `hl edit` | A fallback, rarely needed: `hl set`/`hl unset` change every setting. Opens `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
 | `hl remove <app>` | Stop the app and remove it from `hl.yml`. Its data in `data/<app>` stays. When its folder is in a `projects` folder, hl adds the folder's name to `ignore` and says so, so `hl sync` doesn't add it back (`hl set ignore-=<name>` undoes it); `hl add` of that folder later takes it out of `ignore` again. |
-| `hl status` (`ls`) | The proxy's state, then every app's STATE (`up 2/2`, `partial 1/2`, `down`, or `other homelab`), HEALTH (`healthy`, `starting: <services>`, `unhealthy: <services>`, or `-` when the app has no healthchecks), URL and folder. Says when `hl sync` has something to do. |
+| `hl status` (`ls`) | The proxy's state, then every app's STATE (`up 2/2`, `partial 1/2`, `down`, or `other homelab`), HEALTH (`healthy`, `starting: <services>`, `unhealthy: <services>`, or `-` when the app has no healthchecks), URL and folder. When another homelab runs the proxy it says so (`proxy: run by another homelab (<folder>) - see hl doctor`) instead of an address. Says when `hl sync` would add an app or remove one whose folder is gone; folders sync only skips (not a web app) are not mentioned - `hl sync` lists them and why. |
 | `hl up [app...]` (`start`) | Start apps, the proxy first; builds images that don't exist yet. Before starting the proxy it checks the port is free (naming the program or container that holds it) and that `proxy.subnet` doesn't overlap another network. `--wait` waits until the service behind the proxy and the services it depends on (`depends_on`) are running and healthy - not sidecars nothing depends on, which may take longer - and for an app that isn't, names those services and shows their last 20 log lines; for an app with routing `none` it waits for every service; `--wait-timeout` (default `2m`) is how long it waits for each app. Ends with the `hl status` table. |
 | `hl down [app...]` (`stop`) | Stop and remove the apps' containers; with no app, also the proxy. Data stays. Apps another homelab runs are left alone. |
 | `hl restart [app...]` | Restart containers without rebuilding, the proxy first (started if it isn't running), like `up`. |

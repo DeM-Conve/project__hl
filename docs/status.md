@@ -82,9 +82,8 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
    something sets `TZ`. To keep an image's own default instead, a user can only set an explicit
    zone (`hl set env.TZ=UTC`). Is a way to say "no `TZ` at all" wanted (e.g. an empty
    `env.TZ`, which `hl set` refuses today), or is an explicit zone enough?
-9. **`hl init` without a terminal and without `--yes`** applies its plan (as before the plan
-   and single question came in), while `hl sync` refuses and asks for `--yes`. Keep the
-   difference, or make init require `--yes` too?
+9. ~~`hl init` without a terminal and without `--yes`~~ - decided 2026-10-27: init requires
+   `--yes` without a terminal, like `hl sync` (`echo n | hl init ...` used to write hl.yml).
 10. **Auto-mapped env vs. the app's own `.env`**: a mapped value (say `DATA_LOCATION:
    ${HL_DATA}`) is in `apps.<app>.env`, which wins over the app's `.env`. Should the mapping
    leave out variables the app's `.env` already sets?
@@ -97,3 +96,8 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
 14. **`hl rebuild --pull` and a folder with uncommitted changes** (2026-10-27): like `hl update`
     before it, such an app is skipped altogether (neither pulled nor rebuilt). Should it still be
     rebuilt from its local code, with only the pull skipped?
+15. **Shared prefix and clash names on an existing homelab** (2026-10-27): `hl init` strips a
+    shared folder-name prefix and picks a `name`/free port only for a new homelab. Re-running it
+    on an existing `hl.yml` without `strip_prefix` (or one clashing with another homelab) changes
+    nothing and leaves that to `hl set`/`hl doctor`. Should it offer them there too (renaming
+    apps or projects that may already run)?

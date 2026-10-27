@@ -200,12 +200,33 @@ func addrInUse(bind string, port int) bool {
 
 // freePort suggests a port near the usual alternatives that is free.
 func freePort(bind string) int {
-	for _, p := range []int{8080, 8000, 8081, 8888, 8090} {
+	for _, p := range defaults.AltPorts {
 		if !portInUse(bind, p) {
 			return p
 		}
 	}
 	return 0
+}
+
+// proxyNamesTaken says why a new homelab can't use cfg's proxy project and network: another
+// homelab runs that project, or the network exists already. "" when they are free, or when
+// Docker can't tell.
+func proxyNamesTaken(ctx context.Context, cfg *config.Config) string {
+	inv, err := containers(ctx)
+	if err != nil {
+		return ""
+	}
+	project := cfg.ProxyProject()
+	if other := inv.owner(cfg, project); other != "" {
+		return fmt.Sprintf("the homelab in %s runs %s", other, project)
+	}
+	if len(inv.of(project)) > 0 {
+		return "" // started from this folder before: its own
+	}
+	if _, err := docker(ctx, "network", "inspect", "--format", "{{.Name}}", cfg.Proxy.Network); err == nil {
+		return fmt.Sprintf("Docker network %s exists already", cfg.Proxy.Network)
+	}
+	return ""
 }
 
 var ssUserRE = regexp.MustCompile(`\(\("([^"]+)",pid=(\d+)`)
