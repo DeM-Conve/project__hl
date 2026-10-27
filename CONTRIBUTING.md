@@ -11,7 +11,7 @@ Two rules shape every change:
   home paths, project-folder names, one homelab's app names, timezones, domains or emails. Use
   neutral examples (`my-app`, `blog`, `~/code`, `~/homelab`, `UTC`).
 - **No hard-coded values.** Every value hl uses is the user's setting or a named default defined
-  in one place, and listed in the README's hl.yml reference.
+  in one place, and listed in [docs/reference.md](docs/reference.md).
 
 The decisions behind hl are in [docs/requirements.md](docs/requirements.md) and the plan in
 [docs/product-plan.md](docs/product-plan.md); how it works inside is in
@@ -63,7 +63,8 @@ names unless one has a `name:` - if you already run a homelab, put `name: try` a
 ## Changes
 
 - Add or update tests for behaviour you change.
-- When a command, flag or `hl.yml` setting changes, update README.md (it is the user reference)
+- When a command, flag or `hl.yml` setting changes, update README.md (the user guide) and
+  [docs/reference.md](docs/reference.md) (every setting and default),
   and add a line under `Unreleased` in [CHANGELOG.md](CHANGELOG.md), written for users.
 - Keep pull requests focused: one change, with its tests and docs.
 

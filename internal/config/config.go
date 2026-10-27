@@ -486,7 +486,7 @@ func editApps(dir string, edit func(apps *yaml.Node) error) error {
 
 // Template is the start of the hl.yml `hl init` writes: only what every homelab needs. WriteNew
 // adds projects, strip_prefix and the proxy settings that differ from the defaults; every other
-// setting is in the README ("hl.yml reference"), not here.
+// setting is in docs/reference.md, not here.
 const Template = defaults.SchemaComment + `
 # hl homelab. hl commands change it (hl add, hl set, hl unset, ...); every setting is in
 # the README. hl reads it on every command.

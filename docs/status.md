@@ -34,7 +34,7 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   amd64/arm64, `checksums.txt`, an SPDX SBOM per archive via syft); `install.sh` was tested
   against the snapshot (checksum ok and mismatch, `--version`, `--dir`, `~` expansion) and is
   shellcheck clean. Steps: [RELEASING.md](../RELEASING.md).
-- Docs: README is the product page and full reference; guides in `docs/guides/`; example apps in
+- Docs: README is the user guide (CLI-first) and docs/reference.md the settings reference; guides in `docs/guides/`; example apps in
   `examples/`; CODE_OF_CONDUCT, SECURITY, issue and PR templates in place.
 - No CI, on purpose (see [requirements.md](requirements.md)); `scripts/check.sh` runs gofmt,
   go vet, staticcheck, golangci-lint, `go test -race`, shellcheck (when installed) and the cross

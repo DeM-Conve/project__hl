@@ -4,199 +4,157 @@
 touching their compose files.**
 
 [![release](https://img.shields.io/github/v/release/DeM-Conve/project__hl?sort=semver)](https://github.com/DeM-Conve/project__hl/releases/latest)
-[![go](https://img.shields.io/github/go-mod/go-version/DeM-Conve/project__hl)](go.mod)
-[![platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macOS-blue)](#install)
 [![license](https://img.shields.io/github/license/DeM-Conve/project__hl)](LICENSE)
 
-You have a few projects, each with its own `compose.yml`. Each one wants port 80 or 8080, each
-keeps its data in a different Docker volume, and you start them one by one. hl puts them all
-behind one [Traefik](https://traefik.io) proxy at `http://localhost/<app>/`, keeps every app's
-data in one `data/` folder, and gives you one set of commands, while each project stays an
-ordinary compose project that still runs on its own.
+You have a few projects, each with its own `compose.yml`, each wanting port 80 or 8080 and keeping
+its data in some Docker volume. hl puts them all behind one [Traefik](https://traefik.io) proxy at
+`http://localhost/<app>/`, keeps every app's data in one `data/` folder, and gives you one set of
+commands. Each project stays an ordinary compose project that still runs on its own. hl is a small
+CLI: no daemon, no database, no web UI.
 
 ```console
 $ hl init ~/homelab
 ✓ docker is installed
-✓ the docker daemon is reachable
-✓ docker compose v2.24+ (2.29.1)
-
+...
 hl init plan
   homelab    /home/you/homelab (new hl.yml, data/)
   projects   ~/code
   proxy      127.0.0.1:80 (this machine only), path routing: apps at http://localhost/<app>/
-  apps       2 apps to add
   + add   blog     ~/code/blog     web:8080
   + add   tracker  ~/code/tracker  frontend:80
                                    env TRACKER_BASE_PATH=${HL_PREFIX}
-                                   env TRACKER_URL=${HL_URL}
-  ! skip  cache    ~/code/cache    not a web app? (service redis, port 6379) - run it without the proxy: ...
-
+  ! skip  cache    ~/code/cache    not a web app? (service redis, port 6379) ...
 Set it up like this? [Y/n]: y
-wrote /home/you/homelab/hl.yml
-default homelab: /home/you/homelab
-added blog
-added tracker
-note: path routing serves each app under /<app>/; an app must support that base path.
-No base-path setting was found for blog: map ${HL_PREFIX} to its setting
-(hl set <app> env.<NAME>='${HL_PREFIX}'), or route it by host name: hl set <app> routing=host
+...
 start them: hl up blog tracker
 
 $ hl up
 ==> proxy
  ✔ Container hl-proxy-traefik-1  Started
 ==> blog
- ✔ Container hl-blog-db-1   Started
  ✔ Container hl-blog-web-1  Started
-==> tracker
- ✔ Container hl-tracker-api-1       Started
- ✔ Container hl-tracker-frontend-1  Started
+...
+
+$ hl status
 proxy running  127.0.0.1:80  home /home/you/homelab
 
 APP      STATE   HEALTH   URL                        FOLDER
 blog     up 2/2  healthy  http://localhost/blog/     /home/you/code/blog
 tracker  up 2/2  -        http://localhost/tracker/  /home/you/code/tracker
-
-$ ls ~/homelab/data
-blog  tracker
 ```
 
-(Shortened: the `==>` sections show docker compose's own output, which varies by version.)
+(Shortened; the `==>` sections are docker compose's own output.)
 
-## Contents
-
-- [Why hl](#why-hl) · [Quickstart](#quickstart) · [Install](#install) · [How it works](#how-it-works)
-- [Routing](#routing) · [hl.yml reference](#hlyml-reference) · [Commands](#commands)
-- [Data and backups](#data-and-backups) · [Security](#security) · [Guides](#guides)
-- [Troubleshooting and FAQ](#troubleshooting-and-faq) · [Uninstall](#uninstall)
-- [Contributing](#contributing) · [License](#license)
-
-## Why hl
-
-hl is for one machine running **your own** apps: projects you develop or check out, each already
-with a compose file. It is a small CLI with no daemon, no database and no web UI. What it does:
-
-- **Your folders, untouched.** An app is any folder with a compose file. hl never writes into it;
-  it layers a generated override on top at run time. The app keeps working with plain
-  `docker compose up`, for you and for anyone else who uses it.
-- **One proxy, path routing on `localhost`.** Every app is at `http://localhost/<app>/` by
-  default. One host name matters for OAuth: Google sign-in, for example, accepts plain-`http`
-  redirect URIs only on exactly `localhost`, not `<app>.localhost`. Host routing is there too.
-- **One `data/` folder.** Every named volume becomes a plain folder, `data/<app>/<volume>`.
-  Backing up the homelab is copying one folder; removing an app never deletes its data.
-- **One file.** `hl.yml` describes the proxy and the apps, by hand or with `hl add`, comments kept.
-
-How it compares (each of these is good at what it is for; pick the one that fits):
-
-| Tool | What it is | Pick it over hl when |
-| --- | --- | --- |
-| [Harbormaster](https://gitlab.com/stavros/harbormaster) | Runs compose apps from git repos listed in one YAML file | you deploy from repos on a server and bring your own proxy |
-| [Dockge](https://github.com/louislam/dockge) | Web UI to write and manage compose stacks in one stacks folder | you want a web UI and are happy to keep stacks in its folder |
-| [Komodo](https://github.com/moghtech/komodo) | Build and deploy platform for many servers, with a web UI | you run several servers or want builds and deploys from a UI |
-| [Portainer](https://www.portainer.io) | Web UI for containers, stacks and environments | you want a general container dashboard |
-| [Dokku](https://dokku.com) / [Coolify](https://coolify.io) | Self-hosted PaaS: push to deploy, domains, TLS | you want Heroku-style deploys with HTTPS on a public server |
-| [CasaOS](https://casaos.zimaspace.com) | Home-server OS layer with an app store | you want to install packaged apps from a store |
-
-hl's niche: your own project folders, compose files left exactly as they are, path routing on
-`localhost` (OAuth-friendly), and one `data/` folder for everything. It is not a PaaS: no web UI,
-no app store, no multi-server, and no HTTPS of its own in v0.1 (see
-[behind HTTPS](docs/guides/behind-https.md)).
+- [Quickstart](#quickstart) · [Install](#install) · [Everyday commands](#everyday-commands)
+- [Changing settings](#changing-settings) · [Routing](#routing) · [Data folder](#data-folder)
+- [Security](#security) · [Troubleshooting](#troubleshooting) · [Guides](#guides)
+- [Uninstall](#uninstall) · [Contributing](#contributing) · [License](#license)
+- Every setting and default: [docs/reference.md](docs/reference.md)
 
 ## Quickstart
 
-Needs Linux or macOS (on Windows, run hl inside WSL 2) and Docker with the compose plugin
-v2.24 or newer.
+Needs Linux or macOS (on Windows, run hl inside WSL 2) and Docker with the compose plugin v2.24
+or newer.
 
 ```sh
-# 1. install (to ~/.local/bin; see Install for other ways)
 curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh
-hl doctor                       # checks Docker and compose
+hl doctor                 # checks Docker and compose
 
-# 2. set up a homelab folder (config + data): hl init finds the apps in your projects
-#    folder (~/code, ~/projects or ~/src), shows its plan and asks once
-hl init ~/homelab
-#    other folders, no question:  hl init ~/homelab --projects ~/work --yes
-#    folders named project__app give apps named app; keep whole names: --strip-prefix none
-#    or one app at a time:        hl add ~/code/my-app
-
-# 3. start everything (the proxy first); --wait also waits for healthchecks
-hl up --wait
-
-# 4. open it
-hl open my-app                  # http://localhost/my-app/
+hl init ~/homelab         # finds the apps in ~/code, ~/projects or ~/src, shows a plan, asks once
+hl up --wait              # starts the proxy, then every app; --wait waits for healthchecks
+hl open my-app            # http://localhost/my-app/
 ```
 
-If the app's page loads but its links, styles or redirects are broken, it needs its base path:
-see [path routing](#routing) or use host routing (`hl set my-app routing=host`). To try hl without an app of your
-own, use the two apps in [examples/](examples/).
+`hl init ~/homelab --projects ~/work --yes` uses other folders and doesn't ask; `hl add
+~/code/my-app` adds one app at a time. Folders named like `project__blog` become app `blog`
+(`--strip-prefix none` keeps whole names). No app of your own to try? Use the two in
+[examples/](examples/).
 
-Later, when a project folder appears or is deleted, `hl sync` brings `hl.yml` up to date: it
-shows what it would add, remove or re-detect, and asks before changing anything.
+If an app's page loads but its links, styles or redirects are broken, it needs its base path: see
+[Routing](#routing).
 
 ## Install
 
-hl runs on **Linux and macOS** (amd64 and arm64) and needs Docker with the **compose plugin
-v2.24+**. Windows isn't supported: there hl only prints a short error saying so (`hl version`
-and `hl completion` still work). Run hl inside WSL 2 instead, with Docker available there.
+hl runs on Linux and macOS (amd64 and arm64). On Windows it only prints an error saying so; run
+it inside WSL 2 with Docker available there.
 
-**Install script** (downloads the release for your OS and CPU, verifies it against the release's
-`checksums.txt`, installs to `~/.local/bin`, or `/usr/local/bin` as root):
+- **Install script** (verifies the download against the release's `checksums.txt`, installs to
+  `~/.local/bin`, or `/usr/local/bin` as root):
+  `curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh`.
+  Add `-s -- --version v0.1.0 --dir /usr/local/bin` (or set `HL_VERSION`, `HL_INSTALL_DIR`) to
+  pick a version or folder; sudo is used only if the folder isn't writable.
+- **With Go** (1.21+): `go install github.com/DeM-Conve/project__hl/cmd/hl@latest`.
+- **By hand:** download the archive from
+  [Releases](https://github.com/DeM-Conve/project__hl/releases), check it
+  (`sha256sum -c --ignore-missing checksums.txt`), and put `hl` on your PATH. Each release also
+  carries an SPDX SBOM per archive.
+- **Homebrew:** planned, not available yet.
+
+Shell completion (app names, services, setting keys): `source <(hl completion bash)` (also `zsh`,
+`fish`, `powershell`); add it to your shell's rc file.
+
+## Everyday commands
+
+Commands that take `[app...]` act on every app when none is named; `up`, `down`, `restart`,
+`rebuild`, `logs` and `show` also take `proxy` for the proxy alone. Every command takes
+`--home <folder>`; `hl <command> --help` lists its flags.
+
+| Command | What it does |
+| --- | --- |
+| `hl init [folder]` | Set up a homelab folder (default `~/homelab`), find your apps, make it the default. Shows a plan and asks once; `--yes` doesn't ask. Flags: `--projects`, `--apps`, `--routing`, `--bind`, `--port`, `--strip-prefix`, `--no-env`. |
+| `hl add <folder> [key=value...]` | Add an app: any folder with a compose file. Takes the [settings](#changing-settings) `hl set <app>` takes, plus `name=`. |
+| `hl up [app...]` | Start apps, the proxy first; builds missing images. `--wait` waits until they're healthy and shows the logs of any that aren't. Ends with `hl status`. |
+| `hl down [app...]` | Stop and remove containers; with no app, also the proxy. Data stays. |
+| `hl restart [app...]` | Restart containers without rebuilding. |
+| `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart. `--pull` first runs `git pull --ff-only` in each folder (skips ones with uncommitted changes); for the proxy it pulls the image. |
+| `hl logs [app] [service...]` | The last 200 lines (`-n`), `-f` to follow; with no app, every app's, prefixed by its name. |
+| `hl status` (`ls`) | The proxy, then each app's state, health, URL and folder. Says when `hl sync` has something to do. |
+| `hl open <app>` | Print the app's URL and open it in the browser. |
+| `hl shell <app> [service]` | A shell in a running container (default: the service behind the proxy). |
+| `hl show [app\|proxy]` | Settings in effect and where each comes from; `--compose` prints the compose config as hl runs it. |
+| `hl set` / `hl unset` | Change settings: see [Changing settings](#changing-settings). |
+| `hl sync` | Make the homelab follow your projects folders: add new apps, remove ones whose folder is gone. Shows a plan and asks; `--dry-run`, `--yes`. |
+| `hl remove <app>` | Stop the app and forget it. Its data stays; `hl sync` won't add its folder back. |
+| `hl doctor` | Check Docker, compose, the settings, the proxy and every app; warns about an old Traefik or hl. |
+| `hl edit` | Fallback: open `hl.yml` in your editor; saved only if it checks out. |
+| `hl version` | Version, commit and platform, for bug reports (`--short`: only the version). |
+| `hl completion <shell>` | Shell completion script. |
+
+## Changing settings
+
+hl keeps its settings in `hl.yml` in the homelab folder; you don't need to open it. `hl set`
+changes a setting, `hl unset` puts its default back, and `hl show` prints what is in effect and
+where each value comes from. The first argument says what to change:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh
+hl set my-app routing=host               # an app (also on hl add <folder> routing=host)
+hl set my-app env.TZ=Europe/Berlin       # a variable for that app's compose file
+hl set proxy port=8080 bind=0.0.0.0      # the proxy
+hl set env.TZ=UTC                        # env every app gets (an app's own wins)
+hl set projects+=~/src ignore+=old       # where hl init and hl sync look for apps
+hl unset my-app routing                  # back to the default
+hl unset proxy port
 ```
 
-Pick a version or folder with `--version` and `--dir` (or `HL_VERSION`, `HL_INSTALL_DIR`); sudo
-is used only if the folder isn't writable:
+- **Shapes:** `key=value`; `env.NAME=value` for one variable (`hl unset ... env` drops them all);
+  lists are comma-separated and `=` replaces the list, `+=` adds entries, `-=` removes them
+  (`compose-=compose.dev.yml`); switches take `true`/`false`.
+- **Keys:** an app has `path`, `service`, `port`, `routing`, `prefix`, `host`, `compose`,
+  `env_files`, `env.NAME`; the proxy has `bind`, `port`, `routing`, `domain`, `network`, `subnet`,
+  `image`, `project`, `debug`; the homelab has `env.NAME`, `projects`, `ignore`, `scan_depth`,
+  `strip_prefix`, `name`. Each one, with its default: [docs/reference.md](docs/reference.md).
+- **Applying:** hl writes the change only if the result is valid, then says which command applies
+  it (`hl up my-app`, `hl up proxy`, `hl sync`, or `hl down` then `hl up`):
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh -s -- --version v0.1.0 --dir /usr/local/bin
+```console
+$ hl set my-app routing=host
+set apps.my-app.routing = host
+apply it: hl up my-app
 ```
 
-**With Go** (1.21+):
-
-```sh
-go install github.com/DeM-Conve/project__hl/cmd/hl@latest
-```
-
-**By hand:** download the archive for your platform from
-[Releases](https://github.com/DeM-Conve/project__hl/releases), check it, and put `hl` on your PATH:
-
-```sh
-sha256sum -c --ignore-missing checksums.txt     # macOS: shasum -a 256 -c --ignore-missing checksums.txt
-tar -xzf hl_*_linux_amd64.tar.gz hl && install -m 0755 hl ~/.local/bin/hl
-```
-
-Each release also carries an SPDX SBOM per archive (`*.sbom.json`).
-
-**Homebrew:** planned, not available yet.
-
-Then run `hl doctor`, and enable shell completion if you like:
-`source <(hl completion bash)` (also `zsh`, `fish`; add it to your shell's rc file). Completion
-offers your app names and, where a command takes one, the app's services.
-
-## How it works
-
-- **The homelab folder** holds `hl.yml` (the proxy and the apps), `data/` (every app's data) and
-  `.hl/` (files hl generates; safe to delete). `hl init` also writes a `.gitignore` for `data/`
-  and `.hl/`, so you can keep `hl.yml` in git.
-- **Finding the homelab:** `--home`, then `$HL_HOME`, then the nearest folder at or above the
-  current one that has an `hl.yml`, then the default `hl init` recorded.
-- **An app** is any folder with a compose file. `hl add` finds the service that publishes a port
-  and pins it, with its container port, in `hl.yml`. The proxy forwards to that service, which no
-  longer publishes a host port. Each app runs as its own compose project, `hl-<app>` (or
-  `hl-<name>-<app>` in a homelab with a [`name`](#name-several-homelabs-on-one-docker)).
-- **Nothing in the app is edited.** On every command hl writes `.hl/<app>/override.yml` and passes
-  it to `docker compose` after the app's own files. `hl show <app> --compose` shows the merged result.
-- **hl doesn't parse compose files.** It asks `docker compose config` for the resolved model, so
-  includes, extends, profiles and interpolation work as compose defines them.
-- **No daemon.** hl reads `hl.yml` on every command and runs `docker compose`; the containers keep
-  running (and restart with Docker) after hl exits.
-- **`hl.yml` is checked strictly on every command.** Unknown keys (with a "did you mean"), wrong
-  types, bad values and clashes between apps (same Docker project, URL prefix or host name) are
-  all reported at once, each with its line, and the command stops (`hl doctor` lists them too).
-- **Files are written whole.** `hl.yml`, the default-homelab note and every generated file are
-  written to a temporary file first and then renamed into place, so a crash or Ctrl-C never leaves
-  half a file. An existing file keeps its permissions, and a symlinked `hl.yml` stays a symlink.
+- `hl show` (the homelab), `hl show my-app`, `hl show proxy` print the values in effect: for an
+  app its folder, service and port, URL, data folder and every variable its compose files can use,
+  each marked `hl.yml`, default or detected.
 
 ## Routing
 
@@ -206,376 +164,85 @@ offers your app names and, where a command takes one, the app's services.
 | `host` | `http://<app>.localhost` | any app |
 | `none` | not behind the proxy | databases, workers, apps that keep their own ports |
 
-Set the default for the homelab with `proxy.routing` (`hl set proxy routing=host`), and override
-it per app with `routing:` (`hl set my-app routing=host`, or `hl add <folder> routing=host`). A `proxy.port` other than 80 is added to the URLs
-(`http://localhost:8080/<app>/`).
+Set it per app (`hl set my-app routing=host`) or for every app (`hl set proxy routing=host`). A
+proxy port other than 80 is added to the URLs (`http://localhost:8080/<app>/`). Path routing on
+plain `localhost` matters for OAuth: Google sign-in, for example, accepts plain-`http` redirect
+URIs only on exactly `localhost`.
 
-**Path routing.** The proxy matches `/<app>` and everything under `/<app>/`, redirects `/<app>`
-to `/<app>/`, strips the prefix, and sends it along as `X-Forwarded-Prefix`. So the app serves
-from `/` as usual, but the links it builds (assets, redirects, absolute URLs) must include the
-prefix. Most apps have a setting for that; feed it from hl (single quotes keep your shell from
-expanding `${...}`):
+**Path routing** sends `/<app>/...` to the app with the prefix stripped (and as
+`X-Forwarded-Prefix`). The app serves from `/`, but the links it builds must include the prefix,
+so it needs its base-path setting. Map it from hl in the app's env (single quotes keep your shell
+from expanding `${...}`):
 
 ```sh
 hl set my-app 'env.MY_APP_BASE_PATH=${HL_PREFIX}' 'env.MY_APP_URL=${HL_URL}'
 ```
 
-which leaves this in `hl.yml`:
+`MY_APP_BASE_PATH` is a variable the app's compose file uses (e.g.
+`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`): an app's env reaches a container only through its
+compose file. Walkthrough: [an app that needs a base path](docs/guides/base-path-app.md).
 
-```yaml
-apps:
-  my-app:
-    path: ~/code/my-app
-    env:
-      MY_APP_BASE_PATH: ${HL_PREFIX}     # /my-app
-      MY_APP_URL: ${HL_URL}              # http://localhost/my-app
-```
+**What hl fills in.** `hl add`, `hl init` and `hl sync` look at the variables an app's compose file
+uses and map the common ones on their own: `<X>_BASE_PATH` gets `${HL_PREFIX}`, a matching
+`<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and `BACKUP_LOCATION`
+`${HL_DATA}/backups`. They say what they mapped, and `hl add` ends with a hint when it found no
+base-path variable. Other variables hl provides: `HL_APP`, `HL_HOST`, and `TZ` (this machine's time
+zone, unless you set one). Details: [Variables hl provides](docs/reference.md#variables-hl-provides).
 
-`MY_APP_BASE_PATH` is a variable in the app's compose file (e.g.
-`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`): hl's `env` values are compose interpolation
-variables, and reach a container only through the app's compose file. Walkthrough:
-[an app that needs a base path](docs/guides/base-path-app.md).
+**Host routing** needs `<app>.localhost` to resolve to your machine. Browsers do this on their own;
+for other tools, or for a `proxy domain` of your own, add the names to `/etc/hosts` or your DNS.
 
-Path routes have no host-name match: an app answers on any name or address that reaches the proxy
-(`localhost`, the machine's LAN IP, a name you give it).
+## Data folder
 
-**Host routing** needs `<app>.localhost` to resolve to your machine. Browsers do this on their
-own; for other tools, or for a `proxy.domain` of your own, add the names to `/etc/hosts` or your
-DNS.
+The homelab folder holds `hl.yml`, `data/` (every app's data) and `.hl/` (files hl generates; safe
+to delete). `hl init` writes a `.gitignore` for `data/` and `.hl/`, so you can keep `hl.yml` in git.
 
-## hl.yml reference
+Every named volume an app declares becomes a plain folder, `data/<app>/<volume>`. Volumes marked
+`external` or with a non-local driver are left as the app defines them. Bind mounts
+(`./uploads:/uploads`) stay in the app's own folder, unless the app takes their location from a
+variable (`BACKUP_LOCATION: ${HL_DATA}/backups`); hl creates those folders before it starts the app.
 
-`hl init` writes a short `hl.yml` (its projects folders, any proxy setting you changed with a
-flag, and the apps), and hl commands change it from then on. Everything except
-`apps.<name>.path` is optional; each setting's default is in the tables below, and
-`hl show` and `hl show proxy` print the values in effect. You rarely need to open the file:
-`hl set` and `hl unset` change the proxy (`hl set proxy port=8080`), the shared env
-(`hl set env.TZ=UTC`), each app (`hl set my-app routing=host`) and the homelab's own settings
-(`hl set projects+=~/src`, `hl set name=lab2`); `hl edit` stays as a fallback. hl reads and checks
-the file on every command; a problem stops the command and is listed with its line.
+The app's folder is never edited: on every command hl writes `.hl/<app>/override.yml` and passes it
+to `docker compose` after the app's own files. `hl remove` keeps `data/<app>`; delete it yourself
+when you're sure.
 
-```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/DeM-Conve/project__hl/main/schema/hl.schema.json
-version: 1
-# name: lab2               # only for a second homelab on the same Docker
-
-proxy:
-  bind: 127.0.0.1          # 0.0.0.0 to reach the apps from your network
-  port: 80
-  routing: path            # default for apps: path or host
-  domain: localhost        # path: http://<domain>/<app>/  host: http://<app>.<domain>
-  # network: hl-proxy      # Docker network the proxy shares with the apps (hl-<name>-proxy with name)
-  # subnet: 172.31.0.0/16  # fixed subnet, so apps can trust the proxy by address
-  # image: traefik:v3.6.25  # default: the Traefik version hl is tested with
-  # project: hl-proxy      # the proxy's compose project (hl-<name>-proxy with name)
-  # debug: false          # Traefik's INFO log and access log, in hl logs proxy
-
-env:                       # passed to every app; an app's own env wins
-  TZ: UTC
-
-apps:
-  my-app:
-    path: ~/code/my-app    # absolute, ~, or relative to the homelab folder
-    service: web           # what the proxy forwards to (hl add picks it)
-    port: 8080             # that service's port in its container (hl add picks it)
-    # routing: host        # path, host or none
-    # prefix: /tools/my-app          # path routing
-    # host: my-app.example.test      # host routing
-    # compose: [compose.yml, compose.prod.yml]
-    # env_files: [my-app.env]
-    # env: {KEY: value}
-```
-
-### `name`: several homelabs on one Docker
-
-| Key | Default | What it does |
-| --- | --- | --- |
-| `name` | none | Sets this homelab apart from others on the same Docker daemon (a second homelab of yours, or another user's on the same machine). Lowercase letters, digits and `-`, starting with a letter or digit. |
-
-Compose project and network names are global to a Docker daemon. Without `name`, apps run as
-`hl-<app>` and the proxy as `hl-proxy` on the network `hl-proxy`, as they always have. With
-`name: lab2`, apps run as `hl-lab2-<app>`, and the proxy's project and network default to
-`hl-lab2-proxy`. Give the second homelab its own `proxy.port` too (two proxies can't both listen
-on port 80). `hl init` does both for a new homelab when it finds another homelab's proxy on this Docker. `name` renames every project, so `hl set` refuses it while any of this homelab's
-apps or its proxy runs: run `hl down` first, then set it, then `hl up`. For example:
-
-```sh
-hl down
-hl set name=lab2
-hl set proxy port=8080
-hl up
-```
-
-hl never starts, stops or replaces a compose project whose containers were started from another
-homelab's folder (it reads compose's `config_files` label): it refuses and says how to fix it
-(give this homelab a `name`, or stop the other one), `hl status` shows such an app as
-`other homelab`, and `hl down` leaves it alone with a warning. Adding `name` to a homelab that already runs
-changes its project names: run `hl down` before adding it, then `hl up`.
-
-### `proxy`
-
-| Key | Default | What it does |
-| --- | --- | --- |
-| `bind` | `127.0.0.1` | Address the proxy listens on. `127.0.0.1` is this machine only; `0.0.0.0` (or a LAN IP) exposes every app to your network. |
-| `port` | `80` | Host port of the proxy. Added to app URLs when not 80. |
-| `routing` | `path` | Default routing for apps that don't set one: `path` or `host`. |
-| `domain` | `localhost` | Host name in app URLs: `<domain>/<app>/` for path routing, `<app>.<domain>` for host routing. |
-| `network` | `hl-proxy` (`hl-<name>-proxy` with `name`) | Docker network the proxy and each app's routed service share. |
-| `subnet` | none (Docker picks) | Fixed subnet for that network, e.g. `172.31.0.0/16`, so an app can trust `X-Forwarded-For` from the proxy's address range. Before creating the network hl checks it doesn't overlap another Docker network or one of this machine's, and suggests a free one if it does. |
-| `image` | `traefik:v3.6.25` | Traefik image. The default is the version hl is tested with; `hl doctor` warns when yours is older. v3.6.1+ is needed with Docker Engine 29. |
-| `project` | `hl-proxy` (`hl-<name>-proxy` with `name`) | The proxy's compose project. Two homelabs on one machine need different projects, networks and ports: set [`name`](#name-several-homelabs-on-one-docker) and `port`, or all three of these. hl refuses to touch a proxy or network another homelab runs and says so. |
-| `debug` | `false` | Traefik's INFO log and its access log (one line per request), in `hl logs proxy`. Off, Traefik logs errors only. Turn it on to see why a URL gives 404 or which app a request reached. |
-
-**The proxy's Traefik config.** hl runs Traefik with one static config file,
-`.hl/proxy/traefik.yml`, generated from these settings (entrypoints, the Docker provider, logs,
-`ping` for the proxy's healthcheck); `hl show proxy` names the file. `hl set proxy key=value` and `hl unset proxy key` change these
-settings; after changing them, `hl up proxy` applies them;
-`hl show proxy` says when the running proxy is behind.
-
-### `env`
-
-A map of variables passed to every app, e.g. `TZ: UTC`. An app's own `env` wins over it.
-Without a `TZ` here, apps get this machine's time zone (see [Variables hl provides](#variables-hl-provides)).
-`hl set env.TZ=UTC` sets one, `hl unset env.TZ` removes it.
-
-### `projects`, `ignore`, `scan_depth`, `strip_prefix`
-
-Where `hl init` and `hl sync` look for apps, and how they name them. `hl init` writes
-`projects` from your answer (or `--projects`) and `strip_prefix` from `--strip-prefix`; after
-that `hl set` changes them without opening the file: `=` replaces a list, `+=` adds entries,
-`-=` removes them, and `hl unset` drops the key; `hl show` lists them.
-
-```sh
-hl set projects=~/code,~/src        # folders with your projects (each must exist)
-hl set projects+=~/work             # add one; projects-=~/work removes it
-hl set ignore+='scratch-*,old'      # folder names sync never picks up
-hl set strip_prefix=project__       # folder project__blog becomes app blog
-hl set scan_depth=2                 # also look in ~/code/<group>/<app>
-hl unset ignore                     # back to the default (none)
-```
-
-which leaves this in `hl.yml`:
-
-```yaml
-projects: [~/code, ~/src, ~/work]
-strip_prefix: [project__]
-scan_depth: 2
-```
-
-| Key | Default | What it does |
-| --- | --- | --- |
-| `projects` | none | Folders holding your projects: absolute, `~/...`, or relative to the homelab folder. Each subfolder with a compose file (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) is an app, named after the folder (lowercased). A folder with a compose file is not looked into further. |
-| `ignore` | none | Folder-name patterns (`*`, `?`, `[...]`) to skip. Always skipped as well: hidden folders (`.*`), `node_modules`, `vendor`, `__pycache__`, `venv`. |
-| `scan_depth` | `1` | How many levels below a projects folder to look. |
-| `strip_prefix` | none | Folder-name prefixes left out of app names, by `hl init`, `hl sync` and `hl add` (without `--name`). A new homelab gets the prefix its folders share, if any (see `hl init`). A folder loses the first one it starts with, unless nothing would be left. Apps already in `hl.yml` keep their names. |
-
-A folder with a `.hlignore` file in it is skipped too, so a library or an experiment can opt out
-without touching `hl.yml`. Ignoring only stops sync from adding a folder; an app already in
-`hl.yml` stays. Apps outside the projects folders (added with `hl add`) are never changed by
-sync, and an app whose projects folder is missing altogether (say, an unmounted drive) is not
-removed.
-
-`hl init` and `hl sync` only add **web apps** on their own: a folder whose service has none of the
-preferred names (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`) and publishes a port that isn't
-a common HTTP one (see [Built-in values](#built-in-values)) may be a database or a cache, which the
-HTTP proxy can't serve. Such a folder is listed with the commands to use instead:
-`hl add <folder> routing=none` to run it without the proxy, `hl add <folder>` to route it
-anyway, or `hl set ignore+=<folder name>` to stop seeing it.
-
-### `version` and editor support
-
-`version: 1` is the `hl.yml` format. A file without it (from before versions) keeps working;
-the first time hl changes the file (`hl add`, `hl remove`, `hl set`, `hl unset`) it adds
-`version: 1` at the top and says so. A file with a newer version than your hl understands is
-refused with a message to update hl.
-
-`hl init` starts `hl.yml` with a `# yaml-language-server: $schema=...` line pointing at
-[schema/hl.schema.json](schema/hl.schema.json), so editors with the YAML language server (VS
-Code's YAML extension, Neovim, Helix, ...) autocomplete keys, show what each one does, and flag
-mistakes as you type. Add the line yourself to an older `hl.yml`.
-
-Every command (and `hl doctor`) lists every problem in `hl.yml` with its line, the key and a fix,
-including unknown keys ("did you mean ..."). `hl set`, `hl unset` and `hl edit` change `hl.yml` only when
-the result has no problems, and keep its comments.
-
-### `apps.<name>`
-
-App names use lowercase letters, digits, `.`, `_` and `-`, starting with a letter or digit. By
-default `hl add` uses the folder's name, less a [`strip_prefix`](#projects-ignore-scan_depth-strip_prefix). Reserved names (also `hl sync` and `hl init` skip
-folders with them): `proxy`, whose compose project would be the proxy's, `hl-proxy` (likewise,
-no app's `hl-<app>` may equal `proxy.project`), and `hl up proxy` and the like mean the proxy.
-
-| Key | Default | What it does |
-| --- | --- | --- |
-| `path` | required | The app's folder: absolute, `~/...`, or relative to the homelab folder. |
-| `service` | the service that publishes a port | Service the proxy forwards to. When several publish ports, `hl add` asks which one (the first of `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` is the default); without a terminal it takes that one and says so, and stops asking for `service=<name>` only when none has one of those names. `hl add` writes it here. |
-| `port` | that service's published container port | Port inside the container. When the service publishes several, `hl add` asks (without a terminal: pass `port=<port>`). `hl add` writes it here. |
-| `routing` | `proxy.routing` | `path`, `host` or `none`. |
-| `prefix` | `/<name>` | Path routing: the URL prefix, like `/tools/my-app` (no trailing slash). |
-| `host` | `<name>.<domain>` | Host routing: the host name. |
-| `compose` | what `docker compose` picks (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`) | Compose files in the app's folder, in order. |
-| `env_files` | none | Extra env files, relative to the homelab folder, read after the app's own `.env`. Handy for secrets you keep outside the app's folder. |
-| `env` | none | Variables for the app's compose file. Values can use `${HL_URL}`, `${HL_PREFIX}`, `${HL_HOST}`, `${HL_DATA}`, `${HL_APP}` and your shell's variables. |
-
-### Variables hl provides
-
-| Variable | Value |
-| --- | --- |
-| `HL_APP` | the app's name |
-| `HL_URL` | the app's URL without a trailing slash, e.g. `http://localhost/my-app` (empty for `routing: none`) |
-| `HL_PREFIX` | the path prefix, e.g. `/my-app`; empty unless routing is `path` |
-| `HL_HOST` | the host name: `<app>.<domain>` for host routing, else `domain` |
-| `HL_DATA` | the app's data folder, `<homelab>/data/<app>` |
-| `TZ` | this machine's time zone (from `$TZ`, else what `/etc/localtime` points to, else `/etc/timezone`), so apps log in your local time - only when neither the shared `env`, the app's `env` nor the app's `.env`/`env_files` set `TZ`, and only when hl can tell the zone. `hl show` shows it and where it came from; `hl set env.TZ=UTC` picks another for every app. |
-
-**Order:** a variable's value comes from, later winning: the app's `.env`, the app's
-`env_files`, your shell, the shared `env`, the app's `env`.
-
-### Env hl fills in
-
-`hl add`, `hl init` and `hl sync` ask `docker compose config --variables` which variables an
-app's compose file uses, and write the ones that follow the common self-hosting conventions
-(Immich, Paperless, linuxserver) into `apps.<name>.env`, saying what they mapped:
-
-| Variable in the compose file | Gets | When |
-| --- | --- | --- |
-| `<X>_BASE_PATH` | `${HL_PREFIX}` | path routing |
-| `<X>_URL`, with the same `<X>` as a `<X>_BASE_PATH` | `${HL_URL}` | path or host routing |
-| `DATA_LOCATION` | `${HL_DATA}` | always |
-| `BACKUP_LOCATION` | `${HL_DATA}/backups` | always |
-
-Anything else is left alone: a `<X>_URL` without a matching `<X>_BASE_PATH` (say, the URL of an
-upstream service) and `DB_DATA_LOCATION` and the like (named volumes are under `data/<app>/`
-already). `hl add <folder> env.NAME=value` sets a value of your own (it wins over a mapped one),
-`env.NAME=` with no value leaves that variable out, and `hl unset <app> env.<NAME>` drops one
-later. `hl init` and `hl sync` take `--no-env` to map nothing.
-
-### Built-in values
-
-Every default above is defined once in hl's code and listed here. A few more values are fixed
-today and not `hl.yml` settings (some have a command-line flag):
-
-| Value | Used for |
-| --- | --- |
-| `hl-` | compose project name prefix: `hl-<app>`, `hl-proxy`; with `name`, `hl-<name>-<app>`, `hl-<name>-proxy` |
-| `.hl/` | generated files in the homelab: `.hl/<app>/override.yml`, `.hl/proxy/compose.yml`, `.hl/proxy/traefik.yml` |
-| `data/` | app data in the homelab: `data/<app>/<volume>` |
-| `web` | the Traefik entrypoint name (container port 80) |
-| `traefik` on `:8080` | Traefik's entrypoint for `/ping` (the proxy's healthcheck); not published |
-| `/etc/traefik/traefik.yml` | where the static config is mounted in the proxy |
-| `ERROR`, `INFO` | Traefik's log level, and the one with `proxy.debug` |
-| healthcheck every 10s, timeout 5s, 3 retries, start period 5s | the proxy container's healthcheck (`traefik healthcheck --ping`) |
-| `unless-stopped` | the proxy container's restart policy |
-| `200` | lines shown by `hl logs` and `hl logs proxy` (change with `--tail`) |
-| `2m` | how long `--wait` waits for each app (change with `--wait-timeout`) |
-| `20` | log lines `--wait` shows for each service that didn't become healthy |
-| `8080`, `8000`, `8081`, `8888`, `8090` | the proxy ports `hl init` tries, in order, when the default one is in use (and error hints suggest) |
-| `code`, `projects`, `src` | projects folders `hl init` suggests, under your home folder, when they exist |
-| `.hlignore` | a folder holding a file with this name is never picked up as an app |
-| `frontend`, `web`, `app`, `nginx`, `proxy`, `ui` | service names `hl add` prefers when several publish ports |
-| `80`, `443`, `3000`, `3001`, `4000`, `4200`, `5000`, `5173`, `8000`, `8008`, `8080`, `8081`, `8088`, `8443`, `8888` | container ports `hl init` and `hl sync` take for a web app; a service with another port and none of the names above is not added by them (see [`projects`](#projects-ignore-scan_depth-strip_prefix)) |
-| `<X>_BASE_PATH`, `<X>_URL`, `DATA_LOCATION`, `BACKUP_LOCATION` | the variables `hl add`, `init` and `sync` fill in ([Env hl fills in](#env-hl-fills-in)) |
-| `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
-| GitHub releases API, `3s` | what `hl doctor` asks for the latest release, and how long it waits |
-
-`hl show` prints the homelab's settings with the values in effect and where they come from
-(`hl.yml`, default, flag or environment), including the homelab folder, the `TZ` apps get and
-where `hl init` and `hl sync` look for apps; `hl show proxy` does the same for every proxy
-setting. `hl edit` runs `$VISUAL`, then `$EDITOR`, else `vi`.
-
-**Environment variables hl reads:** `HL_HOME` (the homelab folder) and `NO_COLOR` (no colours;
-colours are also off when output isn't a terminal).
-
-## Commands
-
-Every command takes `--home <folder>` to pick the homelab. Commands that take `[app...]` act on
-every app when none is named; `up`, `down`, `restart`, `rebuild`, `logs` and `show` also take
-`proxy` to act on the proxy alone (`hl up proxy` applies changed proxy settings,
-`hl logs proxy -f` follows Traefik's log). Multi-app commands carry on past an app that fails and end with
-`n of m apps failed: ...`. `hl up` and `hl down` are safe to repeat. `hl --help` and
-`hl <command> --help` list every flag.
-
-| Command | What it does |
-| --- | --- |
-| `hl init [folder]` | Set up a homelab folder with a short `hl.yml`, `data/` and `.gitignore`, and make it the default. Without a folder it uses the homelab hl already uses (`--home`, `$HL_HOME`, an `hl.yml` at or above the current folder, the default), else `~/homelab`; it never turns the current folder into a homelab unless you name it (`hl init .`). First checks Docker, compose and that the proxy port is free (if 80 is taken it uses the first free of 8080, 8000, 8081, 8888, 8090), and whether another homelab on this Docker already runs the proxy project or network `hl-proxy` - then it gives the new homelab a [`name`](#name-several-homelabs-on-one-docker) from its folder (`~/lab2` -> `lab2`, or `lab2-2` if that is taken too). Both show in the plan. Then it shows its plan - the homelab folder, the projects folders (`~/code`, `~/projects`, `~/src` when they exist), the proxy, each web app found with its service, port and [env](#env-hl-fills-in), and the folders it skips and why - and asks once. Flags change the plan: `--projects`, `--routing`, `--bind`, `--port`, `--apps a,b` (or `none`), `--strip-prefix project__` (app names without that folder prefix; by default init strips a prefix ending in `-`, `_` or `__` that at least two, and at least half, of the folders found share, and says so in the plan; `--strip-prefix none` keeps whole names), `--no-env`. `--yes` applies it without asking; without a terminal (a script, a pipe) `--yes` is required, as for `hl sync`. Never overwrites an existing `hl.yml`; on one it adds the new apps instead. Warns when `$HL_HOME`, `--home` or an `hl.yml` above the current folder means hl commands would still use another homelab. |
-| `hl sync` | Make `hl.yml` follow the `projects` folders. Shows a plan first: new folders with a compose file are added (service, port and [env](#env-hl-fills-in) detected like `hl add`; `--no-env` skips the env), apps whose folder is gone are removed (stopped if running; their data stays), apps whose pinned service or port left their compose file are re-detected, and folders it can't add are listed with the `hl add` command to use. Asks before applying; `--yes` applies without asking, `--dry-run` only shows. |
-| `hl add <folder> [key=value...]` | Add an app. Takes the settings `hl set <app>` takes, plus `name`: `hl add ~/code/wiki name=wiki routing=host service=web port=8080 env.TZ=UTC`. `name` defaults to the folder's name (less a `strip_prefix`); `env.NAME=value` sets a variable and wins over the [mapped ones](#env-hl-fills-in), `env.NAME=` leaves a mapped one out; lists such as `compose=a.yml,b.yml` are comma-separated. When several services or ports could be the one to route, it asks on a terminal; without one it takes the service with a usual web name (with a note) and otherwise says which setting to pass (`service=`, `port=`). With path routing and no base-path variable mapped, it ends with a one-line hint on mapping `${HL_PREFIX}` (or using `routing=host`). |
-| `hl set <app> key=value...` | Change an app's settings in `hl.yml`: `routing`, `prefix`, `host`, `port`, `service`, `path`, `compose` and `env_files` (comma-separated), `env.NAME`. Keeps comments; writes only a valid result. `hl up <app>` applies it. |
-| `hl set proxy key=value...` | Change the proxy's settings: every `proxy.*` key, e.g. `hl set proxy port=8080 bind=0.0.0.0 subnet=172.31.0.0/16`; switches take `true`/`false`. hl says what applies it (`hl up proxy`, or `hl down` then `hl up` for `network`, `subnet` or `project`). |
-| `hl set key=value...` | With no app: the homelab's own settings. `env.NAME` is the shared `env` every app gets, e.g. `hl set env.TZ=Europe/Berlin` (an app's own `env` wins; `hl up` applies it). `projects`, `ignore`, `scan_depth` and `strip_prefix` tell `hl init` and `hl sync` where apps are and how to name them (`hl sync` applies them): `=` replaces a list, `+=` adds entries and `-=` removes them (`hl set projects+=~/src ignore-=old`); a projects folder must exist and is written with `~` or relative to the homelab, like `hl init` does. `name` gives the homelab its [own Docker names](#name-several-homelabs-on-one-docker); hl refuses it while any of its apps or its proxy runs. |
-| `hl unset [<app>\|proxy] key...` | Remove settings of an app, the proxy (`hl unset proxy port`) or the homelab (`hl unset env.TZ`, `hl unset ignore`) so their defaults apply again; `env.NAME` removes one variable, `env` all. |
-| `hl edit` | A fallback, rarely needed: `hl set`/`hl unset` change every setting. Opens `hl.yml` in `$VISUAL`/`$EDITOR` (default `vi`). You edit a copy in `.hl/edit/`; hl checks it when the editor closes and saves it only if it has no problems, else lists them and offers to reopen the editor. Works on a broken `hl.yml`. |
-| `hl remove <app>` | Stop the app and remove it from `hl.yml`. Its data in `data/<app>` stays. When its folder is in a `projects` folder, hl adds the folder's name to `ignore` and says so, so `hl sync` doesn't add it back (`hl set ignore-=<name>` undoes it); `hl add` of that folder later takes it out of `ignore` again. |
-| `hl status` (`ls`) | The proxy's state, then every app's STATE (`up 2/2`, `partial 1/2`, `down`, or `other homelab`), HEALTH (`healthy`, `starting: <services>`, `unhealthy: <services>`, or `-` when the app has no healthchecks), URL and folder. When another homelab runs the proxy it says so (`proxy: run by another homelab (<folder>) - see hl doctor`) instead of an address. Says when `hl sync` would add an app or remove one whose folder is gone; folders sync only skips (not a web app) are not mentioned - `hl sync` lists them and why. |
-| `hl up [app...]` (`start`) | Start apps, the proxy first; builds images that don't exist yet. Before starting the proxy it checks the port is free (naming the program or container that holds it) and that `proxy.subnet` doesn't overlap another network. `--wait` waits until the service behind the proxy and the services it depends on (`depends_on`) are running and healthy - not sidecars nothing depends on, which may take longer - and for an app that isn't, names those services and shows their last 20 log lines; for an app with routing `none` it waits for every service; `--wait-timeout` (default `2m`) is how long it waits for each app. Ends with the `hl status` table. |
-| `hl down [app...]` (`stop`) | Stop and remove the apps' containers; with no app, also the proxy. Data stays. Apps another homelab runs are left alone. |
-| `hl restart [app...]` | Restart containers without rebuilding, the proxy first (started if it isn't running), like `up`. |
-| `hl rebuild [app...]` | Rebuild images from the apps' current code, then restart them. `--pull` first runs `git pull --ff-only` in each app's folder; it skips folders that aren't git repos or have uncommitted changes (neither pulled nor rebuilt) and says which it skipped and why. `hl rebuild proxy` recreates the proxy, `--pull` pulls its image first. Takes `--wait` and `--wait-timeout` like `up`. |
-| `hl logs [app\|proxy] [service...]` | The last 200 log lines of an app (or some of its services); with no app, every app's logs at once, each line prefixed by its app's name. `-n`/`--tail <lines>` changes how many; `-f`/`--follow` keeps following. An app (or the proxy) with no containers gets a one-line "isn't running" note instead of empty output. |
-| `hl open <app>` | Print the app's URL and open it in the browser (only prints when there's no display, e.g. over ssh). |
-| `hl shell <app> [service]` | A shell (`bash`, else `sh`) in a running container; default: the service behind the proxy (the pinned one, or the one hl detects). hl exits with the shell's own exit status. |
-| `hl show [app\|proxy]` | What hl stores and works out for an app, short and readable: folder, compose files, Docker project, the service and port behind the proxy, routing, URL, prefix or host, data folder, and every variable its compose files can use with where the value comes from (`hl`, the shared env, or the app's env, and which one it overrides). Each value says whether it is from `hl.yml`, a default, or detected from the app's compose config. `hl show proxy`: the proxy's state and health, listen address, every proxy setting with where it comes from (and the running image when it differs), the Traefik config file, and warnings: a running proxy that predates `hl.yml` (apply it with `hl up proxy`), an image older than the tested Traefik, a clash with another homelab. With no app: the homelab folder, the proxy's listen address and the settings `hl.yml` sets, the shared env (with the `TZ` apps get), the projects folders, `ignore`, `scan_depth` and `strip_prefix`, and the apps with their URLs. `--compose` prints the whole compose config as hl runs it: the app's (or the proxy's) own files plus hl's override. |
-| `hl doctor` | Check Docker, compose v2.24+, `hl.yml`, the proxy's Traefik config and that its project and network are this homelab's, and that every app's compose config resolves. Warns when `proxy.image` is older than the tested Traefik, and when hl itself is older than the latest release (asked from GitHub with a 3-second limit, silently skipped offline and for development builds; a `go install` of a commit is told how to install a release). |
-| `hl version` (`--version`) | Version, commit, build date, Go version and platform, and whether the build had local changes (paste it into bug reports). `--short` prints only the version. |
-| `hl completion bash\|zsh\|fish\|powershell` | Shell completion script. |
-
-Planned, not built yet: `hl backup` and `hl restore` (see the
-[product plan](docs/product-plan.md); until then, [back up by hand](docs/guides/backup.md)).
-
-### Errors and exit codes
-
-An error is one `error:` line saying what failed, usually followed by a `hint:` line saying what
-to do. When a docker command fails, hl reads its output to explain the common causes: the
-daemon isn't running, your user may not use Docker, the port is taken, compose is too old, the
-subnet overlaps another network, an image can't be pulled, the disk is full. Warnings
-(`warning: ...`) don't stop the command. All of these go to stderr.
-
-| Exit code | Meaning |
-| --- | --- |
-| `0` | Success. |
-| `1` | A command failed: one of hl's own checks (including problems in `hl.yml`), or a docker or git command. |
-| `2` | Usage: an unknown command, a wrong argument or flag. |
-| `128 + signal` | Interrupted; `130` for Ctrl-C. |
-| the shell's | `hl shell` exits with the status of the shell it ran. |
-
-**Ctrl-C** while docker runs: hl lets the docker command stop by itself (a Ctrl-C on the terminal
-reaches it too; other signals are passed on), starts nothing more, and exits. A second Ctrl-C
-stops it at once.
-
-## Data and backups
-
-Every named volume an app declares is stored as a plain folder, `data/<app>/<volume>`, created
-by hl. Volumes the app marks `external`, or gives a non-local `driver` or `driver_opts`, are left
-as the app defines them. Bind mounts in the app's compose file (`./uploads:/uploads`) stay where
-the app puts them, inside its own folder, unless the app takes their location from a variable
-(`BACKUP_LOCATION: ${HL_DATA}/backups`): hl creates every folder inside `data/<app>/` that the
-app's env points at before it starts the app, so it is yours and not created by Docker as root.
-
-- **Back up:** stop the apps (`hl down`), copy the homelab folder, start them again (`hl up`).
-  Copy with ownership kept (`sudo rsync -a` or `sudo tar -cpzf`), since containers often own
-  their files. For databases, a dump made with the database's own tool is the safer backup; many
-  apps ship a backup service for that.
-- **Restore:** put the folder back in place (same path), then `hl up`.
-- **Remove an app:** `hl remove <app>` keeps `data/<app>`; delete it yourself when you're sure.
-
-`hl backup` and `hl restore` commands are planned, not built yet.
-
-Guide: [back up the homelab](docs/guides/backup.md).
+**Backups:** there is no backup command. Stop the apps (`hl down`), copy the homelab folder with
+ownership kept (`sudo rsync -a`), `hl up`. Guide: [back up the homelab](docs/guides/backup.md).
 
 ## Security
 
-- The proxy listens on `127.0.0.1` unless you set `proxy.bind`. Binding to `0.0.0.0` exposes
-  every app to your network, with no authentication added by hl; see
+- The proxy listens on `127.0.0.1` (this machine only) unless you set `hl set proxy bind=0.0.0.0`,
+  which exposes every app to your network with no authentication added by hl; see
   [reach your apps from your phone](docs/guides/lan-access.md).
-- hl doesn't run the Traefik dashboard (it has no password).
-- hl makes one network request of its own, and only in `hl doctor`: it asks GitHub's API for the
-  latest hl release (no data sent beyond the request itself), and says nothing if that fails.
-- The proxy mounts the Docker socket read-only to discover apps; like any Docker tool, hl runs
-  with your user's Docker rights.
-- HTTP only: hl has no TLS in v0.1. Put it [behind your own HTTPS proxy](docs/guides/behind-https.md)
-  if you reach it over an untrusted network.
+- HTTP only: hl has no TLS. Put it [behind your own HTTPS proxy](docs/guides/behind-https.md) for
+  an untrusted network. hl doesn't run the Traefik dashboard.
+- The proxy mounts the Docker socket read-only; like any Docker tool, hl runs with your user's
+  Docker rights.
+- hl's only network request of its own is `hl doctor` asking GitHub for the latest release.
 
 Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
+
+## Troubleshooting
+
+Start with `hl doctor`. Every error says what failed and, on a `hint:` line, what to do.
+
+- **`no homelab found`.** Run `hl init <folder>`, `cd` into a homelab folder, or set `HL_HOME` /
+  `--home`.
+- **Port 80 already in use.** hl names the program or container holding it. Stop it, or move the
+  proxy: `hl set proxy port=8080`, `hl up proxy`.
+- **The page loads unstyled, or links and redirects lose the app's prefix.** The app doesn't know
+  its base path: map `${HL_PREFIX}` ([Routing](#routing)) or `hl set <app> routing=host`.
+- **404 from the proxy.** Check `hl status` and the URL (`/my-app/`). `hl set proxy debug=true`,
+  `hl up proxy`, then `hl logs proxy -f` shows each request Traefik gets.
+- **`hl add` can't tell which service to route to.** Pass `service=<name>` (and `port=<port>`).
+- **`... belongs to another homelab`.** Two homelabs on one Docker: give one a
+  [`name`](docs/reference.md#several-homelabs-on-one-docker-name), or stop the other.
+- **Compose errors about `!reset`.** Your compose plugin is older than v2.24; update it.
+- **Permission denied in `data/`.** Containers often own their files; use `sudo`, or the app's
+  `PUID`/`PGID` if it has them.
+
+Can an app still run without hl? Yes: `docker compose up` in its folder works as before, just not
+at the same time as hl's copy.
 
 ## Guides
 
@@ -585,89 +252,25 @@ Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 - [Back up the homelab](docs/guides/backup.md)
 - [Put hl behind HTTPS](docs/guides/behind-https.md)
 
-## Troubleshooting and FAQ
-
-Start with `hl doctor`: it checks Docker, compose, `hl.yml` and every app.
-
-**`no homelab found`.** Run `hl init <folder>`, `cd` into a homelab folder, or set `HL_HOME` /
-`--home`.
-
-**`port 80 on 127.0.0.1 is already in use by ...`** (or docker's `port is already allocated` /
-`address already in use`). Something else listens on the proxy's port; hl names the program or
-container when it can. Stop it, or move the proxy: `hl set proxy port=8080` (URLs become
-`http://localhost:8080/<app>/`). If it is another homelab's proxy, see
-[`name`](#name-several-homelabs-on-one-docker).
-
-**`proxy.subnet ... overlaps ...`.** The fixed subnet is used by another Docker network or by one
-of this machine's networks. Pick the free subnet the hint suggests (`hl set proxy subnet=...`), or let Docker pick one: `hl unset proxy subnet`.
-
-**`hl.yml` problems after an upgrade.** hl checks `hl.yml` strictly on every command and lists
-every problem with its line and a fix (unknown keys get a "did you mean").
-
-**`Docker project hl-... belongs to another homelab`.** Another homelab folder on this Docker
-already runs an app or proxy under the same name. Give one of the homelabs a
-[`name`](#name-several-homelabs-on-one-docker), or stop the other one
-(`hl --home <its folder> down`).
-
-**compose errors about `!reset`.** Your compose plugin is older than v2.24. Update Docker or the
-compose plugin.
-
-**`hl add` can't tell which service to route to.** Several services publish ports and none has a
-common name. Pass `service=<name>` (and `port=<port>` if it publishes several): `hl add <folder> service=web`.
-
-**The page loads but is unstyled, or links and redirects go to `http://localhost/...` without the
-app's prefix.** The app doesn't know its base path. Set it from `${HL_PREFIX}`
-([guide](docs/guides/base-path-app.md)), or use host routing for that app.
-
-**404 from the proxy.** Check the app is up (`hl status`) and the URL ends where it should
-(`/my-app/`). `hl set proxy debug=true`, `hl up proxy`, then `hl logs proxy -f` shows each request Traefik gets; `hl show <app> --compose` shows the labels hl added.
-
-**`http://my-app.localhost` doesn't resolve.** Browsers resolve `*.localhost`; some other tools
-don't. Use the browser, `curl --resolve`, or add the name to `/etc/hosts`.
-
-**`hl.yml` says a `proxy` key was removed.** `proxy.config`, `proxy.dynamic`, `proxy.dashboard`,
-`proxy.dashboard_public`, `proxy.access_log` and `proxy.log_level` are gone; the error names the
-`hl unset proxy <key>` that removes each. For Traefik's logs and access log use
-`hl set proxy debug=true`.
-
-**Permission denied in `data/`.** Containers often change the owner of their data folders. Use
-`sudo` to read or copy them, or set the app's user id if it supports one (many images take
-`PUID`/`PGID`).
-
-**Can I still run an app without hl?** Yes. `docker compose up` in its folder works as before;
-just don't run both at once (they would compete for the same port, and hl's copy keeps its data
-in `data/`, not in the app's own volumes).
-
-**Can I edit `hl.yml` by hand?** Yes, though `hl set` and `hl unset` cover the proxy, the shared
-env and every app setting; hl reads and checks it on every command, and keeps your
-comments when `hl add`, `hl remove`, `hl set` or `hl unset` change it. `hl edit` checks your
-changes before saving them.
-
-**Does hl manage HTTPS, auth, or several machines?** No. See [Why hl](#why-hl) for tools that do,
-and [behind HTTPS](docs/guides/behind-https.md).
-
-**Windows?** Not supported: hl prints an error saying so (only `hl version` and `hl completion`
-run). Use WSL 2 (e.g. Ubuntu) with Docker available inside it, and run the Linux build of hl
-there.
+hl is for one machine running your own projects. For a web UI over compose stacks, Dockge or
+Portainer fit better; for push-to-deploy with domains and TLS, Dokku or Coolify; for several
+servers, Komodo.
 
 ## Uninstall
 
 1. `hl down` stops every app and the proxy.
-2. Delete the binary: `rm "$(command -v hl)"`.
-3. Delete hl's note of the default homelab: `~/.config/hl` (macOS:
-   `~/Library/Application Support/hl`).
-4. Optionally remove the images hl used: the proxy's (`docker image rm traefik:v3.6.25`, or your
-   `proxy.image`), plus the apps' images.
+2. `rm "$(command -v hl)"`.
+3. Delete the default-homelab note: `~/.config/hl` (macOS: `~/Library/Application Support/hl`).
+4. Optionally remove the images: `docker image rm traefik:v3.6.25` and the apps' images.
 
-Your homelab folder, with `hl.yml` and every app's data, stays until you delete it. App folders
-were never changed.
+The homelab folder, with every app's data, stays until you delete it. App folders were never
+changed.
 
 ## Contributing
 
-Bug reports, fixes and small features are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for
-how to build, test and send changes (Conventional Commits), and the
-[Code of Conduct](CODE_OF_CONDUCT.md). Releases: [RELEASING.md](RELEASING.md).
-What's planned: [docs/product-plan.md](docs/product-plan.md).
+Bug reports, fixes and small features are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) (build,
+checks, Conventional Commits) and the [Code of Conduct](CODE_OF_CONDUCT.md). Inside hl:
+[docs/architecture.md](docs/architecture.md). Plans: [docs/product-plan.md](docs/product-plan.md).
 
 ## License
 

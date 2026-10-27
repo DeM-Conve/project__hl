@@ -1,7 +1,8 @@
 # Architecture
 
 How hl works inside. Read this before changing code in `internal/`. What the user sees (commands,
-`hl.yml` fields, routing) is described in [README.md](../README.md) and not repeated here.
+routing) is described in [README.md](../README.md), every setting and default in
+[reference.md](reference.md); neither is repeated here.
 
 ## Packages
 
@@ -13,7 +14,7 @@ internal/config         hl.yml: types, defaults, validation, derived values, com
 internal/compose        runs `docker compose`; reads the resolved model (`config --format json`);
                         Exec keeps the tail of a failed command's stderr for the error (compose.Error)
 internal/defaults       every default and every name hl gives files, labels and Docker objects
-                        (one file; the README's "Built-in values" lists them)
+                        (one file; docs/reference.md's "Built-in values" lists them)
 internal/fsutil         atomic file writes (temp file + rename, mode and symlinks kept)
 internal/interrupt      Ctrl-C/SIGTERM while docker runs (Notify, Run, exit code 128+signal)
 internal/gen            writes the per-app override, the proxy's compose file and its Traefik
@@ -328,7 +329,7 @@ after any header comment) and the CLI prints a note; it runs before `add`/`remov
 
 **Schema**: `schema/hl.schema.json` (draft-07), referenced from new files by
 `config.SchemaComment`. `internal/config/schema_test.go` keeps it in step with the code: same keys
-as the Go types, same enums, patterns and defaults, and it accepts the README's yaml examples.
+as the Go types, same enums, patterns and defaults, and it accepts the yaml examples in the README and docs/reference.md.
 
 **Settings listing** (`config.Settings`, used by `hl show` and `hl show proxy`): the
 homelab-wide fields of `Config` by reflection, the default taken by running `defaults()` on an

@@ -47,16 +47,18 @@ func asJSON(t *testing.T, body string) any {
 	return out
 }
 
-// readmeYAML is every ```yaml block in the README.
+// readmeYAML is every ```yaml block in the README and the settings reference.
 func readmeYAML(t *testing.T) []string {
 	t.Helper()
-	b, err := os.ReadFile("../../README.md")
-	if err != nil {
-		t.Fatal(err)
-	}
 	var blocks []string
-	for _, m := range regexp.MustCompile("(?s)```yaml\n(.*?)```").FindAllStringSubmatch(string(b), -1) {
-		blocks = append(blocks, m[1])
+	for _, f := range []string{"../../README.md", "../../docs/reference.md"} {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range regexp.MustCompile("(?s)```yaml\n(.*?)```").FindAllStringSubmatch(string(b), -1) {
+			blocks = append(blocks, m[1])
+		}
 	}
 	return blocks
 }
@@ -65,7 +67,7 @@ func TestSchemaAcceptsREADMEAndTemplate(t *testing.T) {
 	s := compileSchema(t)
 	blocks := readmeYAML(t)
 	if len(blocks) == 0 {
-		t.Fatal("no yaml blocks in README.md")
+		t.Fatal("no yaml blocks in README.md or docs/reference.md")
 	}
 	for _, body := range append(blocks, Template, commented) {
 		if err := s.Validate(asJSON(t, body)); err != nil {
