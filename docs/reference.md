@@ -7,7 +7,7 @@ hl keeps the settings in `hl.yml` in the homelab folder, but you don't need to o
 changes a setting, `hl unset` puts its default back, and `hl show` prints the values in effect and
 where each comes from (`hl.yml`, default, detected, flag or environment).
 
-- [How `hl set` works](#how-hl-set-works)
+- [How `hl set` works](#how-hl-set-works) · [Routing](#routing)
 - [App settings](#app-settings) · [Proxy settings](#proxy-settings) · [Homelab settings](#homelab-settings)
 - [Variables hl provides](#variables-hl-provides) · [Env hl fills in](#env-hl-fills-in)
 - [Several homelabs on one Docker (`name`)](#several-homelabs-on-one-docker-name)
@@ -37,9 +37,55 @@ hl unset env.TZ
 - Single quotes keep your shell from expanding `${...}`: `hl set my-app 'env.APP_URL=${HL_URL}'`.
 - hl writes `hl.yml` only when the result has no problems, keeps its comments, blank lines and order, prints
   what it changed, and says which command applies it (`hl up <app>`, `hl up`, `hl up proxy`, `hl sync`,
-  or `hl down` then `hl up` for a new proxy subnet).
+  or `hl down` then `hl up` for a new proxy subnet):
+
+  ```console
+  $ hl set my-app routing=host
+  set apps.my-app.routing = host
+  apply it: hl up my-app
+  ```
+
+- `hl set my-app name=blog` renames an app, on its own and while it is stopped
+  ([`name`](#app-settings)).
 - `hl add <folder> key=value...` takes the same app settings, plus `name`.
 - `hl set --help` and shell completion list the keys of each target.
+- `hl show` (the homelab), `hl show my-app` and `hl show proxy` print the values in effect: for an
+  app its folder, service and port, URL and data folder, each marked `hl.yml`, default or
+  detected, then its env: the [variables hl provides](#variables-hl-provides) and the env you set
+  (shared and the app's own), each with where its value comes from. Values from the app's own
+  `.env` aren't listed; compose reads that file itself.
+
+## Routing
+
+| `routing` | URL | Works with |
+| --- | --- | --- |
+| `path` (default) | `http://localhost/<app>/` | apps that can run under a base path |
+| `host` | `http://<app>.localhost` | any app |
+| `none` | not behind the proxy | databases, workers, apps that keep their own ports |
+
+Set it per app (`hl set my-app routing=host`) or for every app (`hl set proxy routing=host`). A
+proxy port other than 80 is added to the URLs (`http://localhost:8080/<app>/`). Path routing on
+plain `localhost` matters for OAuth: Google sign-in, for example, accepts plain-`http` redirect
+URIs only on exactly `localhost`.
+
+**Path routing** sends `/<app>/...` to the app with the prefix stripped (and as
+`X-Forwarded-Prefix`); `/<app>` redirects to `/<app>/`. The app serves from `/`, but the links it
+builds must include the prefix, so it needs its base-path setting. Map it from hl in the app's
+env:
+
+```sh
+hl set my-app 'env.MY_APP_BASE_PATH=${HL_PREFIX}' 'env.MY_APP_URL=${HL_URL}'
+```
+
+`MY_APP_BASE_PATH` is a variable the app's compose file uses (e.g.
+`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`): an app's env reaches a container only through
+its compose file. `hl add`, `hl init` and `hl sync` map the common variables on their own
+([Env hl fills in](#env-hl-fills-in)), say what they mapped, and end with a one-line hint for
+apps where they found no base-path variable. Walkthrough:
+[an app that needs a base path](guides/base-path-app.md).
+
+**Host routing** needs `<app>.localhost` to resolve to your machine. Browsers do this on their own;
+for other tools, or for a `proxy domain` of your own, add the names to `/etc/hosts` or your DNS.
 
 ## App settings
 

@@ -124,41 +124,21 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 ## Changing settings
 
 hl keeps its settings in `hl.yml` in the homelab folder; you don't need to open it. `hl set`
-changes a setting, `hl unset` puts its default back, and `hl show` prints what is in effect and
-where each value comes from. The first argument says what to change:
+changes a setting, `hl unset` puts its default back, and `hl show [app|proxy]` prints what is in
+effect and where each value comes from. The first argument says what to change:
 
 ```sh
 hl set my-app routing=host               # an app (also on hl add <folder> routing=host)
 hl set my-app env.TZ=Europe/Berlin       # a variable for that app's compose file
-hl set my-app name=blog                  # rename it (stopped first: hl down my-app)
-hl set proxy port=8080 bind=0.0.0.0      # the proxy
+hl set proxy port=8080                   # the proxy
 hl set env.TZ=UTC                        # env every app gets (an app's own wins)
-hl set projects+=~/src ignore+=old       # where hl init and hl sync look for apps
+hl set projects+=~/src                   # where hl init and hl sync look for apps
 hl unset my-app routing                  # back to the default
-hl unset proxy port
 ```
 
-- **Shapes:** `key=value`; `env.NAME=value` for one variable (`hl unset ... env` drops them all);
-  lists are comma-separated and `=` replaces the list, `+=` adds entries, `-=` removes them
-  (`compose-=compose.dev.yml`); switches take `true`/`false`.
-- **Keys:** an app has `path`, `service`, `port`, `routing`, `prefix`, `host`, `compose`,
-  `env.NAME`; the proxy has `bind`, `port`, `routing`, `domain`, `subnet`,
-  `image`, `debug`; the homelab has `env.NAME`, `projects`, `ignore`, `scan_depth`,
-  `strip_prefix`, `name`. Each one, with its default: [docs/reference.md](docs/reference.md).
-- **Applying:** hl writes the change only if the result is valid, then says which command applies
-  it (`hl up my-app`, `hl up`, `hl up proxy`, `hl sync`, or `hl down` then `hl up` for a new subnet):
-
-```console
-$ hl set my-app routing=host
-set apps.my-app.routing = host
-apply it: hl up my-app
-```
-
-- `hl show` (the homelab), `hl show my-app`, `hl show proxy` print the values in effect: for an
-  app its folder, service and port, URL and data folder, each marked `hl.yml`, default or
-  detected, then its env: the variables hl provides (`HL_URL`, `HL_PREFIX`, ..., `TZ`) and the
-  env you set (shared and the app's own), each with where its value comes from. Values from the
-  app's own `.env` aren't listed; compose reads that file itself.
+hl writes the change only if the result is valid, then says which command applies it (most
+often `hl up`). Every key with its default, lists (`+=`, `-=`) and renaming:
+[how `hl set` works](docs/reference.md#how-hl-set-works).
 
 ## Routing
 
@@ -168,33 +148,19 @@ apply it: hl up my-app
 | `host` | `http://<app>.localhost` | any app |
 | `none` | not behind the proxy | databases, workers, apps that keep their own ports |
 
-Set it per app (`hl set my-app routing=host`) or for every app (`hl set proxy routing=host`). A
-proxy port other than 80 is added to the URLs (`http://localhost:8080/<app>/`). Path routing on
-plain `localhost` matters for OAuth: Google sign-in, for example, accepts plain-`http` redirect
-URIs only on exactly `localhost`.
-
-**Path routing** sends `/<app>/...` to the app with the prefix stripped (and as
-`X-Forwarded-Prefix`). The app serves from `/`, but the links it builds must include the prefix,
-so it needs its base-path setting. Map it from hl in the app's env (single quotes keep your shell
-from expanding `${...}`):
+Set it per app (`hl set my-app routing=host`) or for every app (`hl set proxy routing=host`).
+With path routing the app serves from `/`, but the links it builds must include `/<app>`, so it
+needs its base-path setting, mapped from hl in its env (single quotes keep your shell from
+expanding `${...}`):
 
 ```sh
 hl set my-app 'env.MY_APP_BASE_PATH=${HL_PREFIX}' 'env.MY_APP_URL=${HL_URL}'
 ```
 
-`MY_APP_BASE_PATH` is a variable the app's compose file uses (e.g.
-`environment: BASE_PATH: ${MY_APP_BASE_PATH:-}`): an app's env reaches a container only through its
-compose file. Walkthrough: [an app that needs a base path](docs/guides/base-path-app.md).
-
-**What hl fills in.** `hl add`, `hl init` and `hl sync` look at the variables an app's compose file
-uses and map the common ones on their own: `<X>_BASE_PATH` gets `${HL_PREFIX}`, a matching
-`<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and `BACKUP_LOCATION`
-`${HL_DATA}/backups`. They say what they mapped, and end with a one-line hint for apps where they
-found no base-path variable. Other variables hl provides: `HL_APP`, `HL_HOST`, and `TZ` (this machine's time
-zone, unless you set one). Details: [Variables hl provides](docs/reference.md#variables-hl-provides).
-
-**Host routing** needs `<app>.localhost` to resolve to your machine. Browsers do this on their own;
-for other tools, or for a `proxy domain` of your own, add the names to `/etc/hosts` or your DNS.
+`hl add`, `hl init` and `hl sync` map the common ones (`<X>_BASE_PATH`, `<X>_URL`,
+`DATA_LOCATION`, ...) on their own and say so. Details, and what host routing needs:
+[routing](docs/reference.md#routing); walkthrough:
+[an app that needs a base path](docs/guides/base-path-app.md).
 
 ## Data folder
 

@@ -50,7 +50,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   settings (then starts every app), so apply hints say `hl up` wherever that is enough; `hl doctor`
   warns when the running proxy is behind hl.yml; an unknown app name exits 2 for every command;
   `hl rebuild --pull` prints one `==> <app>` header per app; `--wait-timeout` is gone (`--wait`
-  waits a fixed 2 minutes per app).
+  waits a fixed 2 minutes per app). The README keeps a short "Changing settings" and "Routing";
+  the detail is in docs/reference.md ("How `hl set` works", "Routing").
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install

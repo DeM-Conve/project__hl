@@ -102,6 +102,9 @@ These are absent, not necessarily rejected; see [status.md](status.md) for open 
 - TLS/HTTPS (the proxy has only an `:80` entrypoint) - see below for putting hl behind your own TLS proxy.
 - Authentication in front of apps; the Traefik dashboard (removed rather than exposed without a password).
 - Windows (use WSL 2).
+- Running apps on more than one machine.
+- Managing app secrets: they stay in each app's own `.env`, which hl reads but never writes.
+- Backups beyond keeping data in plain folders.
 
 ## HTTPS: your own TLS proxy in front
 
@@ -116,6 +119,3 @@ trust (Caddy, nginx, a NAS or router feature, a tunnel) in front of hl:
    `MY_APP_URL: https://apps.example.com${HL_PREFIX}`), since `${HL_URL}` is the plain-HTTP one.
 
 The details and examples are in [guides/behind-https.md](guides/behind-https.md).
-- Running apps on more than one machine.
-- Managing app secrets: they stay in each app's own `.env`, which hl reads but never writes.
-- Backups beyond keeping data in plain folders.

@@ -11,7 +11,7 @@ github.com/DeM-Conve/project__hl, MIT, module `github.com/DeM-Conve/project__hl`
 | File | Read it when |
 |---|---|
 | [README.md](README.md) | The user guide: install, everyday commands, changing settings, routing, data, troubleshooting. Keep it in sync with the code. |
-| [docs/reference.md](docs/reference.md) | The settings reference: every `hl set` key (app, proxy, homelab) with its default, built-in values, variables hl provides, env order, several homelabs (`name`), exit codes. Keep it in sync with the code. |
+| [docs/reference.md](docs/reference.md) | The settings reference: how `hl set` works, routing, every `hl set` key (app, proxy, homelab) with its default, built-in values, variables hl provides, env order, several homelabs (`name`), exit codes. Keep it in sync with the code. |
 | [docs/requirements.md](docs/requirements.md) | Before adding a feature or changing behaviour: hard rules and the decisions behind them. |
 | [docs/architecture.md](docs/architecture.md) | Before changing code: what each package does, how a command runs, what the generated files contain, env layering, per-command details. |
 | [docs/product-plan.md](docs/product-plan.md) | The v1 product task list (priorities, status) - pick work from here and tick it when done. |
