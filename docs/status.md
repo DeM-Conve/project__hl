@@ -28,7 +28,8 @@ here changes (a release, a pending item done, a question answered). Last reviewe
 - **Correctness fixes from the 2026-10-27 review**: `hl up` rebuilds images whose build args
   changed (`.hl/<app>/builds.json`); `hl up proxy` refuses a busy new port instead of taking
   the running proxy down; `compose+=` keeps the compose file hl found; `hl set <app> name=<new>`
-  renames an app with its data; `hl set proxy port=` says to `hl up` the apps too.
+  renames an app with its data; `hl set proxy port=` says to `hl up` the apps too; `hl add`
+  warns about a non-web service, and init/sync's base-path note is one line like add's.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
   the README's release badge and the "download from Releases" route don't work; `go install

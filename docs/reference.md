@@ -135,7 +135,8 @@ preferred names (`frontend`, `web`, `app`, `nginx`, `proxy`, `ui`) and publishes
 a common HTTP one (see [Built-in values](#built-in-values)) may be a database or a cache, which the
 HTTP proxy can't serve. Such a folder is listed with the commands to use instead:
 `hl add <folder> routing=none` to run it without the proxy, `hl add <folder>` to route it anyway,
-or `hl set ignore+=<folder name>` to stop seeing it.
+or `hl set ignore+=<folder name>` to stop seeing it. `hl add` routes such a service anyway and
+warns, naming `hl set <app> routing=none`.
 
 ### `name`
 

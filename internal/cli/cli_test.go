@@ -238,6 +238,20 @@ func TestAddMapsEnv(t *testing.T) {
 	contains(t, "old compose", r.errOut, "env not mapped")
 }
 
+// hl add warns about a service that doesn't look like a web app, as init and sync skip one.
+func TestAddWarnsAboutNonWebApps(t *testing.T) {
+	f := newFake(t)
+	db := f.app("db", `{"services":{"postgres":{"ports":[{"target":5432,"published":"5432"}]}}}`)
+	f.lab("lab", "apps: {}\n")
+	r := f.must("add", db)
+	contains(t, "add db", r.errOut, "warning: not a web app? (service postgres, port 5432) - run it without the proxy: hl set db routing=none")
+	lacks(t, "add db", r.out, "if its links break")
+	r = f.must("add", f.app("web", apiModel))
+	lacks(t, "add web", r.errOut, "not a web app")
+	r = f.must("add", f.app("db2", `{"services":{"postgres":{"ports":[{"target":5432}]}}}`), "routing=none")
+	lacks(t, "add db routing=none", r.errOut, "not a web app")
+}
+
 func TestRemove(t *testing.T) {
 	f := newFake(t)
 	blog := f.app("blog", webModel2)

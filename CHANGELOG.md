@@ -201,7 +201,11 @@ release differs from earlier builds of `main`.
   app's `HL_URL`; it now says `hl up proxy, then hl up`, like `domain` and `routing`.
 
 - `hl add`'s base-path note was three lines, shown even when it didn't apply; it is one `hint:`
-  line, shown only with path routing when no base-path variable was mapped.
+  line, shown only with path routing when no base-path variable was mapped. `hl init` and
+  `hl sync` print the same one line instead of their three-line note.
+- `hl add` of a service that doesn't look like a web app (none of the usual names, not a common
+  HTTP port - what makes `hl init` and `hl sync` skip a folder) routed it without a word; it now
+  warns and names `hl set <app> routing=none`.
 
 - `hl init` strips a folder-name prefix the projects folders share (`project__blog`,
   `project__wiki` -> apps `blog`, `wiki`): a prefix ending in `-`, `_` or `__` that at least two,

@@ -209,9 +209,9 @@ func applyPlan(out io.Writer, cfg *config.Config, plan []scan.Action) error {
 	}
 	if len(added) > 0 {
 		if len(noBase) > 0 && cfg.Proxy.Routing == config.RoutingPath {
-			fmt.Fprintf(out, "%snote:%s path routing serves each app under /<app>/; an app must support that base path.\n"+
-				"No base-path setting was found for %s: map ${HL_PREFIX} to its setting\n"+
-				"(hl set <app> env.<NAME>='${HL_PREFIX}'), or route it by host name: hl set <app> routing=host\n", yellow, reset, strings.Join(noBase, ", "))
+			// One line, as hl add says it.
+			fmt.Fprintf(out, "%shint:%s if links break under /<app>/ (%s): hl set <app> env.<BASE_PATH_VAR>='${HL_PREFIX}' (or routing=host)\n",
+				yellow, reset, strings.Join(noBase, ", "))
 		}
 		fmt.Fprintf(out, "start them: hl up %s\n", strings.Join(added, " "))
 	}

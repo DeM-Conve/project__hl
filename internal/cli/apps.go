@@ -146,7 +146,10 @@ the mapped ones; env.NAME= with no value leaves that variable out.`,
 				say("url: %s/", cfg.URL(name, &a))
 			}
 			printEnv(stdout, "", a.Env)
-			if cfg.Routing(&a) == config.RoutingPath && !mapsBasePath(a.Env) {
+			if cfg.Routing(&a) != config.RoutingNone && !scan.LooksWeb(a.Service, a.Port) {
+				// The heuristic hl init and hl sync skip such folders by.
+				warn("not a web app? (service %s, port %d) - run it without the proxy: hl set %s routing=none", a.Service, a.Port, name)
+			} else if cfg.Routing(&a) == config.RoutingPath && !mapsBasePath(a.Env) {
 				say("%shint:%s if its links break under %s: hl set %s env.<BASE_PATH_VAR>='${HL_PREFIX}' (or routing=host)",
 					yellow, reset, cfg.Prefix(name, &a), name)
 			}

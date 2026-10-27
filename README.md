@@ -186,8 +186,8 @@ compose file. Walkthrough: [an app that needs a base path](docs/guides/base-path
 **What hl fills in.** `hl add`, `hl init` and `hl sync` look at the variables an app's compose file
 uses and map the common ones on their own: `<X>_BASE_PATH` gets `${HL_PREFIX}`, a matching
 `<X>_URL` gets `${HL_URL}`, `DATA_LOCATION` gets `${HL_DATA}` and `BACKUP_LOCATION`
-`${HL_DATA}/backups`. They say what they mapped, and `hl add` ends with a hint when it found no
-base-path variable. Other variables hl provides: `HL_APP`, `HL_HOST`, and `TZ` (this machine's time
+`${HL_DATA}/backups`. They say what they mapped, and end with a one-line hint for apps where they
+found no base-path variable. Other variables hl provides: `HL_APP`, `HL_HOST`, and `TZ` (this machine's time
 zone, unless you set one). Details: [Variables hl provides](docs/reference.md#variables-hl-provides).
 
 **Host routing** needs `<app>.localhost` to resolve to your machine. Browsers do this on their own;

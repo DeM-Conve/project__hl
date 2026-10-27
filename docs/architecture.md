@@ -153,7 +153,10 @@ without a terminal (`stdinTerminal`, `golang.org/x/term`) it takes `Exposed`'s p
 `service=` only when no service has a preferred name (or `port=` when the service publishes several). Settings given to
 `hl add` skip the question. `hl add <folder> key=value...` takes `hl set <app>`'s keys (applied to the new
 `config.App` by `config.ApplyApp`, the same parsing as `hl set`) plus `name`; `env.NAME=` with no value is
-left out of the mapped env.
+left out of the mapped env. A routed service that fails `scan.LooksWeb` (what init/sync skip a
+folder for) gets a warning naming `routing=none` instead of the base-path hint, which (one line,
+the same in `applyPlan` for init and sync) is shown only with path routing when no value maps
+`${HL_PREFIX}`.
 `hl add` writes the picked `service` and `port` into `hl.yml` so later changes to the app's compose
 file don't silently move the route; `prepared` only detects them when `hl.yml` leaves them empty.
 Routing `none` needs neither.

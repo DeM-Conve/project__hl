@@ -472,8 +472,8 @@ func TestInitSharedPrefix(t *testing.T) {
 	if !strings.Contains(out, "app names  without project__ - the folders share it (--strip-prefix none keeps whole names)") {
 		t.Errorf("the plan should say it strips the shared prefix:\n%s", out)
 	}
-	if !strings.Contains(out, "or route it by host name: hl set <app> routing=host") {
-		t.Errorf("the base-path note should name the command:\n%s", out)
+	if !strings.Contains(out, "hint: if links break under /<app>/ (blog, plain, wiki): hl set <app> env.<BASE_PATH_VAR>='${HL_PREFIX}' (or routing=host)\n") {
+		t.Errorf("the base-path hint: one line, as hl add has it:\n%s", out)
 	}
 	cfg, err := config.Load(lab)
 	if err != nil {
