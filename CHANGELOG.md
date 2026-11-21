@@ -15,6 +15,10 @@ release differs from earlier builds of `main`.
 
 ### Added
 
+- `install.sh --source` builds hl from source instead of downloading a release: with Go if it
+  is installed, otherwise inside a `golang` Docker container, so a machine with only Docker can
+  install hl. The script does this on its own while the repository has no release.
+
 - `hl sync` follows a moved or renamed app folder: when an app's folder is gone and exactly one
   new folder routes the same service and port (and has the app's data volumes; folders its
   `${HL_DATA}` env puts there, such as `BACKUP_LOCATION`'s `backups`, and empty ones don't

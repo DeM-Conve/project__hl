@@ -84,7 +84,9 @@ it inside WSL 2 with Docker available there.
   `~/.local/bin`, or `/usr/local/bin` as root):
   `curl -fsSL https://raw.githubusercontent.com/DeM-Conve/project__hl/main/install.sh | sh`.
   Add `-s -- --version v0.1.0 --dir /usr/local/bin` (or set `HL_VERSION`, `HL_INSTALL_DIR`) to
-  pick a version or folder; sudo is used only if the folder isn't writable.
+  pick a version or folder; sudo is used only if the folder isn't writable. With `--source`, or
+  when there is no release yet, it builds hl from source instead: with Go if you have it,
+  otherwise in a `golang` Docker container, so Docker is all a machine needs.
 - **With Go** (1.21+): `go install github.com/DeM-Conve/project__hl/cmd/hl@latest`.
 - **By hand:** download the archive from
   [Releases](https://github.com/DeM-Conve/project__hl/releases), check it

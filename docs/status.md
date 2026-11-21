@@ -59,8 +59,9 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   nothing to change exits 0 without a terminal, and avoids port 80 when another homelab's
   proxy port can't be read; the app key `prefix` and `scan_depth` are cut (removed keys).
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
-  `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, `install.sh`,
-  the README's release badge and the "download from Releases" route don't work; `go install
+  `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, the README's
+  release badge and the "download from Releases" route don't work; `install.sh` builds from
+  source instead (Go, or a `golang` container when only Docker is installed), and `go install
   github.com/DeM-Conve/project__hl/cmd/hl@latest` does (it reports a pseudo-version such as
   `v0.0.0-20261016...`).
 - **Release tooling is ready**: `goreleaser check` and a snapshot build pass (linux/darwin x

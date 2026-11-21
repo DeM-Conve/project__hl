@@ -7,6 +7,9 @@
 # Options (or the environment variable after each):
 #   --version TAG   a release tag, e.g. v0.1.0               HL_VERSION   (default: the latest release)
 #   --dir DIR       where to put hl                          HL_INSTALL_DIR
+#   --source        build hl from source instead of downloading a release
+#                   (with Go if installed, otherwise in a golang Docker
+#                   container); used on its own when the repo has no release yet
 #                   (default: ~/.local/bin, or /usr/local/bin when run as root);
 #                   sudo is used only when DIR isn't writable
 #   -h, --help      show this help
@@ -25,6 +28,7 @@ user_dir=${HOME:-}/.local/bin   # default install folder
 root_dir=/usr/local/bin         # default install folder when run as root
 github=https://github.com
 github_api=https://api.github.com
+golang_image=golang:1.23-alpine # builds hl when there's no release (--source) and no Go
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
@@ -35,6 +39,7 @@ usage() { # the comment block at the top of this file
 }
 
 version=${HL_VERSION:-}
+source=
 dir=${HL_INSTALL_DIR:-}
 while [ $# -gt 0 ]; do
 	case $1 in
@@ -42,6 +47,7 @@ while [ $# -gt 0 ]; do
 		--version=*) version=${1#*=}; shift ;;
 		--dir) [ $# -ge 2 ] || die "--dir needs a folder"; dir=$2; shift 2 ;;
 		--dir=*) dir=${1#*=}; shift ;;
+		--source) source=1; shift ;;
 		-h | --help) usage; exit 0 ;;
 		*) die "unknown option: $1 (try --help)" ;;
 	esac
@@ -72,46 +78,81 @@ if [ "$os" = darwin ] && [ "$arch" = amd64 ] && [ "$(sysctl -n hw.optional.arm64
 	arch=arm64
 fi
 
-if has sha256sum; then
-	sha256() { sha256sum "$1" | cut -d' ' -f1; }
-elif has shasum; then
-	sha256() { shasum -a 256 "$1" | cut -d' ' -f1; }
-else
-	die "need sha256sum or shasum to verify the download"
-fi
-has tar || die "need tar"
-
 base=${HL_DOWNLOAD_URL:-}
 tmp=$(mktemp -d 2>/dev/null || mktemp -d -t hl-install)
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 1' INT TERM HUP
 
-if [ -z "$base" ]; then
-	if [ -z "$version" ]; then
-		fetch "$github_api/repos/$repo/releases/latest" "$tmp/latest.json" ||
-			die "couldn't look up the latest release of $repo (pass --version to pick one)"
+# No release to download (none published yet, or --source): build hl from source.
+if [ -z "$source" ] && [ -z "$base" ] && [ -z "$version" ]; then
+	if fetch "$github_api/repos/$repo/releases/latest" "$tmp/latest.json" 2>/dev/null; then
 		version=$(sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' "$tmp/latest.json" | head -n 1)
-		[ -n "$version" ] || die "couldn't find the latest release (pass --version to pick one)"
 	fi
-	case $version in v*) ;; *) version=v$version ;; esac
-	base="$github/$repo/releases/download/$version"
+	if [ -z "$version" ]; then
+		say "$repo has no release yet; building hl from source"
+		source=1
+	fi
 fi
-[ -n "$version" ] || die "set HL_VERSION (or --version) along with HL_DOWNLOAD_URL"
-case $version in v*) ;; *) version=v$version ;; esac
-archive="hl_${version#v}_${os}_${arch}.tar.gz"
 
-say "downloading hl $version for $os/$arch"
-fetch "$base/$archive" "$tmp/$archive" || die "couldn't download $base/$archive (does release $version exist?)"
-fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "couldn't download $base/checksums.txt"
+build_from_source() { # builds $tmp/hl
+	ref=${version:-latest}
+	case $ref in latest | v*) ;; *) ref=v$ref ;; esac
+	pkg="github.com/$repo/cmd/hl@$ref"
+	if has go; then
+		say "building $pkg with $(go version | cut -d' ' -f3)"
+		GOBIN="$tmp" CGO_ENABLED=0 go install "$pkg" || die "go install $pkg failed"
+	elif has docker; then
+		say "building $pkg in Docker (no Go here)"
+		# The container builds for this machine's OS and CPU and writes only to $tmp.
+		docker run --rm --user "$(id -u):$(id -g)" -v "$tmp:/out" \
+			-e HOME=/tmp -e GOPATH=/tmp/go -e GOCACHE=/tmp/cache -e CGO_ENABLED=0 \
+			-e GOOS="$os" -e GOARCH="$arch" \
+			"$golang_image" sh -c 'go install "$1" && cp "$(find /tmp/go/bin -name hl -type f)" /out/hl' sh "$pkg" ||
+			die "building hl in Docker failed (is Docker running?)"
+	else
+		die "no release to download, and neither Go nor Docker is installed to build hl"
+	fi
+}
 
-want=$(awk -v f="$archive" '$2 == f || $2 == "*" f { print $1 }' "$tmp/checksums.txt")
-[ -n "$want" ] || die "$archive is not in checksums.txt"
-got=$(sha256 "$tmp/$archive")
-[ "$got" = "$want" ] || die "checksum mismatch for $archive (got $got, want $want)"
-say "checksum ok"
+if [ -n "$source" ]; then
+	build_from_source
+else
+	if has sha256sum; then
+		sha256() { sha256sum "$1" | cut -d' ' -f1; }
+	elif has shasum; then
+		sha256() { shasum -a 256 "$1" | cut -d' ' -f1; }
+	else
+		die "need sha256sum or shasum to verify the download"
+	fi
+	has tar || die "need tar"
 
-tar -xzf "$tmp/$archive" -C "$tmp" hl || die "couldn't unpack $archive"
-"$tmp/hl" version >/dev/null 2>&1 || die "the downloaded hl doesn't run on this machine"
+	if [ -z "$base" ]; then
+		if [ -z "$version" ]; then
+			fetch "$github_api/repos/$repo/releases/latest" "$tmp/latest.json" ||
+				die "couldn't look up the latest release of $repo (pass --version to pick one)"
+			version=$(sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' "$tmp/latest.json" | head -n 1)
+			[ -n "$version" ] || die "couldn't find the latest release (pass --version to pick one)"
+		fi
+		case $version in v*) ;; *) version=v$version ;; esac
+		base="$github/$repo/releases/download/$version"
+	fi
+	[ -n "$version" ] || die "set HL_VERSION (or --version) along with HL_DOWNLOAD_URL"
+	case $version in v*) ;; *) version=v$version ;; esac
+	archive="hl_${version#v}_${os}_${arch}.tar.gz"
+
+	say "downloading hl $version for $os/$arch"
+	fetch "$base/$archive" "$tmp/$archive" || die "couldn't download $base/$archive (does release $version exist?)"
+	fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "couldn't download $base/checksums.txt"
+
+	want=$(awk -v f="$archive" '$2 == f || $2 == "*" f { print $1 }' "$tmp/checksums.txt")
+	[ -n "$want" ] || die "$archive is not in checksums.txt"
+	got=$(sha256 "$tmp/$archive")
+	[ "$got" = "$want" ] || die "checksum mismatch for $archive (got $got, want $want)"
+	say "checksum ok"
+
+	tar -xzf "$tmp/$archive" -C "$tmp" hl || die "couldn't unpack $archive"
+fi
+"$tmp/hl" version >/dev/null 2>&1 || die "the new hl doesn't run on this machine"
 
 if [ -z "$dir" ]; then
 	if [ "$(id -u)" = 0 ]; then
