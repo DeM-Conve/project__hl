@@ -317,7 +317,8 @@ warns. Kept apps are never re-mapped.
   up to `waitTimeout` until those services run and are healthy (or have no healthcheck); an
   unhealthy one fails at once with its last log lines (`unhealthy`). `compose start --wait` is
   not used: older compose versions hl supports don't have it. An interrupted restore leaves the
-  services stopped, with a hint. hl exits with the contract's 3 and 4 itself (`codedError`,
+  services stopped, with a hint. Empty stdout after a successful restore means
+  there was no data, so no safety backup (said so, not an error). hl exits with the contract's 3 and 4 itself (`codedError`,
   printed like any error, then `report` returns its code); any other failure is 1.
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.

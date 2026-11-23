@@ -35,6 +35,8 @@ the image is **`backup`**.
 - Progress and messages go to **stderr**; stdout carries only what the table says.
 - `restore` assumes the services in `backup.stop` are already stopped and the database service (if any)
   is running. Stopping and starting them is the caller's job (scripts/restore.sh or hl), see §5.
+- When there is no data yet, `restore` takes no safety backup and prints nothing on stdout; a
+  caller treats empty stdout after exit `0` as "no safety backup", not as an error.
 - **`latest`** is the newest archive whose tag is not `pre-restore`: undoing a restore (going
   back to a safety backup) is always an explicit choice, by name.
 - `restore` refuses an archive whose `app` differs, or whose `format` is newer than it understands.

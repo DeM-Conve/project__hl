@@ -458,8 +458,11 @@ func restore(ctx context.Context, cfg *config.Config, name, backup string, yes b
 	switch code := backupExit(rerr); {
 	case rerr == nil:
 		say("%srestored %s from %s%s", green, name, backup, reset)
+		// Nothing on stdout: there was no data yet, so the restore took no safety backup.
 		if safety := lastLine(out); safety != "" {
 			say("the data from before is in %s", safety)
+		} else {
+			say("no safety backup: there was no data before")
 		}
 		return serr
 	case code == defaults.BackupExitRolledBack:
