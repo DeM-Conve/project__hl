@@ -42,6 +42,12 @@ the image is **`backup`**.
 - `restore` refuses an archive whose `app` differs, or whose `format` is newer than it understands.
 - Exit codes: `0` ok, `1` failed, `2` usage error, `3` verify failed (archive bad, nothing changed),
   `4` restore failed and was rolled back (old data in place).
+- `create`, retention and `restore` never run at the same time: each takes an exclusive lock on
+  `/backups/.backup.lock` (`flock`) and waits for it. Otherwise a scheduled run during a restore can
+  dump a half-swapped database, or retention can delete the archive being restored.
+- A service that proxies to a `backup.stop` service (e.g. nginx in front of the backend) must look its
+  address up again after a restart (nginx: `resolver 127.0.0.11` and `proxy_pass` through a variable),
+  because a restarted container can come back with a new IP.
 
 ## 3. Archive
 
