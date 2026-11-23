@@ -22,8 +22,10 @@ release differs from earlier builds of `main`.
   and `--list <app>` lists the app's backups. `hl restore` verifies the archive, asks (`--yes`
   doesn't; without a terminal `--yes` is required), stops the services the `backup.stop` label
   names while the database keeps running, restores (the app takes a safety backup first and
-  rolls back on failure), starts them again and waits until they're healthy. Apps without the
-  contract are not touched, and nothing goes in `hl.yml`.
+  rolls back on failure), starts them again and waits until they're healthy. `latest` is the
+  newest backup that isn't a `pre-restore` safety backup. It exits 3 when the archive fails
+  verification and 4 when the restore was rolled back. Apps without the contract are not
+  touched, and nothing goes in `hl.yml`.
 
 - `install.sh --source` builds hl from source instead of downloading a release: with Go if it
   is installed, otherwise inside a `golang` Docker container, so a machine with only Docker can

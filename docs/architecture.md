@@ -309,14 +309,16 @@ warns. Kept apps are never re-mapped.
   named, one without the contract is a failure. `--list` prints `backup list`'s tab-separated
   lines as a table (sizes made readable). `restore` refuses without a terminal unless `--yes`
   (before any docker call), needs a `backup.stop` label and a running app (the database must be
-  up), resolves `latest` to the first line of `backup list` so the name it verifies, shows and
-  restores is the same, then: `verify` (exit 3: nothing changed), the question, `compose stop
-  <backup.stop>`, `restore` (exit 4: rolled back), `compose start <backup.stop>` whatever the
+  up), resolves `latest` to the first line of `backup list` whose tag isn't `pre-restore` (going back
+  to a safety backup is a choice made by name) so the name it verifies, shows and restores is the
+  same, then: `verify` (exit 3: nothing changed), the question, `compose stop <backup.stop>`,
+  `restore` (exit 4: rolled back), `compose start <backup.stop>` whatever the
   restore did, and `waitHealthy`, which polls the inventory every `defaults.HealthPollInterval`
   up to `waitTimeout` until those services run and are healthy (or have no healthcheck); an
   unhealthy one fails at once with its last log lines (`unhealthy`). `compose start --wait` is
   not used: older compose versions hl supports don't have it. An interrupted restore leaves the
-  services stopped, with a hint.
+  services stopped, with a hint. hl exits with the contract's 3 and 4 itself (`codedError`,
+  printed like any error, then `report` returns its code); any other failure is 1.
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.
 - `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the

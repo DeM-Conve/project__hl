@@ -35,6 +35,8 @@ the image is **`backup`**.
 - Progress and messages go to **stderr**; stdout carries only what the table says.
 - `restore` assumes the services in `backup.stop` are already stopped and the database service (if any)
   is running. Stopping and starting them is the caller's job (scripts/restore.sh or hl), see §5.
+- **`latest`** is the newest archive whose tag is not `pre-restore`: undoing a restore (going
+  back to a safety backup) is always an explicit choice, by name.
 - `restore` refuses an archive whose `app` differs, or whose `format` is newer than it understands.
 - Exit codes: `0` ok, `1` failed, `2` usage error, `3` verify failed (archive bad, nothing changed),
   `4` restore failed and was rolled back (old data in place).
@@ -70,6 +72,8 @@ Retention thins the flat folder to the newest per day / ISO week / month; tagged
 
 ## 5. Restore, end to end (what scripts/restore.sh and hl both do)
 
+0. `latest` resolves to a name first: the first line of `backup list` whose tag is not
+   `pre-restore` (§2), so the archive verified, confirmed and restored is the same one.
 1. `backup verify <name>`; stop on failure.
 2. Confirm with the user (skip with `--yes`).
 3. `docker compose stop <backup.stop services>`.

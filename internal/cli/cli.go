@@ -26,6 +26,8 @@ const (
 	exitOK    = 0
 	exitFail  = 1 // a command failed: hl's own check, or a docker or git command
 	exitUsage = 2 // wrong command, argument or flag
+	// hl restore also exits with the backup contract's defaults.BackupExitVerifyFailed (3) and
+	// defaults.BackupExitRolledBack (4).
 )
 
 // Where commands read and write; tests replace them.
@@ -77,6 +79,10 @@ func report(err error) int {
 		return st.code
 	}
 	printErr(err)
+	var ce *codedError
+	if errors.As(err, &ce) {
+		return ce.code
+	}
 	var u *usageError
 	if errors.As(err, &u) || isCobraUsage(err) {
 		return exitUsage
@@ -95,6 +101,16 @@ func printErr(err error) {
 type exitStatus struct{ code int }
 
 func (e *exitStatus) Error() string { return fmt.Sprintf("exit status %d", e.code) }
+
+// codedError is an error hl exits with its own code (after printing it): `hl restore` passes on
+// the backup contract's 3 (verify failed) and 4 (rolled back).
+type codedError struct {
+	err  error
+	code int
+}
+
+func (e *codedError) Error() string { return e.err.Error() }
+func (e *codedError) Unwrap() error { return e.err }
 
 // usageError is a wrong command, argument or flag.
 type usageError struct {

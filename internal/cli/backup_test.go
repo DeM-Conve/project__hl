@@ -162,7 +162,9 @@ func TestBackupList(t *testing.T) {
 
 func TestRestore(t *testing.T) {
 	f, _ := backupLab(t)
-	f.on(rule{Match: []string{runBackupArgs + " list"}, Stdout: newest + "\t10\t2026-11-23T03:00:00+00:00\t\n" + older + "\t10\t2026-11-22T03:00:00+00:00\tv2\n"})
+	// latest skips a newer safety backup: going back to one is a choice made by name.
+	f.on(rule{Match: []string{runBackupArgs + " list"}, Stdout: "notes-pre-restore-20261123-035000.tar.gz\t10\t2026-11-23T03:50:00+00:00\tpre-restore\n" +
+		newest + "\t10\t2026-11-23T03:00:00+00:00\t\n" + older + "\t10\t2026-11-22T03:00:00+00:00\tv2\n"})
 	f.on(rule{Match: []string{runBackupArgs + " restore"}, Stdout: "notes-pre-restore-20261123-040000.tar.gz\n"})
 
 	r := f.must("restore", "notes", "latest", "--yes")
@@ -231,7 +233,7 @@ func TestRestoreFailures(t *testing.T) {
 	// A bad archive: nothing stops.
 	f.on(rule{Match: []string{runBackupArgs + " verify bad.tar.gz"}, Stderr: "checksum mismatch\n", Exit: 3})
 	r := f.hl("restore", "notes", "bad.tar.gz", "--yes")
-	if r.code != 1 {
+	if r.code != 3 {
 		t.Fatalf("want a failure: %s", r)
 	}
 	contains(t, "verify failed", r.errOut, "bad.tar.gz failed verification; nothing changed", "checksum mismatch")
@@ -239,25 +241,38 @@ func TestRestoreFailures(t *testing.T) {
 		t.Errorf("stopped services for a bad archive: %v", f.calls())
 	}
 
-	// latest without backups.
+	// latest without backups, or with only safety backups.
 	r = f.hl("restore", "notes", "latest", "--yes")
 	if r.code != 1 || !strings.Contains(r.errOut, "notes has no backups") {
 		t.Errorf("latest without backups: %s", r)
+	}
+	f.on(rule{Match: []string{runBackupArgs + " list"}, Stdout: "notes-pre-restore-20261123-035000.tar.gz\t10\tx\tpre-restore\n"})
+	f.reset()
+	r = f.hl("restore", "notes", "latest", "--yes")
+	if r.code != 1 || !strings.Contains(r.errOut, "other than pre-restore") || len(f.find(runBackupArgs+" verify")) != 0 {
+		t.Errorf("latest with only a safety backup: %s", r)
 	}
 
 	// A rolled-back restore still starts the services again.
 	f.reset()
 	f.on(rule{Match: []string{runBackupArgs + " restore " + older}, Stderr: "restore failed, rolling back\n", Exit: 4})
 	r = f.hl("restore", "notes", older, "--yes")
-	if r.code != 1 {
-		t.Fatalf("want a failure: %s", r)
+	if r.code != 4 {
+		t.Fatalf("want exit 4: %s", r)
 	}
 	contains(t, "rolled back", r.errOut, "rolled back; the old data is in place")
 	if len(f.find("start web")) != 1 {
 		t.Errorf("services not started again after a failed restore: %v", f.calls())
 	}
 
-	// Any other failure: started again too, and the safety backup is named.
+	// The restore's own verify failing also passes 3 on.
+	f.reset()
+	f.on(rule{Match: []string{runBackupArgs + " restore third.tar.gz"}, Exit: 3})
+	if r = f.hl("restore", "notes", "third.tar.gz", "--yes"); r.code != 3 || len(f.find("start web")) != 1 {
+		t.Errorf("verify failed inside restore: %s", r)
+	}
+
+	// Any other failure: started again too, exit 1, and the safety backup is named.
 	f.reset()
 	f.on(rule{Match: []string{runBackupArgs + " restore other.tar.gz"}, Exit: 1})
 	r = f.hl("restore", "notes", "other.tar.gz", "--yes")

@@ -396,11 +396,18 @@ func restore(ctx context.Context, cfg *config.Config, name, backup string, yes b
 		if err != nil {
 			return fmt.Errorf("%s: listing the backups failed: %w", name, err)
 		}
-		as := archives(out)
-		if len(as) == 0 {
-			return withHint(fmt.Errorf("%s has no backups", name), "make one with `hl backup %s`", name)
+		// The newest that isn't a safety backup: undoing a restore is a choice made by name.
+		backup = ""
+		for _, a := range archives(out) {
+			if a.tag != defaults.BackupReservedTag {
+				backup = a.name
+				break
+			}
 		}
-		backup = as[0].name
+		if backup == "" {
+			return withHint(fmt.Errorf("%s has no backups (other than %s safety backups)", name, defaults.BackupReservedTag),
+				"make one with `hl backup %s`, or name a safety backup to go back to it (`hl backup --list %s`)", name, name)
+		}
 	}
 
 	// 1. Verify: a bad archive stops here, with nothing changed.
@@ -410,7 +417,8 @@ func restore(ctx context.Context, cfg *config.Config, name, backup string, yes b
 			return err
 		}
 		if backupExit(err) == defaults.BackupExitVerifyFailed {
-			return withHint(fmt.Errorf("%s: %s failed verification; nothing changed", name, backup), "pick another: `hl backup --list %s`", name)
+			return &codedError{code: defaults.BackupExitVerifyFailed,
+				err: withHint(fmt.Errorf("%s: %s failed verification; nothing changed", name, backup), "pick another: `hl backup --list %s`", name)}
 		}
 		return withHint(fmt.Errorf("%s: verifying %s failed: %w; nothing changed", name, backup, err), "`hl backup --list %s` names the backups", name)
 	}
@@ -455,9 +463,9 @@ func restore(ctx context.Context, cfg *config.Config, name, backup string, yes b
 		}
 		return serr
 	case code == defaults.BackupExitRolledBack:
-		rerr = withHint(fmt.Errorf("%s: the restore failed and was rolled back; the old data is in place", name), "its messages are above")
+		rerr = &codedError{code: code, err: withHint(fmt.Errorf("%s: the restore failed and was rolled back; the old data is in place", name), "its messages are above")}
 	case code == defaults.BackupExitVerifyFailed:
-		rerr = withHint(fmt.Errorf("%s: %s failed verification; nothing changed", name, backup), "pick another: `hl backup --list %s`", name)
+		rerr = &codedError{code: code, err: withHint(fmt.Errorf("%s: %s failed verification; nothing changed", name, backup), "pick another: `hl backup --list %s`", name)}
 	default:
 		rerr = withHint(fmt.Errorf("%s: the restore failed: %w", name, rerr),
 			"its messages are above; the safety backup it took first (tag %s) is in `hl backup --list %s`", defaults.BackupReservedTag, name)
