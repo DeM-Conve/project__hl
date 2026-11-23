@@ -58,6 +58,10 @@ here changes (a release, a pending item done, a question answered). Last reviewe
   folder; `hl unset` removes any key the file has at that scope, setting or not; `hl init` with
   nothing to change exits 0 without a terminal, and avoids port 80 when another homelab's
   proxy port can't be read; the app key `prefix` and `scan_depth` are cut (removed keys).
+- **Backups** (2026-11-23): `hl backup [app...] [--tag]`, `hl backup --list <app>` and
+  `hl restore <app> <backup|latest> [--yes]` drive apps that follow the
+  [backup contract](backup-contract.md) v1, read from their compose labels. Tested against the
+  fake `docker` only; open questions 18-21 are about the contract.
 - **No release yet.** There are no tags and no GitHub releases; everything in CHANGELOG.md is under
   `Unreleased`, ready to become 0.1.0. Until the first tag is pushed and published, the README's
   release badge and the "download from Releases" route don't work; `install.sh` builds from
@@ -149,3 +153,16 @@ Nothing below has been decided; ask the maintainer rather than picking an answer
     with exactly that body (Go's default `http.NotFound`) waits until the timeout (2 minutes)
     and fails. Rare for a web app's root; if it bites, the alternative is a response header the
     override adds to each app's route (which recreates every app's containers once).
+18. **`latest` in the backup contract** (2026-11-23): the contract doesn't say what `latest`
+    means. hl resolves it itself to the first line of `backup list` (newest first), so the archive
+    it verifies, names in the question and restores is the same one; that may be a `pre-restore`
+    safety backup. Should `latest` skip `pre-restore` (and should the contract say so)?
+19. **Label names** (2026-11-23): `backup.contract` and `backup.stop` are not namespaced
+    (labels conventionally use reverse-DNS, e.g. `org.example.backup.contract`). A clash with
+    another tool's labels is unlikely but possible; settle before other apps adopt v1.
+20. **Restoring a stopped app** (2026-11-23): `hl restore` refuses an app that isn't running,
+    since the contract needs the database up and `compose start` can't start containers that
+    don't exist. Should it start the database itself instead (an app without one, SQLite,
+    could restore while down)?
+21. **Exit codes** (2026-11-23): the contract's codes (3 verify failed, 4 rolled back) become hl's
+    exit 1, with the error saying which. Should hl pass them through for scripts?

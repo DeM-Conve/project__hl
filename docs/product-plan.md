@@ -133,10 +133,13 @@ in hl may assume the maintainer's setup.
 
 ## 6. Data (P1)
 
-- [ ] **`hl backup [app]`**: stops the app, archives `data/<app>` to `backups/<app>-<time>.tar.gz`,
-  starts it again; `--all`. Apps with their own backup service (database dumps) are left to it -
-  documented.
-- [ ] **`hl restore <app> <file>`**: confirms, stops, restores, starts; keeps a safety copy.
+- [x] **`hl backup [app...]`**: runs the app's own `backup create` for apps that follow the
+  [backup contract](backup-contract.md) (every one that has it by default; the rest listed as
+  skipped); `--tag`; `--list <app>`. Replaces the earlier sketch (hl archiving `data/<app>`
+  itself, `--all`): the app knows how to take a consistent backup of its database, hl doesn't.
+- [x] **`hl restore <app> <backup|latest>`**: the contract's restore - verify, confirm (`--yes`),
+  stop the `backup.stop` services, restore with the database up (the app keeps a pre-restore
+  safety backup and rolls back on failure), start them, wait for their healthchecks.
 - [ ] `hl data <app>` prints/opens the data folder; `hl status --size` shows data sizes.
 
 ## 7. Scripting and output (P1)
@@ -173,7 +176,7 @@ in hl may assume the maintainer's setup.
 
 - [x] README as a product page: pitch, comparison with similar tools, 60-second quickstart, full
   command and hl.yml reference, matching the merged code (no `<!-- slot ... -->` markers left;
-  `hl backup`/`hl restore` and Homebrew are marked as planned).
+  Homebrew is marked as planned).
 - [x] Guides (`docs/guides/`): "add an app that needs a base path", "move an existing compose app into hl",
   "reach it from your phone (bind 0.0.0.0)", "back up the homelab", "put hl behind HTTPS".
 - [x] Issue/PR templates, code of conduct (Contributor Covenant 2.1), security policy.

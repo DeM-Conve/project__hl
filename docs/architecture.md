@@ -293,6 +293,30 @@ warns. Kept apps are never re-mapped.
   app's `project` and `url`, have no source), except the homelab's app list, which is in
   columns (name, URL, folder), and paths inside the user's home
   folder print as `~/...` (`tilde`, also in `hl status` and `hl show proxy`).
+- `backup` and `restore` (`internal/cli/backup.go`) drive an app's own `backup` service as
+  [backup-contract.md](backup-contract.md) describes; nothing about it is in `hl.yml`.
+  `loadBackupApp` reads the app's model first, without preparing it (`project` + `Model`), and
+  `contract` looks for the `defaults.BackupService` service with `backup.contract` =
+  `defaults.BackupContractVersion` (`compose.Service.Labels`). An app without it is never
+  prepared, so `hl backup` writes nothing for it; a contract version hl doesn't know, or a
+  `backup.stop` naming a service the app doesn't have, is an error. Then the inventory ownership
+  check (`inv.mine`) and `prepare`, as `hl up` does, so the command runs in the same project
+  (`hl-<app>`) with the same override and env (`BACKUP_LOCATION=${HL_DATA}/backups` lands in
+  `data/<app>/backups`). Every call is `docker compose run --rm --no-deps -T backup backup <cmd>`
+  (`runBackup`; `-T` keeps the container's stderr off stdout, which carries only the command's
+  answer, and its stderr is shown as it comes). `backup` with no app loads every app first,
+  then runs `create` for the ones with the contract and lists the rest as skipped; with apps
+  named, one without the contract is a failure. `--list` prints `backup list`'s tab-separated
+  lines as a table (sizes made readable). `restore` refuses without a terminal unless `--yes`
+  (before any docker call), needs a `backup.stop` label and a running app (the database must be
+  up), resolves `latest` to the first line of `backup list` so the name it verifies, shows and
+  restores is the same, then: `verify` (exit 3: nothing changed), the question, `compose stop
+  <backup.stop>`, `restore` (exit 4: rolled back), `compose start <backup.stop>` whatever the
+  restore did, and `waitHealthy`, which polls the inventory every `defaults.HealthPollInterval`
+  up to `waitTimeout` until those services run and are healthy (or have no healthcheck); an
+  unhealthy one fails at once with its last log lines (`unhealthy`). `compose start --wait` is
+  not used: older compose versions hl supports don't have it. An interrupted restore leaves the
+  services stopped, with a hint.
 - `open` prints the URL and only launches `xdg-open`/`open` on macOS or when `DISPLAY` or
   `WAYLAND_DISPLAY` is set.
 - `shell` runs `bash` if the container has it, else `sh` (`defaults.Shell`, a fixed string; the

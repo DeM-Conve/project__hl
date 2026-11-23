@@ -348,6 +348,8 @@ and not settings (some have a command-line flag):
 | `<X>_BASE_PATH`, `<X>_URL`, `DATA_LOCATION`, `BACKUP_LOCATION` | the variables `hl add`, `init` and `sync` fill in ([Env hl fills in](#env-hl-fills-in)) |
 | `<config dir>/hl/home` | where `hl init` records the default homelab (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 | `bash`, else `sh` | the shell `hl shell` runs |
+| `backup` service, labels `backup.contract` (`1`) and `backup.stop` | how `hl backup` and `hl restore` find an app's [backup contract](backup-contract.md) and the services a restore stops |
+| every `1s`, up to `2m` | how often `hl restore` checks that the services it started again are running and healthy, and how long it waits |
 | GitHub releases API, `3s` | what `hl doctor` asks for the latest release, and how long it waits |
 
 **Environment variables hl reads:** `HL_HOME` (the homelab folder), `NO_COLOR` (no colours;
@@ -364,7 +366,7 @@ don't stop the command. All of these go to stderr.
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Success. |
-| `1` | A command failed: one of hl's own checks (including problems in `hl.yml`), or a docker or git command. |
+| `1` | A command failed: one of hl's own checks (including problems in `hl.yml`), or a docker or git command (an app's `backup` command too: the error says whether its archive failed verification or its restore was rolled back). |
 | `2` | Usage: an unknown command, a wrong argument or flag, an app name that isn't in `hl.yml` (for every command that takes one; the error says "did you mean" or lists the apps), or a setting or value `hl set`/`hl unset` can't take (the error names the key, e.g. `apps.my-app.routing`, and the hint the fix; `hl.yml` is left as it was). |
 | `128 + signal` | Interrupted; `130` for Ctrl-C. |
 | the shell's | `hl shell` exits with the status of the shell it ran. |

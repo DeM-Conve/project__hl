@@ -117,6 +117,8 @@ Commands that take `[app...]` act on every app when none is named; `up`, `down`,
 | `hl shell <app> [service]` | A shell in a running container (default: the service behind the proxy). |
 | `hl show [app\|proxy]` | Settings in effect and where each comes from; `--compose` prints the compose config as hl runs it. |
 | `hl set` / `hl unset` | Change settings: see [Changing settings](#changing-settings). |
+| `hl backup [app...]` | Back up the apps that follow the [backup contract](docs/backup-contract.md) (a `backup` service labelled `backup.contract: "1"`) with their own `backup create`; with no app, every app that has it, the rest listed as skipped. `--tag <tag>` tags the backups (retention never deletes them); `--list <app>` lists an app's backups instead. |
+| `hl restore <app> <backup\|latest>` | Restore an app that follows the contract: verify the archive, ask (`--yes` doesn't; without a terminal `--yes` is required), stop the services its `backup.stop` label names (the database keeps running), restore (the app takes a pre-restore safety backup and rolls back on failure), start them again and wait until they're healthy. The app must be running. |
 | `hl sync` | Make the homelab follow your projects folders: add new apps, remove ones whose folder is gone, follow a moved or renamed folder (the app keeps its name and data). Shows a plan and asks (n, or no terminal, only shows it); `--yes` applies it. |
 | `hl remove <app>` | Stop the app and forget it. Its data stays; `hl sync` won't add its folder back. |
 | `hl doctor` | Check Docker, compose, the settings, the proxy and every app; warns about an old Traefik or hl, and a running proxy started before hl.yml's last change. |
@@ -178,8 +180,12 @@ The app's folder is never edited: on every command hl writes `.hl/<app>/override
 to `docker compose` after the app's own files. `hl remove` keeps `data/<app>`; delete it yourself
 when you're sure.
 
-**Backups:** there is no backup command. Stop the apps (`hl down`), copy the homelab folder with
-ownership kept (`sudo rsync -a`), `hl up`. Guide: [back up the homelab](docs/guides/backup.md).
+**Backups:** an app that follows the [backup contract](docs/backup-contract.md) backs itself up
+(its own `backup` service, on its own schedule, into `BACKUP_LOCATION`, which hl puts in
+`data/<app>/backups`); `hl backup` and `hl restore` drive it on demand. hl reads all of it from
+the app's compose labels; nothing goes in `hl.yml`. For everything else, stop the apps
+(`hl down`), copy the homelab folder with ownership kept (`sudo rsync -a`), `hl up`. Guide:
+[back up the homelab](docs/guides/backup.md).
 
 ## Security
 

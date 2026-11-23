@@ -46,7 +46,10 @@ docker ps --filter label=com.docker.compose.project=hl-my-app   # find the datab
 docker exec hl-my-app-db-1 pg_dump -U postgres app > my-app.sql
 ```
 
-Many apps ship a backup service of their own for this; hl runs it like any other service.
+Many apps ship a backup service of their own for this; hl runs it like any other service. An
+app whose backup service follows the [backup contract](../backup-contract.md) (a `backup`
+service labelled `backup.contract: "1"`) can be backed up and restored with `hl backup my-app`
+and `hl restore my-app latest`, without stopping it.
 
 ## Restore
 
@@ -66,4 +69,6 @@ other options: the Docker volumes still point at the old folder. Remove them wit
 `docker volume rm hl-<app>_<volume>` (`hl-<name>-<app>_<volume>` in a homelab with a `name`);
 they are only pointers, the data is in `data/`.
 
-Planned: `hl backup` and `hl restore` commands that automate the steps above (not built yet).
+For an app that follows the backup contract, `hl restore <app> <backup|latest>` does this from
+one of its own backups instead (`hl backup --list <app>` lists them): it verifies the archive,
+asks, stops only the services that write the data, restores, and starts them again.
