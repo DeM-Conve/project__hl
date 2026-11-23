@@ -211,7 +211,8 @@ app's data (data/<app>/).
 		upCmd(), downCmd(), restartCmd(), rebuildCmd(),
 		logsCmd(), openCmd(), shellCmd(),
 		doctorCmd(), versionCmd(), syncCmd(),
-		setCmd(), unsetCmd(), showCmd())
+		setCmd(), unsetCmd(), showCmd(),
+		backupCmd(), restoreCmd())
 	c.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return &usageError{err: err, cmd: cmd.CommandPath()}
 	})

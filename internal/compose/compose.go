@@ -195,6 +195,8 @@ type Service struct {
 	DependsOn map[string]json.RawMessage `json:"depends_on"`
 	// Build is the resolved build section (context, dockerfile, args, ...), empty without one.
 	Build json.RawMessage `json:"build"`
+	// Labels are the service's labels (compose resolves the list form to a map).
+	Labels map[string]string `json:"labels"`
 }
 
 // BuildHashes is, for each service with a build section, a hash of that section as compose

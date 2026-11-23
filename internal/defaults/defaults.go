@@ -261,3 +261,32 @@ var CandidateProjects = []string{"code", "projects", "src"}
 // ConfigVersion is the hl.yml format this hl writes and reads. Files without a `version:` line
 // are the older, unversioned format (0) and are upgraded the next time hl edits them.
 const ConfigVersion = 1
+
+// The backup contract (docs/backup-contract.md): `hl backup` and `hl restore` drive an app's own
+// `backup` service, found by its compose labels. Nothing about it is in hl.yml.
+const (
+	// BackupService is the compose service that implements the contract.
+	BackupService = "backup"
+	// BackupContractLabel on that service holds the contract version; BackupContractVersion is
+	// the one hl drives.
+	BackupContractLabel   = "backup.contract"
+	BackupContractVersion = "1"
+	// BackupStopLabel lists the services (comma-separated) a restore stops and starts again.
+	BackupStopLabel = "backup.stop"
+	// BackupCommand is the executable inside the backup image.
+	BackupCommand = "backup"
+	// BackupLatest stands for the newest archive in `hl restore <app> latest`.
+	BackupLatest = "latest"
+	// BackupTagPattern is what --tag accepts; BackupReservedTag is the safety backup's own tag.
+	BackupTagPattern  = `^[a-z0-9-]+$`
+	BackupReservedTag = "pre-restore"
+	// Exit codes of the backup command: the archive failed verification (nothing changed), and
+	// a restore failed and was rolled back (the old data is in place).
+	BackupExitVerifyFailed = 3
+	BackupExitRolledBack   = 4
+	// BackupContractURL is where an app's author reads the contract.
+	BackupContractURL = "https://github.com/DeM-Conve/project__hl/blob/main/docs/backup-contract.md"
+	// HealthPollInterval is how often `hl restore` asks Docker whether the services it started
+	// again are running and healthy (within WaitTimeout).
+	HealthPollInterval = time.Second
+)
