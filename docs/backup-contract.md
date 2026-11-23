@@ -42,8 +42,8 @@ the image is **`backup`**.
 ## 3. Archive
 
 - Name: **`<app>-[<tag>-]YYYYmmdd-HHMMSS.tar.gz`** (UTC is not required; local time in `TZ`), directly in
-  `BACKUP_LOCATION` (no daily/weekly subfolders). `<app>` is a fixed slug: `gambit.me`, `lexicon.me`,
-  `pardon.me`, `tierlist.fm`. Tags: `[a-z0-9-]+`; `pre-restore` is reserved for the safety backup.
+  `BACKUP_LOCATION` (no daily/weekly subfolders). `<app>` is the app's fixed slug (e.g. `example.app`).
+  Tags: `[a-z0-9-]+`; `pre-restore` is reserved for the safety backup.
 - Contents:
   - `backup-info.txt` (the manifest), `key=value` lines:
     ```
