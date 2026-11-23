@@ -186,13 +186,6 @@ func TestRestore(t *testing.T) {
 		t.Errorf("only the backup.stop services stop, the database stays up: %v", stops)
 	}
 
-	// No data before: no safety backup, and nothing on stdout - not an error.
-	f.reset()
-	f.on(rule{Match: []string{runBackupArgs + " restore empty.tar.gz"}, Stderr: "no data yet, no safety backup\n"})
-	r = f.must("restore", "notes", "empty.tar.gz", "--yes")
-	contains(t, "restore without data", r.out, "restored notes from empty.tar.gz", "no safety backup: there was no data before")
-	lacks(t, "restore without data", r.out, "the data from before is in")
-
 	// A named backup isn't looked up in the list.
 	f.reset()
 	f.must("restore", "notes", older, "--yes")
@@ -329,4 +322,13 @@ func TestRestoreBadStopLabel(t *testing.T) {
 		t.Fatalf("want a failure: %s", r)
 	}
 	contains(t, "no label", r.errOut, "has no backup.stop label")
+}
+
+// No data before: the restore takes no safety backup and prints nothing on stdout - not an error.
+func TestRestoreWithoutSafetyBackup(t *testing.T) {
+	f, _ := backupLab(t)
+	f.on(rule{Match: []string{runBackupArgs + " restore"}, Stderr: "no data yet, no safety backup\n"})
+	r := f.must("restore", "notes", older, "--yes")
+	contains(t, "restore without data", r.out, "restored notes from "+older, "no safety backup: there was no data before")
+	lacks(t, "restore without data", r.out, "the data from before is in")
 }
