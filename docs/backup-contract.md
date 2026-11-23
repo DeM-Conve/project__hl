@@ -4,9 +4,8 @@ One way for a self-hosted app to take, list, verify and restore backups, so a pl
 user, the app's own `scripts/backup.sh` / `scripts/restore.sh`, and `hl backup` / `hl restore` all drive
 it the same way. Nothing in it is hl-specific: an app that follows it works without hl.
 
-Implemented by gambit.me, lexicon.me, pardon.me and tierlist.fm. lexicon.me's `backup` service (step 71)
-is the model; the three Postgres apps move from `prodrigestivill/postgres-backup-local` to their own
-`backup` image that follows this contract.
+An app implements it with its own small `backup` image (Postgres apps: `pg_dump`/`psql`; SQLite apps:
+`VACUUM INTO`), scheduled with supercronic.
 
 ## 1. Discovery
 
@@ -49,7 +48,7 @@ the image is **`backup`**.
   - `backup-info.txt` (the manifest), `key=value` lines:
     ```
     format=1
-    app=pardon.me
+    app=example.app
     app_version=<version or git sha if known, else unknown>
     created=2026-11-23T03:30:00+05:30
     db=postgres            # postgres | sqlite
@@ -58,9 +57,9 @@ the image is **`backup`**.
     sha256.db.sql=<hex>    # one sha256.<path> line per payload file
     ```
   - Payload: Postgres apps `db.sql` (plain `pg_dump --no-owner --no-privileges`); SQLite apps the
-    snapshot file(s) by their own names (lexicon.me: `user.db`, taken with `VACUUM INTO`).
+    snapshot file(s) by their own names (e.g. `user.db`, taken with `VACUUM INTO`).
 - Not in a backup: `.env` and other secrets. An app whose data is encrypted with a key from `.env`
-  (gambit.me's TokenCipher) says so in its README next to "Backup & restore".
+   says so in its README next to "Backup & restore".
 
 ## 4. Settings (env, with defaults; old names keep working as fallbacks)
 
@@ -80,8 +79,8 @@ Retention thins the flat folder to the newest per day / ISO week / month; tagged
 
 ## 6. Older backups
 
-Each app's `backup restore` also accepts its own pre-contract files (the old `*.sql.gz` from
-`postgres-backup-local` / `scripts/backup.sh`, including those under `daily/ weekly/ monthly/ last/`),
+Each app's `backup restore` also accepts its own pre-contract files (e.g. the old `*.sql.gz` from
+`postgres-backup-local` or an earlier `scripts/backup.sh`, including those under `daily/ weekly/ monthly/ last/`),
 treating them as `format=0`. `backup list` shows them too, after the contract archives.
 
 ## 7. hl
@@ -94,5 +93,4 @@ Nothing in hl.yml; everything comes from the compose labels.
 
 ## Out of scope (v1)
 
-Off-site copies / encryption of archives, backing up `.env`, a shared base image across the four apps
-(LATER: the three Postgres images are near copies), restore across apps, an HTTP backup API in the apps.
+Off-site copies / encryption of archives, backing up `.env`, a shared base image across apps, restore across apps, an HTTP backup API in the apps.
